@@ -178,6 +178,7 @@ fixtures = [
                     "POS Profile-posa_allow_return",
                     "POS Profile-posa_col_1",
                     "POS Profile-posa_scale_barcode_start",
+                    "POS Profile-custom_barcode_type",
                     "Sales Invoice-posa_is_printed",
                     "POS Profile-posa_local_storage",
                     "POS Profile-posa_cash_mode_of_payment",

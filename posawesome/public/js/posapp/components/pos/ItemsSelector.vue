@@ -340,10 +340,76 @@ export default {
       }
     },
     enter_event() {
+      // --- SCALE BARCODE LOGIC (NEW FORMAT: DDIIIIIWWWWC) ---
+      // Check scale barcode FIRST, before checking filtered items
+      if (this.first_search && (this.first_search.length === 12 || this.first_search.length === 13)) {
+        const scaleData = this.parseScaleBarcode(this.first_search);
+        if (scaleData) {
+          if (!this.pos_profile.custom_barcode_type) {
+            evntBus.$emit("show_mesage", {
+              text: "Please set Custom Barcode Type in POS Profile",
+              color: "error",
+            });
+            frappe.utils.play_sound("error");
+            return;
+          }
+          
+          if (!this.items || this.items.length === 0) {
+            evntBus.$emit("show_mesage", {
+              text: "Items not loaded yet. Please wait...",
+              color: "error",
+            });
+            frappe.utils.play_sound("error");
+            return;
+          }
+          
+          const item = this.items.find(it => it.item_code.endsWith(scaleData.item_code));
+          if (item) {
+            let qty = 1, rate = item.rate;
+            if (this.pos_profile.custom_barcode_type === "Weight Code") {
+              qty = scaleData.value / 1000;
+            } else if (this.pos_profile.custom_barcode_type === "Item Price") {
+              rate = scaleData.value / 100;
+            }
+            // Create new item with calculated values - explicitly set rate to override default
+            const newItem = Object.assign({}, item, {
+              qty: qty,
+              rate: rate,
+            });
+            // Ensure price_list_rate is also set so it's used correctly in get_new_item
+            newItem.price_list_rate = rate;
+            // Flag to prevent update_item_detail from overriding our custom rate
+            newItem.posa_custom_barcode_rate = true;
+            this.add_item(newItem);
+            evntBus.$emit("show_mesage", {
+              text: `Added: ${item.item_name} (Qty: ${qty.toFixed(3)}, Rate: ${this.formtCurrency(rate)})`,
+              color: "success",
+            });
+            frappe.utils.play_sound("submit");
+            this.search = null;
+            this.first_search = null;
+            this.debounce_search = null;
+            this.qty = 1;
+            this.$refs.debounce_search && this.$refs.debounce_search.focus();
+            return;
+          } else {
+            // Item not found with scale barcode
+            evntBus.$emit("show_mesage", {
+              text: `Item not found ending with: ${scaleData.item_code}`,
+              color: "error",
+            });
+            frappe.utils.play_sound("error");
+            return;
+          }
+        }
+      }
+      // --- END SCALE BARCODE LOGIC ---
+      
       let match = false;
       if (!this.filtred_items.length || !this.first_search) {
         return;
       }
+      
       const qty = this.get_item_qty(this.first_search);
       const new_item = { ...this.filtred_items[0] };
       new_item.qty = flt(qty);
@@ -486,6 +552,69 @@ export default {
       });
     },
     trigger_onscan(sCode) {
+      // --- SCALE BARCODE LOGIC (NEW FORMAT: DDIIIIIWWWWC) ---
+      if (sCode && (sCode.length === 12 || sCode.length === 13)) {
+        const scaleData = this.parseScaleBarcode(sCode);
+        if (scaleData) {
+          if (!this.pos_profile.custom_barcode_type) {
+            evntBus.$emit("show_mesage", {
+              text: "Please set Custom Barcode Type in POS Profile",
+              color: "error",
+            });
+            frappe.utils.play_sound("error");
+            return;
+          }
+          
+          if (!this.items || this.items.length === 0) {
+            evntBus.$emit("show_mesage", {
+              text: "Items not loaded yet. Please wait...",
+              color: "error",
+            });
+            frappe.utils.play_sound("error");
+            return;
+          }
+          
+          const item = this.items.find(it => it.item_code.endsWith(scaleData.item_code));
+          if (item) {
+            let qty = 1, rate = item.rate;
+            if (this.pos_profile.custom_barcode_type === "Weight Code") {
+              qty = scaleData.value / 1000;
+            } else if (this.pos_profile.custom_barcode_type === "Item Price") {
+              rate = scaleData.value / 100;
+            }
+            // Create new item with calculated values - explicitly set rate to override default
+            const newItem = Object.assign({}, item, {
+              qty: qty,
+              rate: rate,
+            });
+            // Ensure price_list_rate is also set so it's used correctly in get_new_item
+            newItem.price_list_rate = rate;
+            // Flag to prevent update_item_detail from overriding our custom rate
+            newItem.posa_custom_barcode_rate = true;
+            this.add_item(newItem);
+            evntBus.$emit("show_mesage", {
+              text: `Added: ${item.item_name} (Qty: ${qty.toFixed(3)}, Rate: ${this.formtCurrency(rate)})`,
+              color: "success",
+            });
+            frappe.utils.play_sound("submit");
+            this.debounce_search = null;
+            this.search = null;
+            this.first_search = null;
+            this.qty = 1;
+            this.$refs.debounce_search && this.$refs.debounce_search.focus();
+            return;
+          } else {
+            evntBus.$emit("show_mesage", {
+              text: `Item not found ending with: ${scaleData.item_code}`,
+              color: "error",
+            });
+            frappe.utils.play_sound("error");
+            return;
+          }
+        }
+      }
+      // --- END SCALE BARCODE LOGIC ---
+      
       if (this.filtred_items.length == 0) {
         evntBus.$emit("show_mesage", {
           text: `No Item has this barcode "${sCode}"`,
@@ -519,6 +648,35 @@ export default {
       permute(words);
 
       return combinations;
+    },
+    // Parse scale barcode: DDIIIIIWWWWC or DDIIIIIPPPPC (C is optional)
+    parseScaleBarcode(barcode) {
+      // Must be 12 or 13 chars (DDIIIIIWWWWC) - 2 dept + 5 item + 5 value + 1 type (optional)
+      if (!barcode || (barcode.length !== 12 && barcode.length !== 13)) {
+        return null;
+      }
+      
+      const dept = barcode.substr(0, 2);
+      const itemCode = barcode.substr(2, 5);
+      const value = barcode.substr(7, 5); // 5 digits for weight/price
+      const typeChar = barcode.length === 13 ? barcode.substr(12, 1) : ""; // C (optional)
+      
+      // Validate that value is numeric
+      if (isNaN(value) || value === "") {
+        return null;
+      }
+      
+      const numValue = parseFloat(value);
+      if (isNaN(numValue)) {
+        return null;
+      }
+      
+      return {
+        department: dept,
+        item_code: itemCode,
+        value: numValue,
+        typeChar: typeChar,
+      };
     },
   },
 

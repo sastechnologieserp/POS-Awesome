@@ -1048,7 +1048,9 @@ export default {
       new_item.discount_amount = 0;
       new_item.discount_percentage = 0;
       new_item.discount_amount_per_item = 0;
-      new_item.price_list_rate = item.rate;
+      // Use price_list_rate if set (from scale barcode), otherwise use rate
+      new_item.price_list_rate = item.price_list_rate || item.rate;
+      new_item.rate = item.rate || item.price_list_rate || item.rate;
       new_item.qty = item.qty;
       new_item.uom = item.uom ? item.uom : item.stock_uom;
       new_item.actual_batch_qty = "";
@@ -1811,7 +1813,8 @@ export default {
               if (
                 !item.is_free_item &&
                 !item.posa_is_offer &&
-                !item.posa_is_replace
+                !item.posa_is_replace &&
+                !item.posa_custom_barcode_rate  // Don't override rate from scale barcode
               ) {
                 item.price_list_rate = data.price_list_rate;
               }

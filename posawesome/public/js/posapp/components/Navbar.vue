@@ -22,6 +22,24 @@
       </v-toolbar-title>
 
       <v-spacer></v-spacer>
+      <v-btn
+        color="success"
+        dark
+        small
+        @click="open_pay_in_dialog"
+        class="mr-2"
+      >
+        {{ __('Pay In') }}
+      </v-btn>
+      <v-btn
+        color="error"
+        dark
+        small
+        @click="open_pay_out_dialog"
+        class="mr-2"
+      >
+        {{ __('Pay Out') }}
+      </v-btn>
       <v-btn style="cursor: unset" text color="primary">
         <span right>{{ pos_profile.name }}</span>
       </v-btn>
@@ -134,6 +152,90 @@
         <v-card-text>{{ freezeMsg }}</v-card-text>
       </v-card>
     </v-dialog>
+    <!-- Pay In Dialog -->
+    <v-dialog v-model="payInDialog" persistent max-width="500">
+      <v-card>
+        <v-card-title class="headline primary--text">
+          {{ __('Pay In') }}
+        </v-card-title>
+        <v-card-text>
+          <v-container>
+            <v-row>
+              <v-col cols="12">
+                <v-text-field
+                  v-model="payInAmount"
+                  :label="__('Amount')"
+                  type="number"
+                  outlined
+                  dense
+                  required
+                  :rules="[v => !!v || __('Amount is required'), v => v > 0 || __('Amount must be greater than 0')]"
+                ></v-text-field>
+              </v-col>
+              <v-col cols="12">
+                <v-textarea
+                  v-model="payInNote"
+                  :label="__('Note')"
+                  outlined
+                  rows="3"
+                ></v-textarea>
+              </v-col>
+            </v-row>
+          </v-container>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="error" text @click="close_pay_in_dialog">
+            {{ __('Cancel') }}
+          </v-btn>
+          <v-btn color="primary" dark @click="submit_pay_in">
+            {{ __('Submit') }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+    <!-- Pay Out Dialog -->
+    <v-dialog v-model="payOutDialog" persistent max-width="500">
+      <v-card>
+        <v-card-title class="headline primary--text">
+          {{ __('Pay Out') }}
+        </v-card-title>
+        <v-card-text>
+          <v-container>
+            <v-row>
+              <v-col cols="12">
+                <v-text-field
+                  v-model="payOutAmount"
+                  :label="__('Amount')"
+                  type="number"
+                  outlined
+                  dense
+                  required
+                  :rules="[v => !!v || __('Amount is required'), v => v > 0 || __('Amount must be greater than 0')]"
+                ></v-text-field>
+              </v-col>
+              <v-col cols="12">
+                <v-textarea
+                  v-model="payOutNote"
+                  :label="__('Note')"
+                  outlined
+                  rows="3"
+                ></v-textarea>
+              </v-col>
+            </v-row>
+          </v-container>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="error" text @click="close_pay_out_dialog">
+            {{ __('Cancel') }}
+          </v-btn>
+          <v-btn color="primary" dark @click="submit_pay_out">
+            {{ __('Submit') }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </nav>
 </template>
 
@@ -164,6 +266,12 @@ export default {
       freezeTitle: '',
       freezeMsg: '',
       last_invoice: '',
+      payInDialog: false,
+      payInAmount: '',
+      payInNote: '',
+      payOutDialog: false,
+      payOutAmount: '',
+      payOutNote: '',
     };
   },
   methods: {
@@ -226,6 +334,92 @@ export default {
         },
         true
       );
+    },
+    open_pay_in_dialog() {
+      this.payInAmount = '';
+      this.payInNote = '';
+      this.payInDialog = true;
+    },
+    close_pay_in_dialog() {
+      this.payInDialog = false;
+      this.payInAmount = '';
+      this.payInNote = '';
+    },
+    submit_pay_in() {
+      if (!this.payInAmount || this.payInAmount <= 0) {
+        this.show_mesage({
+          text: __('Please enter a valid amount'),
+          color: 'error',
+        });
+        return;
+      }
+      const vm = this;
+      frappe.call({
+        method: 'posawesome.posawesome.api.posapp.create_petty_cash_in',
+        args: {
+          amount: this.payInAmount,
+          note: this.payInNote || '',
+        },
+        callback: function (r) {
+          if (!r.exc && r.message) {
+            vm.show_mesage({
+              text: __('Pay In recorded successfully'),
+              color: 'success',
+            });
+            frappe.utils.play_sound('submit');
+            vm.close_pay_in_dialog();
+          } else {
+            frappe.utils.play_sound('error');
+            vm.show_mesage({
+              text: __('Failed to record Pay In'),
+              color: 'error',
+            });
+          }
+        },
+      });
+    },
+    open_pay_out_dialog() {
+      this.payOutAmount = '';
+      this.payOutNote = '';
+      this.payOutDialog = true;
+    },
+    close_pay_out_dialog() {
+      this.payOutDialog = false;
+      this.payOutAmount = '';
+      this.payOutNote = '';
+    },
+    submit_pay_out() {
+      if (!this.payOutAmount || this.payOutAmount <= 0) {
+        this.show_mesage({
+          text: __('Please enter a valid amount'),
+          color: 'error',
+        });
+        return;
+      }
+      const vm = this;
+      frappe.call({
+        method: 'posawesome.posawesome.api.posapp.create_petty_cash_out',
+        args: {
+          amount: this.payOutAmount,
+          note: this.payOutNote || '',
+        },
+        callback: function (r) {
+          if (!r.exc && r.message) {
+            vm.show_mesage({
+              text: __('Pay Out recorded successfully'),
+              color: 'success',
+            });
+            frappe.utils.play_sound('submit');
+            vm.close_pay_out_dialog();
+          } else {
+            frappe.utils.play_sound('error');
+            vm.show_mesage({
+              text: __('Failed to record Pay Out'),
+              color: 'error',
+            });
+          }
+        },
+      });
     },
   },
   created: function () {

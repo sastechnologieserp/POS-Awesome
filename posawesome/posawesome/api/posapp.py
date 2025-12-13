@@ -1815,3 +1815,65 @@ def get_sales_invoice_child_table(sales_invoice, sales_invoice_item):
         "Sales Invoice Item", {"parent": parent_doc.name, "name": sales_invoice_item}
     )
     return child_doc
+
+
+@frappe.whitelist()
+def create_petty_cash_in(amount, note):
+    """Create a Petty Cash In record"""
+    try:
+        company = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value("Global Defaults", "default_company")
+        if not company:
+            frappe.throw(_("Please set a default company"))
+        
+        # Create parent document with child record
+        parent_doc = frappe.get_doc({
+            "doctype": "Petty Cash Entry",
+            "entry_type": "Pay In",
+            "posting_date": nowdate(),
+            "company": company,
+            "user": frappe.session.user,
+        })
+        
+        # Add child record
+        parent_doc.append("petty_cash_in", {
+            "amount": flt(amount),
+            "note": cstr(note) if note else ""
+        })
+        
+        parent_doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+        return {"status": "success", "name": parent_doc.name}
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Create Petty Cash In Error")
+        frappe.throw(_("Failed to create Petty Cash In: {0}").format(str(e)))
+
+
+@frappe.whitelist()
+def create_petty_cash_out(amount, note):
+    """Create a Petty Cash Out record"""
+    try:
+        company = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value("Global Defaults", "default_company")
+        if not company:
+            frappe.throw(_("Please set a default company"))
+        
+        # Create parent document with child record
+        parent_doc = frappe.get_doc({
+            "doctype": "Petty Cash Entry",
+            "entry_type": "Pay Out",
+            "posting_date": nowdate(),
+            "company": company,
+            "user": frappe.session.user,
+        })
+        
+        # Add child record
+        parent_doc.append("petty_cash_out", {
+            "amount": flt(amount),
+            "note": cstr(note) if note else ""
+        })
+        
+        parent_doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+        return {"status": "success", "name": parent_doc.name}
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Create Petty Cash Out Error")
+        frappe.throw(_("Failed to create Petty Cash Out: {0}").format(str(e)))
