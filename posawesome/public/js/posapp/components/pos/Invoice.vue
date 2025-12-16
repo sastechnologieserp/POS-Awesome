@@ -750,7 +750,7 @@
                 color="warning"
                 dark
                 @click="get_draft_invoices"
-                >{{ __("Held") }}</v-btn
+                >{{ __("HOLD") }}</v-btn
               >
             </v-col>
             <v-col
@@ -775,7 +775,7 @@
                 color="secondary"
                 dark
                 @click="open_returns"
-                >{{ __("Return") }}</v-btn
+                >{{ __("Release") }}</v-btn
               >
             </v-col>
             <v-col cols="6" class="pa-1">

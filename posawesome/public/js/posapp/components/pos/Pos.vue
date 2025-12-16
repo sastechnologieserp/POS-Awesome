@@ -145,6 +145,7 @@ export default {
         });
     },
     submit_closing_pos(data) {
+      const vm = this;
       frappe
         .call(
           'posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.submit_closing_shift',
@@ -158,11 +159,28 @@ export default {
               text: `POS Shift Closed`,
               color: 'success',
             });
+            // Print the closing shift report after successful submission
+            vm.print_closing_shift_report(r.message);
             this.check_opening_entry();
           } else {
             console.log(r);
           }
         });
+    },
+    print_closing_shift_report(closing_shift_name) {
+      const url =
+        frappe.urllib.get_base_url() +
+        '/printview?doctype=POS%20Closing%20Shift&name=' +
+        closing_shift_name +
+        '&trigger_print=1';
+      const printWindow = window.open(url, 'Print');
+      printWindow.addEventListener(
+        'load',
+        function() {
+          printWindow.print();
+        },
+        true
+      );
     },
     get_offers(pos_profile) {
       return frappe
