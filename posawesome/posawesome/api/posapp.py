@@ -369,6 +369,17 @@ def get_items_groups():
     )
 
 
+@frappe.whitelist()
+def get_price_lists():
+    """Get all selling price lists"""
+    return frappe.get_all(
+        "Price List",
+        filters={"selling": 1, "enabled": 1},
+        fields=["name", "currency"],
+        order_by="name",
+    )
+
+
 def get_customer_groups(pos_profile):
     customer_groups = []
     if pos_profile.get("customer_groups"):

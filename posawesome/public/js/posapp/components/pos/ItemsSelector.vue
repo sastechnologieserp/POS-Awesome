@@ -127,7 +127,7 @@
     </v-card>
     <v-card class="cards mb-0 mt-3 pa-2 grey lighten-5">
       <v-row no-gutters align="center" justify="center">
-        <v-col cols="12">
+        <v-col cols="6">
           <v-select
             :items="items_group"
             :label="frappe._('Items Group')"
@@ -137,6 +137,27 @@
             v-model="item_group"
             v-on:change="search_onchange"
           ></v-select>
+        </v-col>
+        <v-col cols="6" class="pl-2">
+          <v-select
+            :items="price_lists"
+            :label="frappe._('Price List')"
+            dense
+            outlined
+            hide-details
+            v-model="selected_price_list"
+            item-text="name"
+            item-value="name"
+            return-object
+            v-on:change="on_price_list_change"
+          >
+            <template v-slot:item="{ item }">
+              <span>{{ item.name }} <span v-if="item.currency">({{ item.currency }})</span></span>
+            </template>
+            <template v-slot:selection="{ item }">
+              <span>{{ item.name }} <span v-if="item.currency">({{ item.currency }})</span></span>
+            </template>
+          </v-select>
         </v-col>
         <v-col cols="3" class="mt-1">
           <v-btn-toggle
@@ -163,6 +184,63 @@
         </v-col>
       </v-row>
     </v-card>
+    
+    <!-- Qty Shortcut Dialog -->
+    <v-dialog v-model="show_qty_shortcut_dialog" max-width="500" persistent>
+      <v-card>
+        <v-card-title class="headline primary--text">
+          {{ __("Add Latest Item") }}
+        </v-card-title>
+        <v-card-text>
+          <div v-if="!latest_added_item" class="text-center py-4">
+            <v-icon large color="warning" class="mb-2">mdi-alert</v-icon>
+            <p class="subtitle-1">{{ __("No item has been added yet.") }}</p>
+            <p class="caption grey--text">{{ __("Please add an item first, then use F5 to add it again with a different quantity.") }}</p>
+          </div>
+          <div v-else>
+            <v-row>
+              <v-col cols="12" class="pb-2">
+                <div class="text-h6 mb-1">{{ latest_added_item.item_name }}</div>
+                <div class="caption grey--text">{{ latest_added_item.item_code }}</div>
+                <div class="caption grey--text mt-1">
+                  {{ __("Rate") }}: {{ currencySymbol(latest_added_item.currency) }} {{ formtCurrency(latest_added_item.rate) }}
+                </div>
+              </v-col>
+              <v-col cols="12">
+                <v-text-field
+                  dense
+                  outlined
+                  autofocus
+                  color="primary"
+                  :label="frappe._('Quantity')"
+                  v-model.number="shortcut_qty"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  background-color="white"
+                  ref="shortcut_qty_input"
+                  @keydown.enter="add_latest_item_with_qty"
+                  @keydown.esc="close_qty_shortcut_dialog"
+                ></v-text-field>
+              </v-col>
+            </v-row>
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey" text @click="close_qty_shortcut_dialog">
+            {{ __("Cancel") }}
+          </v-btn>
+          <v-btn
+            color="primary"
+            @click="add_latest_item_with_qty"
+            :disabled="!latest_added_item || !shortcut_qty || shortcut_qty <= 0"
+          >
+            {{ __("Add") }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -191,6 +269,11 @@ export default {
     customer: null,
     new_line: false,
     qty: 1,
+    selected_price_list: null,
+    price_lists: [],
+    latest_added_item: null,
+    show_qty_shortcut_dialog: false,
+    shortcut_qty: 1,
   }),
 
   watch: {
@@ -241,11 +324,15 @@ export default {
         evntBus.$emit("set_all_items", vm.items);
         vm.loading = false;
       }
+      // Use selected_price_list if manually selected, otherwise use customer_price_list
+      const price_list_to_use = vm.selected_price_list
+        ? vm.selected_price_list.name
+        : vm.customer_price_list;
       frappe.call({
         method: "posawesome.posawesome.api.posapp.get_items",
         args: {
           pos_profile: vm.pos_profile,
-          price_list: vm.customer_price_list,
+          price_list: price_list_to_use,
           item_group: gr,
           search_value: sr,
           customer: vm.customer,
@@ -303,6 +390,77 @@ export default {
         });
       }
     },
+    get_price_lists() {
+      const vm = this;
+      frappe.call({
+        method: "posawesome.posawesome.api.posapp.get_price_lists",
+        args: {},
+        callback: function (r) {
+          if (r.message) {
+            vm.price_lists = r.message;
+            // Set default to POS profile price list if available
+            if (vm.pos_profile && vm.pos_profile.selling_price_list) {
+              const defaultPriceList = r.message.find(
+                (pl) => pl.name === vm.pos_profile.selling_price_list
+              );
+              if (defaultPriceList) {
+                vm.selected_price_list = defaultPriceList;
+              }
+            }
+          }
+        },
+      });
+    },
+    on_price_list_change() {
+      // Use selected price list instead of customer price list when manually selected
+      this.get_items();
+    },
+    open_qty_shortcut_dialog() {
+      if (this.show_qty_shortcut_dialog) {
+        return; // Already open
+      }
+      this.shortcut_qty = 1;
+      this.show_qty_shortcut_dialog = true;
+      // Focus the quantity input when dialog opens
+      this.$nextTick(() => {
+        if (this.$refs.shortcut_qty_input) {
+          this.$refs.shortcut_qty_input.focus();
+        }
+      });
+    },
+    close_qty_shortcut_dialog() {
+      this.show_qty_shortcut_dialog = false;
+      this.shortcut_qty = 1;
+      // Return focus to scanning field
+      this.$nextTick(() => {
+        this.$refs.debounce_search && this.$refs.debounce_search.focus();
+      });
+    },
+    add_latest_item_with_qty() {
+      if (!this.latest_added_item) {
+        evntBus.$emit("show_mesage", {
+          text: __("No item has been added yet. Please add an item first."),
+          color: "warning",
+        });
+        return;
+      }
+      if (!this.shortcut_qty || this.shortcut_qty <= 0) {
+        evntBus.$emit("show_mesage", {
+          text: __("Please enter a valid quantity"),
+          color: "error",
+        });
+        return;
+      }
+      // Create a copy of the latest item with the entered quantity
+      const item = { ...this.latest_added_item };
+      item.qty = parseFloat(this.shortcut_qty);
+      this.add_item(item);
+      this.close_qty_shortcut_dialog();
+      evntBus.$emit("show_mesage", {
+        text: __("Added {0} x {1}", [item.item_name, this.shortcut_qty]),
+        color: "success",
+      });
+    },
     getItmesHeaders() {
       const items_headers = [
         {
@@ -337,6 +495,10 @@ export default {
         }
         evntBus.$emit("add_item", item);
         this.qty = 1;
+        // Return focus to scanning field after adding item
+        this.$nextTick(() => {
+          this.$refs.debounce_search && this.$refs.debounce_search.focus();
+        });
       }
     },
     enter_event() {
@@ -458,7 +620,7 @@ export default {
         this.flags.serial_no = null;
         this.flags.batch_no = null;
         this.qty = 1;
-        this.$refs.debounce_search.focus();
+        // Focus is handled in add_item method via $nextTick
       }
     },
     search_onchange() {
@@ -804,6 +966,7 @@ export default {
       this.pos_profile = data.pos_profile;
       this.get_items();
       this.get_items_groups();
+      this.get_price_lists();
       this.items_view = this.pos_profile.posa_default_card_view
         ? "card"
         : "list";
@@ -825,10 +988,29 @@ export default {
     evntBus.$on("update_customer", (data) => {
       this.customer = data;
     });
+    evntBus.$on("latest_item_added", (item) => {
+      this.latest_added_item = item;
+    });
   },
 
   mounted() {
     this.scan_barcoud();
+    // Add F5 keyboard shortcut to open qty dialog
+    const vm = this;
+    this.f5KeyHandler = function(event) {
+      // Check if F5 is pressed and we're not in an input field
+      if (event.key === "F5" || (event.keyCode === 116 && !event.target.matches("input, textarea"))) {
+        event.preventDefault();
+        vm.open_qty_shortcut_dialog();
+      }
+    };
+    document.addEventListener("keydown", this.f5KeyHandler);
+  },
+  beforeDestroy() {
+    evntBus.$off("latest_item_added");
+    if (this.f5KeyHandler) {
+      document.removeEventListener("keydown", this.f5KeyHandler);
+    }
   },
 };
 </script>

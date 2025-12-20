@@ -986,6 +986,8 @@ export default {
         }
         this.items.unshift(new_item);
         this.update_item_detail(new_item);
+        // Emit latest item for qty shortcuts
+        evntBus.$emit("latest_item_added", item);
       } else {
         const cur_item = this.items[index];
         this.update_items_details([cur_item]);
@@ -1026,6 +1028,8 @@ export default {
               item.batch_no = null;
             }
             this.items.unshift(new_item);
+            // Emit latest item for qty shortcuts
+            evntBus.$emit("latest_item_added", item);
           }
         }
         this.set_serial_no(cur_item);
