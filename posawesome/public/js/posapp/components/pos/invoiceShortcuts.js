@@ -8,7 +8,7 @@ export default {
 			cashDrawerOpening: false, // Flag to track cash drawer opening status
 		};
 	},
-	
+
 	shortOpenFirstItem(e) {
 		if (e.key.toLowerCase() === "a" && (e.ctrlKey || e.metaKey)) {
 			try {
@@ -131,31 +131,31 @@ export default {
 		try {
 			// Prevent multiple simultaneous cash drawer operations
 			if (this.cashDrawerOpening) {
-				this.eventBus.emit("show_message", { 
-					title: __("Cash drawer is already opening..."), 
-					color: "warning" 
+				this.eventBus.emit("show_message", {
+					title: __("Cash drawer is already opening..."),
+					color: "warning"
 				});
 				return;
 			}
-			
+
 			this.cashDrawerOpening = true;
-			
+
 			const result = await frappe.call({
 				method: "posawesome.posawesome.api.invoices.open_cash_drawer",
 				args: {},
 			});
-			
+
 			if (result.message && result.message.success) {
 				// Show counter information
 				const counter = result.message.counter || 1;
-				this.eventBus.emit("show_message", { 
-					title: __("Opening cash drawer... Counter: {0}", [counter]), 
-					color: "info" 
+				this.eventBus.emit("show_message", {
+					title: __("Opening cash drawer... Counter: {0}", [counter]),
+					color: "info"
 				});
-				
+
 				// Create a minimal print window for cash drawer with strict controls
 				const printWindow = window.open("", "_blank", "width=1,height=1,scrollbars=no,resizable=no,toolbar=no,menubar=no,location=no,status=no");
-				
+
 				// Add additional safeguards to prevent long page issues
 				printWindow.document.write(`
 					<!DOCTYPE html>
@@ -184,7 +184,7 @@ export default {
 					</html>
 				`);
 				printWindow.document.close();
-				
+
 				// Wait for content to load, then print and close immediately
 				printWindow.addEventListener('load', () => {
 					// Set a timeout to ensure content is fully rendered
@@ -193,7 +193,7 @@ export default {
 							// Force focus and print
 							printWindow.focus();
 							printWindow.print();
-							
+
 							// Close the window after a very short delay
 							setTimeout(() => {
 								if (!printWindow.closed) {
@@ -208,33 +208,33 @@ export default {
 						}
 					}, 200);
 				});
-				
+
 				// Fallback: if load event doesn't fire, close after reasonable timeout
 				setTimeout(() => {
 					if (!printWindow.closed) {
 						printWindow.close();
 					}
 				}, 5000);
-				
+
 				// Success message with counter
 				setTimeout(() => {
-					this.eventBus.emit("show_message", { 
-						title: __("Cash drawer opened successfully! Counter: {0}", [counter]), 
-						color: "success" 
+					this.eventBus.emit("show_message", {
+						title: __("Cash drawer opened successfully! Counter: {0}", [counter]),
+						color: "success"
 					});
 				}, 1000);
-				
+
 			} else {
-				this.eventBus.emit("show_message", { 
-					title: __("Failed to open cash drawer"), 
-					color: "error" 
+				this.eventBus.emit("show_message", {
+					title: __("Failed to open cash drawer"),
+					color: "error"
 				});
 			}
 		} catch (error) {
 			console.error("Cash drawer error:", error);
-			this.eventBus.emit("show_message", { 
-				title: __("Error opening cash drawer"), 
-				color: "error" 
+			this.eventBus.emit("show_message", {
+				title: __("Error opening cash drawer"),
+				color: "error"
 			});
 		} finally {
 			// Reset the flag after a delay to prevent rapid clicking
@@ -261,11 +261,11 @@ export default {
 
 	shortEditQuantityF7(e) {
 		// Check for F7 key more robustly
-		const isF7 = e.key === "F7" || 
-			e.keyCode === 118 || 
+		const isF7 = e.key === "F7" ||
+			e.keyCode === 118 ||
 			e.which === 118 ||
 			(e.type === "keydown" && e.code === "F7");
-		
+
 		if (isF7) {
 			// Don't prevent if user is typing in an input field (unless it's a special case)
 			const activeElement = document.activeElement;
@@ -275,17 +275,17 @@ export default {
 				activeElement.isContentEditable ||
 				(activeElement.tagName === "DIV" && activeElement.getAttribute("contenteditable") === "true")
 			);
-			
+
 			// Allow F7 to work even when inputs are focused (for better UX)
 			// But prevent it if user is actively editing in a prompt/dialog
 			if (isInputFocused && activeElement.closest('.frappe-dialog')) {
 				return; // Don't interfere with dialog inputs
 			}
-			
+
 			e.preventDefault();
 			e.stopPropagation();
 			e.stopImmediatePropagation();
-			
+
 			// F7: Edit quantity of first item
 			this.editQuantity();
 			return false;
@@ -296,7 +296,7 @@ export default {
 		if (e.key === "F4" || e.keyCode === 115 || e.which === 115) {
 			e.preventDefault();
 			e.stopPropagation();
-			
+
 			// F4: Open payment dialog (moved from Ctrl+S)
 			this.show_payment();
 		}
@@ -398,7 +398,7 @@ export default {
 					<h3 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">${category.category}</h3>
 					<div style="display: grid; gap: 8px;">
 			`;
-			
+
 			category.shortcuts.forEach(shortcut => {
 				helpContent += `
 					<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: white; border-radius: 6px; border: 1px solid #e9ecef;">
@@ -407,7 +407,7 @@ export default {
 					</div>
 				`;
 			});
-			
+
 			helpContent += `
 					</div>
 				</div>
@@ -560,9 +560,9 @@ export default {
 							<div style="margin-bottom: 8px;">
 								<strong style="font-size: 12px;">Items:</strong>
 								<div style="margin-left: 10px; font-size: 11px; color: #555;">
-									${invoice.items ? invoice.items.slice(0, 5).map(item => 
-										`<div>• ${item.item_name || item.item_code} (Qty: ${item.qty}) - ${this.formatCurrency(item.amount)}</div>`
-									).join('') : '<div>No items found</div>'}
+									${invoice.items ? invoice.items.slice(0, 5).map(item =>
+				`<div>• ${item.item_name || item.item_code} (Qty: ${item.qty}) - ${this.formatCurrency(item.amount)}</div>`
+			).join('') : '<div>No items found</div>'}
 									${invoice.items && invoice.items.length > 5 ? `<div style="color: #999;">... and ${invoice.items.length - 5} more items</div>` : ''}
 								</div>
 							</div>
@@ -625,7 +625,7 @@ export default {
 			console.log("posa_silent_print setting:", this.pos_profile.posa_silent_print);
 			console.log("IS OFFLINE:", offline);
 			console.log("==========================================");
-			
+
 			// Check if we're offline - use offline template
 			if (offline) {
 				console.log("POS is OFFLINE - using offline template");
@@ -652,7 +652,7 @@ export default {
 					return;
 				}
 			}
-			
+
 			// ========== ONLINE PRINTING - USE SALES POS FORMAT ==========
 			console.log("POS is ONLINE - using SALES POS print format from server");
 			// ALWAYS use SALES POS format for online printing
@@ -670,10 +670,10 @@ export default {
 
 			console.log("Print URL:", url);
 			console.log("Opening print window - will print IMMEDIATELY");
-			
+
 			// Open print window and print immediately
 			const printWindow = window.open(url, "_blank");
-			
+
 			// Print immediately when loaded
 			printWindow.addEventListener(
 				"load",
@@ -706,15 +706,15 @@ export default {
 			console.warn("No invoice provided for offline printing");
 			return;
 		}
-		
+
 		try {
 			console.log("Using SALES POS print format for offline printing...");
-			
+
 			// Use the same print format as online but with the offline invoice data
 			// The SALES POS format is defined in the POS Profile print_format setting
 			const print_format = this.pos_profile.print_format || "POS Print";
 			const letter_head = this.pos_profile.letter_head || 0;
-			
+
 			// Create a data URL with the invoice data for offline printing
 			const printData = {
 				doctype: "Sales Invoice",
@@ -724,24 +724,24 @@ export default {
 				// Include all the invoice data needed for the template
 				invoice_data: invoice
 			};
-			
+
 			console.log("Opening SALES POS print window...");
-			
+
 			// For offline printing, we'll create a simplified version that mimics the SALES POS format
 			// Since we can't use the server-side Jinja2 template, we'll create a client-side version
 			const html = this.generateSalesPOSHTML(invoice);
-			
+
 			const win = window.open("", "_blank");
 			win.document.write(html);
 			win.document.close();
 			win.focus();
-			
+
 			// Auto-print after a short delay to ensure content is loaded
 			setTimeout(() => {
 				console.log("Triggering SALES POS offline print...");
 				win.print();
 			}, 500);
-			
+
 			console.log("SALES POS offline invoice printed successfully");
 		} catch (error) {
 			console.error("Error in SALES POS offline printing:", error);
@@ -758,7 +758,7 @@ export default {
 	 */
 	generateSalesPOSHTML(invoice) {
 		if (!invoice) return "";
-		
+
 		// Generate items rows
 		const itemsRows = (invoice.items || [])
 			.map((item) => {
@@ -949,7 +949,7 @@ export default {
 	</div>
 </body>
 </html>`;
-		
+
 		return html;
 	},
 
@@ -1032,7 +1032,7 @@ export default {
 			}
 
 			console.log("All validations passed - preparing invoice using same method as show_payment()");
-			
+
 			// USE THE SAME METHOD AS show_payment() FOR CONSISTENCY
 			let invoice_doc;
 			if (
@@ -1124,10 +1124,10 @@ export default {
 
 			// Set up cash payment for the full amount based on server-calculated totals
 			if (invoice_doc.payments && invoice_doc.payments.length) {
-				const cashPayment = invoice_doc.payments.find(p => 
+				const cashPayment = invoice_doc.payments.find(p =>
 					p.mode_of_payment && p.mode_of_payment.toLowerCase().includes("cash")
 				);
-				
+
 				if (cashPayment) {
 					// Use client-side calculated totals with proper rounding
 					let finalPaymentAmount;
@@ -1138,17 +1138,17 @@ export default {
 						// With rounding: use rounded_total
 						finalPaymentAmount = this.roundAmount(invoice_doc.grand_total);
 					}
-					
+
 					console.log("Setting cash payment using client-calculated totals:");
 					console.log("- grand_total (client):", invoice_doc.grand_total);
 					console.log("- rounded_total (client):", invoice_doc.rounded_total);
 					console.log("- disable_rounded_total:", this.pos_profile.disable_rounded_total);
 					console.log("- final payment amount:", finalPaymentAmount);
-					
+
 					cashPayment.amount = finalPaymentAmount;
 					cashPayment.base_amount = finalPaymentAmount;
 					cashPayment.default = 1;
-					
+
 					// FINAL VERIFICATION: Ensure no outstanding amount
 					const expectedOutstanding = invoice_doc.grand_total - finalPaymentAmount;
 					console.log("Final verification - no outstanding amount:");
@@ -1167,7 +1167,7 @@ export default {
 			console.log("- write_off_amount:", invoice_doc.write_off_amount);
 			console.log("- paid_amount:", invoice_doc.paid_amount);
 			console.log("- cash payment amount:", invoice_doc.payments ? invoice_doc.payments.find(p => p.default)?.amount : "No cash payment");
-			
+
 			// Submit the invoice directly without opening payment dialog
 			frappe.call({
 				method: "posawesome.posawesome.api.invoices.submit_invoice",
@@ -1186,15 +1186,15 @@ export default {
 					if (r.message && r.message.name) {
 						// Print the invoice immediately
 						this.printInvoiceByName(r.message.name);
-						
+
 						this.eventBus.emit("show_message", {
 							title: __("Invoice {0} submitted and printed", [r.message.name]),
 							color: "success",
 						});
-						
+
 						// Clear the invoice for next use
 						this.eventBus.emit("clear_invoice");
-						
+
 						// Focus on item search after print
 						this.$nextTick(() => {
 							const itemSearchRef = this.$parent?.$refs?.items_selector?.$refs?.debounce_search;
@@ -1243,7 +1243,7 @@ export default {
 	 */
 	async submitAndPrintDirect() {
 		try {
-			
+
 			// Validate required data
 			if (!this.items || this.items.length === 0) {
 				this.eventBus.emit("show_message", {
@@ -1308,13 +1308,13 @@ export default {
 
 			// Add delivery charges if applicable
 			const totalWithDelivery = netTotal + (this.delivery_charges_rate || 0);
-			
+
 			// Calculate tax amount if applicable
 			const taxAmount = this.total_tax || 0;
-			
+
 			// Calculate grand total
 			const grandTotal = totalWithDelivery + taxAmount;
-			
+
 			// Round the total to currency precision
 			const roundedTotal = this.flt(grandTotal, this.currency_precision || 2);
 
@@ -1365,7 +1365,7 @@ export default {
 					base_amount: 0
 				}));
 
-				const cashPayment = invoiceDoc.payments.find(p => 
+				const cashPayment = invoiceDoc.payments.find(p =>
 					p.mode_of_payment && p.mode_of_payment.toLowerCase().includes("cash")
 				);
 				if (cashPayment) {
@@ -1382,7 +1382,7 @@ export default {
 			}
 
 
-			
+
 			// Submit the invoice directly
 			frappe.call({
 				method: "posawesome.posawesome.api.invoices.submit_invoice",
@@ -1401,15 +1401,15 @@ export default {
 					if (r.message && r.message.name) {
 						// Print the invoice immediately
 						this.printInvoiceByName(r.message.name);
-						
+
 						this.eventBus.emit("show_message", {
 							title: __("Invoice {0} submitted and printed", [r.message.name]),
 							color: "success",
 						});
-						
+
 						// Clear the invoice for next use
 						this.eventBus.emit("clear_invoice");
-						
+
 						// Focus on item search after print
 						this.$nextTick(() => {
 							const itemSearchRef = this.$parent?.$refs?.items_selector?.$refs?.debounce_search;
@@ -1444,11 +1444,11 @@ export default {
 	editPrice() {
 		if (this.items && this.items.length > 0) {
 			const firstItem = this.items[0];
-			
+
 			if (!this.expanded.includes(firstItem.posa_row_id)) {
 				this.expanded = [firstItem.posa_row_id];
 			}
-			
+
 			this.$nextTick(() => {
 				setTimeout(() => {
 					const priceInput = document.querySelector('#rate input, input[id="rate"]');
@@ -1471,54 +1471,57 @@ export default {
 		}
 	},
 
-	editQuantity() {
-		if (this.items && this.items.length > 0) {
-			const firstItem = this.items[0];
-			
-			// Use frappe.prompt with proper field definition
-			frappe.prompt(
-				[
-					{
-						label: __("Enter new quantity for {0}", [firstItem.item_name || firstItem.item_code]),
-						fieldname: 'qty',
-						fieldtype: 'Float',
-						default: firstItem.qty || 1,
-						reqd: 1
-					}
-				],
-				(values) => {
-					const newQty = parseFloat(values.qty);
-					if (!isNaN(newQty) && newQty > 0) {
-						firstItem.qty = newQty;
-						firstItem.amount = (firstItem.rate || 0) * newQty;
-						firstItem.base_amount = firstItem.amount;
-						
-						if (this.calcStockQty) {
-							this.calcStockQty(firstItem, newQty);
-						}
-						
-						this.$forceUpdate();
-						
-						this.eventBus.emit("show_message", {
-							title: __("Quantity updated to {0}", [newQty]),
-							color: "success",
-						});
-					} else {
-						this.eventBus.emit("show_message", {
-							title: __("Invalid quantity value"),
-							color: "error",
-						});
-					}
-				},
-				__("Update Quantity"),
-				__("Update")
-			);
-		} else {
-			this.eventBus.emit("show_message", {
-				title: __("No items to edit"),
-				color: "warning",
-			});
+	editQuantity(targetItem = null) {
+		const item = targetItem || (this.items && this.items.length > 0 ? this.items[0] : null);
+		if (!item) {
+			this.eventBus.emit("show_message", { title: __("No items to edit"), color: "warning" });
+			return;
 		}
+
+		const defaultQty = this.isReturnInvoice ? Math.abs(item.qty || 1) : (item.qty || 1);
+
+		frappe.prompt(
+			[
+				{
+					label: __("Enter new quantity for {0}", [item.item_name || item.item_code]),
+					fieldname: "qty",
+					fieldtype: "Float",
+					default: defaultQty,
+					reqd: 1,
+				},
+			],
+			(values) => {
+				const newQty = parseFloat(values.qty);
+				if (!isNaN(newQty) && newQty > 0) {
+					const appliedQty = this.isReturnInvoice ? -Math.abs(newQty) : newQty;
+					item.qty = appliedQty;
+					item.amount = (item.rate || 0) * appliedQty;
+					item.base_amount = item.amount;
+
+					if (this.calcStockQty) {
+						this.calcStockQty(item, appliedQty);
+					}
+
+					this.$forceUpdate();
+					this.eventBus.emit("show_message", {
+						title: __("Quantity updated to {0}", [appliedQty]),
+						color: "success",
+					});
+				} else {
+					this.eventBus.emit("show_message", {
+						title: __("Invalid quantity value"),
+						color: "error",
+					});
+				}
+
+				this.eventBus.emit("refocus_item_search");
+			},
+			__("Update Quantity"),
+			__("Update")
+		);
+
+
+
 	},
 
 	formatDateForBackend(date) {

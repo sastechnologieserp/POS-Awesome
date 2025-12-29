@@ -39,6 +39,8 @@ export default {
 		}
 
 		let new_item;
+		let item_to_edit = null;
+
 		if (index === -1 || this.new_line) {
 			new_item = this.get_new_item(item);
 			// Handle serial number logic
@@ -59,6 +61,7 @@ export default {
 				new_item.qty = -Math.abs(new_item.qty || 1);
 			}
 			this.items.unshift(new_item);
+			this.items[0] = { ...new_item };
 			// Force update of item rates when item is first added
 			this.update_item_detail(new_item, true);
 
@@ -68,6 +71,7 @@ export default {
 					this.expanded = [new_item.posa_row_id];
 				});
 			}
+			item_to_edit = this.items[0]; // reactive instance we just inserted
 		} else {
 			const cur_item = this.items[index];
 			this.update_items_details([cur_item]);
@@ -99,16 +103,31 @@ export default {
 			}
 
 			this.set_serial_no(cur_item);
+			item_to_edit = cur_item;
+
+			// Show success message for UPDATED quantity
+			const displayQty = this.isReturnInvoice ? Math.abs(cur_item.qty) : cur_item.qty;
 		}
 		this.$forceUpdate();
 
-		// Only try to expand if new_item exists and should be expanded
-		if (
-			new_item &&
-			((!this.pos_profile.posa_auto_set_batch && new_item.has_batch_no) || new_item.has_serial_no)
-		) {
+		// Keep existing expanded logic and refocus search
+		if (new_item && ((!this.pos_profile.posa_auto_set_batch && new_item.has_batch_no) || new_item.has_serial_no)) {
 			this.expanded = [new_item.posa_row_id];
 		}
+
+		this.$nextTick(() => {
+			this.eventBus.emit("refocus_item_search");
+		});
+
+		// OPTIONAL: Open the quantity prompt for the item just added/updated
+		// Uncomment the lines below if you want the F8 popup to open automatically
+
+		this.$nextTick(() => {
+			if (this.editQuantity && item_to_edit) {
+				this.editQuantity(item_to_edit);
+			}
+		});
+
 	},
 
 	// Create a new item object with default and calculated fields
