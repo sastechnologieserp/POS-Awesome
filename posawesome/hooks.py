@@ -244,7 +244,15 @@ fixtures = [
 					"POS Profile-posa_display_discount_percentage",
 					"POS Profile-posa_display_discount_amount",
 					"POS Profile-posa_allow_change_posting_date",
+        			"POS Profile-posa_show_customer_balance",
 					"POS Profile-posa_default_card_view",
+     				"POS Profile-posa_allow_price_list_rate_change",
+					"POS Profile-posa_allow_delete_offline_invoice",
+					"POS Profile-posa_smart_reload_mode",
+     				"POS Profile-posa_default_country",
+     				"POS Profile-posa_silent_print",
+					"POS Profile-posa_show_customer_balance",
+     				"POS Profile-posa_force_reload_items",
 					"POS Profile-posa_default_sales_order",
 					"POS Profile-column_break_dqsba",
 					"POS Profile-posa_use_server_cache",
@@ -262,6 +270,9 @@ fixtures = [
 					"POS Profile-posa_enable_camera_scanning",
 					"POS Profile-posa_camera_scan_type",
 					"POS Profile-posa_language",
+					"POS Profile-posa_allow_multi_currency",
+					"POS Profile-posa_decimal_precision",
+				    "POS Profile-custom_open_qty_popup_before_adding_item",
 				),
 			]
 		],
@@ -269,18 +280,5 @@ fixtures = [
 	{
 		"doctype": "Property Setter",
 		"filters": [["name", "in", ("Sales Invoice-posa_pos_opening_shift-no_copy")]],
-	},
-	{
-		"doctype": "Custom Field",
-		"filters": [
-			[
-				"name",
-				"in",
-				[
-					"POS Profile-posa_allow_multi_currency",
-					"POS Profile-posa_decimal_precision",
-				],
-			]
-		],
-	},
+	}
 ]
