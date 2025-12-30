@@ -137,18 +137,20 @@ export default {
 			this.expanded = [new_item.posa_row_id];
 		}
 
-		// Open quantity popup automatically
-		this.$nextTick(() => {
-			const targetItem = index === -1 || this.new_line ? this.items[0] : this.items[index];
-			if (targetItem && this.editQuantity) {
-				this.editQuantity(targetItem);
-			}
-		});
-		
-		// Emit event to refocus search field after item is added
-		this.$nextTick(() => {
-			this.eventBus.emit("refocus_item_search");
-		});
+		// Open quantity popup automatically if custom setting is enabled
+		if (this.pos_profile.custom_open_qty_popup_before_adding_item) {
+			this.$nextTick(() => {
+				const targetItem = index === -1 || this.new_line ? this.items[0] : this.items[index];
+				if (targetItem && this.editQuantity) {
+					this.editQuantity(targetItem);
+				}
+			});
+		} else {
+			// Emit event to refocus search field after item is added
+			this.$nextTick(() => {
+				this.eventBus.emit("refocus_item_search");
+			});
+		}
 	},
 
 	// Create a new item object with default and calculated fields
