@@ -1,0 +1,18 @@
+    <!-- Sales Returns Section -->
+    {% if sales_returns_data and sales_returns_data.returns_count > 0 %}
+    <div class="section returns-section">
+        <div class="section-title">SALES RETURNS</div>
+        <table class="summary-table">
+            <tr>
+                <td class="summary-label">Returns Total:</td>
+                <td class="summary-value returns-amount">{{ frappe.utils.fmt_money(sales_returns_data.returns_total, currency=currency) }}</td>
+            </tr>
+            <tr>
+                <td class="summary-label">Returns Count:</td>
+                <td class="summary-value">{{ sales_returns_data.returns_count }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="divider"></div>
+    {% endif %}

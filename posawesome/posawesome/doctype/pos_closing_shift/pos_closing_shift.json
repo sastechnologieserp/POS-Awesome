@@ -25,6 +25,9 @@
   "payment_reconciliation_details",
   "section_break_11",
   "payment_reconciliation",
+  "section_break_credit_sales",
+  "credit_sales_total",
+  "credit_sales_details",
   "section_break_13",
   "grand_total",
   "net_total",
@@ -32,6 +35,8 @@
   "column_break_16",
   "taxes",
   "section_break_14",
+  "return_sales_total",
+  "return_sales_count",
   "amended_from"
  ],
  "fields": [
@@ -129,6 +134,33 @@
    "label": "Payment Reconciliation",
    "options": "POS Closing Shift Detail"
   },
+ {
+  "collapsible": 1,
+  "fieldname": "section_break_credit_sales",
+  "fieldtype": "Section Break",
+  "label": "Credit Sales"
+ },
+ {
+  "default": "0",
+  "fieldname": "credit_sales_total",
+  "fieldtype": "Currency",
+  "label": "Credit Sales Total",
+  "read_only": 1
+ },
+ {
+  "fieldname": "credit_sales_details",
+  "fieldtype": "Table",
+  "label": "Credit Sales Details",
+  "options": "POS Closing Shift Credit Sales",
+  "read_only": 1
+ },
+ {
+  "default": "0",
+  "fieldname": "overdue_sales_total",
+  "fieldtype": "Currency",
+  "label": "Overdue Sales Total",
+  "read_only": 1
+ },
   {
    "collapsible": 1,
    "collapsible_depends_on": "eval:doc.docstatus==0",
@@ -170,6 +202,20 @@
   {
    "fieldname": "section_break_14",
    "fieldtype": "Section Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "return_sales_total",
+   "fieldtype": "Currency",
+   "label": "Return Sales Total",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "return_sales_count",
+   "fieldtype": "Int",
+   "label": "Return Sales Count",
+   "read_only": 1
   },
   {
    "fieldname": "amended_from",
