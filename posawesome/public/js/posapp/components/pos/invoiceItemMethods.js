@@ -20,10 +20,10 @@ export default {
 		this.expanded = this.expanded.filter((id) => id !== item.posa_row_id);
 	},
 
-       		add_item(item) {
-               if (!item.uom) {
-                       item.uom = item.stock_uom;
-               }
+	add_item(item) {
+		if (!item.uom) {
+			item.uom = item.stock_uom;
+		}
 		let index = -1;
 		if (!this.new_line) {
 			// For auto_set_batch enabled, we should check if the item code and UOM match only
@@ -70,14 +70,14 @@ export default {
 			if (this.isReturnInvoice) {
 				new_item.qty = -Math.abs(new_item.qty || 1);
 			}
-      
-                       			this.items.unshift(new_item);
+
+			this.items.unshift(new_item);
 			// Replace the newly inserted item at index 0 to ensure
 			// Vue reactivity and avoid overwriting existing rows
 			this.items[0] = { ...new_item };
 			// Force update of item rates when item is first added
 			this.update_item_detail(new_item, true);
-                       // Apply UOM conversion immediately
+			// Apply UOM conversion immediately
 			if (new_item.uom && new_item.uom !== new_item.stock_uom) {
 				this.calc_uom(new_item, new_item.uom);
 			}
@@ -136,11 +136,21 @@ export default {
 		) {
 			this.expanded = [new_item.posa_row_id];
 		}
-		
-		// Emit event to refocus search field after item is added
-		this.$nextTick(() => {
-			this.eventBus.emit("refocus_item_search");
-		});
+
+		// Open quantity popup automatically if custom setting is enabled
+		if (this.pos_profile.custom_open_qty_popup_before_adding_item) {
+			this.$nextTick(() => {
+				const targetItem = index === -1 || this.new_line ? this.items[0] : this.items[index];
+				if (targetItem && this.editQuantity) {
+					this.editQuantity(targetItem);
+				}
+			});
+		} else {
+			// Emit event to refocus search field after item is added
+			this.$nextTick(() => {
+				this.eventBus.emit("refocus_item_search");
+			});
+		}
 	},
 
 	// Create a new item object with default and calculated fields
@@ -1008,9 +1018,9 @@ export default {
 							vm.eventBus.emit("show_message", {
 								title: __(
 									"Exchange rate date " +
-										vm.exchange_rate_date +
-										" differs from posting date " +
-										posting_backend,
+									vm.exchange_rate_date +
+									" differs from posting date " +
+									posting_backend,
 								),
 								color: "warning",
 							});
@@ -1046,9 +1056,9 @@ export default {
 							vm.eventBus.emit("show_message", {
 								title: __(
 									"Exchange rate date " +
-										vm.exchange_rate_date +
-										" differs from posting date " +
-										posting_backend,
+									vm.exchange_rate_date +
+									" differs from posting date " +
+									posting_backend,
 								),
 								color: "warning",
 							});
@@ -1094,7 +1104,7 @@ export default {
 	// Show payment dialog after validation and processing
 	async show_payment() {
 		try {
-	
+
 
 
 			if (!this.customer) {
@@ -1120,7 +1130,7 @@ export default {
 
 
 			if (!isValid) {
-	
+
 				return;
 			}
 
@@ -1142,7 +1152,7 @@ export default {
 			}
 
 			if (!invoice_doc) {
-	
+
 				return;
 			}
 
@@ -1165,7 +1175,7 @@ export default {
 			} else {
 				invoice_doc.rounded_total = this.roundAmount(this.subtotal);
 			}
-			
+
 			console.log("show_payment - after rounding:");
 			console.log("- grand_total:", invoice_doc.grand_total);
 			console.log("- rounded_total:", invoice_doc.rounded_total);
@@ -1469,14 +1479,14 @@ export default {
 	},
 
 	// Update details for a single item (fetch from backend)
-       update_item_detail(item, force_update = false) {
-               console.log("update_item_detail request", {
-                       code: item.item_code,
-                       force_update,
-               });
-               if (!item.item_code) {
-                       return;
-               }
+	update_item_detail(item, force_update = false) {
+		console.log("update_item_detail request", {
+			code: item.item_code,
+			force_update,
+		});
+		if (!item.item_code) {
+			return;
+		}
 		var vm = this;
 
 		// Remove this block which was causing the issue - rates should persist regardless of currency
@@ -1936,7 +1946,7 @@ export default {
 					break;
 
 				case "discount_amount":
-			
+
 
 
 					console.log(
@@ -2211,10 +2221,10 @@ export default {
 			const offer =
 				this.posOffers && Array.isArray(this.posOffers)
 					? this.posOffers.find((o) => {
-							if (!o || !o.items) return false;
-							const items = typeof o.items === "string" ? JSON.parse(o.items) : o.items;
-							return Array.isArray(items) && items.includes(item.posa_row_id);
-						})
+						if (!o || !o.items) return false;
+						const items = typeof o.items === "string" ? JSON.parse(o.items) : o.items;
+						return Array.isArray(items) && items.includes(item.posa_row_id);
+					})
 					: null;
 
 			if (offer && offer.discount_type === "Rate") {
@@ -2225,9 +2235,9 @@ export default {
 				item.base_rate = converted_rate;
 				item.base_price_list_rate = converted_rate;
 
-				// Convert to selected currency
+				// Convert to selected currency if needed
 				if (this.selected_currency !== baseCurrency) {
-					// Convert base currency values using the current exchange rate
+					// Convert base batch price using the current exchange rate
 					item.rate = this.flt(converted_rate * this.exchange_rate, this.currency_precision);
 					item.price_list_rate = item.rate;
 				} else {
