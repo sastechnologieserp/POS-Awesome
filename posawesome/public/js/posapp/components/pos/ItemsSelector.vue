@@ -271,7 +271,7 @@
 		</v-card>
 		<v-card class="cards mb-0 mt-3 dynamic-padding resizable" style="resize: vertical; overflow: auto">
 			<v-row no-gutters align="center" justify="center" class="dynamic-spacing-sm">
-				<v-col cols="12" class="mb-2">
+				<v-col cols="6" class="mb-2">
 					<v-select
 						:items="items_group"
 						:label="frappe._('Items Group')"
@@ -281,16 +281,20 @@
 						v-model="item_group"
 					></v-select>
 				</v-col>
-				<v-col cols="12" class="mb-2" v-if="pos_profile.posa_enable_price_list_dropdown">
-					<v-text-field
+				<v-col cols="6" class="mb-2" v-if="pos_profile.posa_enable_price_list_dropdown">
+					<v-select
+						:items="price_lists"
+						:label="frappe._('Price List')"
 						density="compact"
 						variant="solo"
-						color="primary"
-						:label="frappe._('Price List')"
 						hide-details
-						:model-value="active_price_list"
-						readonly
-					></v-text-field>
+						v-model="selected_price_list"
+						item-text="name"
+						item-value="name"
+						return-object
+						@update:modelValue="on_price_list_change"
+					>
+					</v-select>
 				</v-col>
 				<v-col cols="3" class="dynamic-margin-xs">
 					<v-btn-toggle v-model="items_view" color="primary" group density="compact" rounded>
@@ -386,6 +390,8 @@ export default {
 		customer: null,
 		new_line: false,
 		qty: 1,
+		selected_price_list: null,
+    	price_lists: [],
 		refresh_interval: null,
 		currentRequest: null,
 		abortController: null,
@@ -436,45 +442,12 @@ export default {
 			}
 		}, 300),
 		customer_price_list: _.debounce(function () {
-			if (this.pos_profile.posa_force_reload_items) {
-				if (this.pos_profile.posa_smart_reload_mode) {
-					// When limit search is enabled there may be no items yet.
-					// Fallback to full reload if nothing is loaded
-					if (!this.items_loaded || !this.items.length) {
-						this.items_loaded = false;
-						this.get_items(true);
-					} else {
-						// Only refresh prices for visible items when smart reload is enabled
-						this.$nextTick(() => this.refreshPricesForVisibleItems());
-					}
-				} else {
-					// Fall back to full reload
-					this.items_loaded = false;
-					this.get_items(true);
-				}
-				return;
-			}
-			// Apply cached rates if available for immediate update
-			if (this.items_loaded && this.items && this.items.length > 0) {
-				const cached = getCachedPriceListItems(this.customer_price_list);
-				if (cached && cached.length) {
-					const map = {};
-					cached.forEach((ci) => {
-						map[ci.item_code] = ci;
-					});
-					this.items.forEach((it) => {
-						const ci = map[it.item_code];
-						if (ci) {
-							it.rate = ci.rate;
-							it.price_list_rate = ci.price_list_rate || ci.rate;
-						}
-					});
-					this.eventBus.emit("set_all_items", this.items);
-					this.update_items_details(this.items);
-					return;
-				}
-			}
-			// No cache found - force a reload so prices are updated
+			// Always reload items when customer price list changes
+			this.items_loaded = false;
+			this.get_items(true);
+		}, 300),
+		selected_price_list: _.debounce(function () {
+			// Force reload items with the new price list
 			this.items_loaded = false;
 			this.get_items(true);
 		}, 300),
@@ -679,7 +652,7 @@ export default {
 
 			// Attempt to load cached items for the current price list
 			if (!force_server && !this.pos_profile.pose_use_limit_search) {
-				const cached = getCachedPriceListItems(vm.customer_price_list);
+				const cached = getCachedPriceListItems(vm.active_price_list);
 				if (cached && cached.length) {
 					vm.items = cached;
 					vm.items.forEach((it) => {
@@ -746,7 +719,7 @@ export default {
 						credentials: "same-origin",
 						body: JSON.stringify({
 							pos_profile: JSON.stringify(vm.pos_profile),
-							price_list: vm.customer_price_list,
+							price_list: vm.active_price_list,
 							item_group: gr,
 							search_value: sr,
 							customer: vm.customer,
@@ -760,7 +733,7 @@ export default {
 						if (ev.data.type === "parsed") {
 							const parsed = ev.data.items;
 							vm.items = parsed.message || parsed;
-							savePriceListItems(vm.customer_price_list, vm.items);
+							savePriceListItems(vm.active_price_list, vm.items);
 							// Ensure UOMs are available for each item
 							vm.items.forEach((it) => {
 								if (it.item_uoms && it.item_uoms.length > 0) {
@@ -824,7 +797,7 @@ export default {
 					this.itemWorker.postMessage({
 						type: "parse_and_cache",
 						json: text,
-						priceList: vm.customer_price_list,
+						priceList: vm.active_price_list,
 					});
 				} catch (err) {
 					console.error("Failed to fetch items", err);
@@ -835,7 +808,7 @@ export default {
 					method: "posawesome.posawesome.api.items.get_items",
 					args: {
 						pos_profile: JSON.stringify(vm.pos_profile),
-						price_list: vm.customer_price_list,
+						price_list: vm.active_price_list,
 						item_group: gr,
 						search_value: sr,
 						customer: vm.customer,
@@ -860,7 +833,7 @@ export default {
 							vm.eventBus.emit("set_all_items", vm.items);
 							vm.loading = false;
 							vm.items_loaded = true;
-							savePriceListItems(vm.customer_price_list, vm.items);
+							savePriceListItems(vm.active_price_list, vm.items);
 							console.info("Items Loaded");
 
 							// Pre-populate stock cache when items are freshly loaded
@@ -923,6 +896,48 @@ export default {
 				});
 			}
 		},
+		async fetch_price_lists() {
+			if (this.pos_profile.posa_enable_price_list_dropdown) {
+				try {
+					const r = await frappe.call({
+						method: "posawesome.posawesome.api.posapp.get_selling_price_lists",
+					});
+					if (r && r.message) {
+						this.price_lists = r.message.map((pl) => pl.name);
+					}
+				} catch (error) {
+					console.error("Failed fetching price lists", error);
+					this.price_lists = [this.pos_profile.selling_price_list];
+				}
+			} else {
+				// Fallback to the price list defined in the POS Profile
+				this.price_lists = [this.pos_profile.selling_price_list];
+			}
+
+			if (!this.selected_price_list) {
+				this.selected_price_list = this.pos_profile.selling_price_list;
+			}
+
+			// Fetch and store currency for the applied price list
+			try {
+				const r = await frappe.call({
+					method: "posawesome.posawesome.api.invoices.get_price_list_currency",
+					args: { price_list: this.selected_price_list },
+				});
+				if (r && r.message) {
+					this.price_list_currency = r.message;
+				}
+			} catch (error) {
+				console.error("Failed fetching price list currency", error);
+			}
+
+			return this.price_lists;
+		},
+		on_price_list_change() {
+				this.get_items(true);
+				this.eventBus.emit("price_list_changed", this.selected_price_list);
+		},
+		
 		getItemsHeaders() {
 			const items_headers = [
 				{
@@ -978,7 +993,8 @@ export default {
 					color: "warning",
 				});
 				console.log("sending profile", this.pos_profile);
-				this.eventBus.emit("open_variants_model", item, variants, this.pos_profile);
+				// Pass the active price list along with the profile
+				this.eventBus.emit("open_variants_model", item, variants, this.pos_profile, this.active_price_list);
 			} else {
 				if (item.actual_qty === 0 && this.pos_profile.posa_display_items_in_stock) {
 					this.eventBus.emit("show_message", {
@@ -1118,6 +1134,7 @@ export default {
 				// Only trigger search when query length meets minimum threshold
 				if (vm.search && vm.search.length >= 3) {
 					vm.get_items();
+					vm.fetch_price_lists();
 				}
 			} else {
 				// Save the current filtered items before search to maintain quantity data
@@ -1385,6 +1402,31 @@ export default {
 				console.error("Failed to pre-populate stock cache:", error);
 			} finally {
 				this.prePopulateInProgress = false;
+			}
+		},
+
+		// Update loaded items prices when price list changes
+		updateLoadedItemsPrices() {
+			if (!this.items || this.items.length === 0) return;
+
+			const priceList = this.active_price_list;
+			const cached = getCachedPriceListItems(priceList);
+
+			if (cached && cached.length > 0) {
+				const map = {};
+				cached.forEach((ci) => {
+					map[ci.item_code] = ci;
+				});
+
+				this.items.forEach((item) => {
+					const cachedItem = map[item.item_code];
+					if (cachedItem) {
+						item.rate = cachedItem.rate || cachedItem.price_list_rate;
+						item.price_list_rate = cachedItem.price_list_rate || cachedItem.rate;
+					}
+				});
+
+				this.$forceUpdate();
 			}
 		},
 
@@ -1973,7 +2015,7 @@ export default {
 			return this.$theme.current === "dark";
 		},
 		active_price_list() {
-			return this.customer_price_list || (this.pos_profile && this.pos_profile.selling_price_list);
+			return this.customer_price_list || this.selected_price_list || (this.pos_profile && this.pos_profile.selling_price_list);
 		},
 	},
 
@@ -2011,6 +2053,7 @@ export default {
 			}
 			this.get_items_groups();
 			this.items_view = this.pos_profile.posa_default_card_view ? "card" : "list";
+			this.fetch_price_lists();
 		});
 		this.eventBus.on("update_cur_items_details", () => {
 			this.update_cur_items_details();
@@ -2025,6 +2068,9 @@ export default {
 		});
 		this.eventBus.on("update_customer_price_list", (data) => {
 			this.customer_price_list = data;
+		});
+		this.eventBus.on("update_selected_price_list", (data) => {
+			this.selected_price_list = data;
 		});
 		this.eventBus.on("update_customer", (data) => {
 			this.customer = data;

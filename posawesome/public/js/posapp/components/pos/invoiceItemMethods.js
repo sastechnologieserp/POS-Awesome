@@ -541,7 +541,7 @@ export default {
 
 		// Other fields
 		doc.campaign = doc.campaign || this.pos_profile.campaign;
-		doc.selling_price_list = this.pos_profile.selling_price_list;
+		doc.selling_price_list = this.get_price_list();
 		doc.naming_series = doc.naming_series || this.pos_profile.naming_series;
 		doc.customer = this.customer;
 
@@ -1500,7 +1500,7 @@ export default {
 			args: {
 				warehouse: this.pos_profile.warehouse,
 				doc: this.get_invoice_doc(),
-				price_list: this.selected_price_list || this.pos_profile.selling_price_list,
+				price_list: this.get_price_list(),
 				item: {
 					item_code: item.item_code,
 					customer: this.customer,
@@ -1709,10 +1709,13 @@ export default {
 				);
 				if (cached) {
 					vm.customer_info = { ...cached };
-					if (vm.pos_profile.posa_force_reload_items && cached.customer_price_list) {
-						vm.selected_price_list = cached.customer_price_list;
+					// Always emit customer price list to trigger watchers
+					if (cached.customer_price_list) {
 						vm.eventBus.emit("update_customer_price_list", cached.customer_price_list);
-						vm.apply_cached_price_list(cached.customer_price_list);
+						// Apply cached prices immediately if available
+						if (vm.items && vm.items.length > 0) {
+							vm.update_cart_item_prices();
+						}
 					}
 					return;
 				}
@@ -1721,10 +1724,13 @@ export default {
 					.find((c) => c.customer_name === vm.customer);
 				if (queued) {
 					vm.customer_info = { ...queued, name: queued.customer_name };
-					if (vm.pos_profile.posa_force_reload_items && queued.customer_price_list) {
-						vm.selected_price_list = queued.customer_price_list;
+					// Always emit customer price list to trigger watchers
+					if (queued.customer_price_list) {
 						vm.eventBus.emit("update_customer_price_list", queued.customer_price_list);
-						vm.apply_cached_price_list(queued.customer_price_list);
+						// Apply cached prices immediately if available
+						if (vm.items && vm.items.length > 0) {
+							vm.update_cart_item_prices();
+						}
 					}
 					return;
 				}
@@ -1746,13 +1752,13 @@ export default {
 					...message,
 				};
 			}
-			// When force reload is enabled, automatically switch to the
-			// customer's default price list so that item rates are fetched
-			// correctly from the server.
-			if (vm.pos_profile.posa_force_reload_items && message.customer_price_list) {
-				vm.selected_price_list = message.customer_price_list;
+			// Always emit customer price list to trigger watchers and update cart items
+			if (message) {
 				vm.eventBus.emit("update_customer_price_list", message.customer_price_list);
-				vm.apply_cached_price_list(message.customer_price_list);
+				// Apply cached prices immediately if available
+				if (vm.items && vm.items.length > 0) {
+					vm.update_cart_item_prices();
+				}
 			}
 		} catch (error) {
 			console.error("Failed to fetch customer details", error);
@@ -1761,9 +1767,8 @@ export default {
 
 	// Get price list for current customer
 	get_price_list() {
-		// Use the currently selected price list if available,
-		// otherwise fall back to the POS Profile selling price list
-		return this.selected_price_list || this.pos_profile.selling_price_list;
+		// Priority: customer price list > selected price list > POS profile default
+		return this.customer_price_list || this.selected_price_list || this.pos_profile.selling_price_list;
 	},
 
 	// Update price list for customer
@@ -1772,8 +1777,6 @@ export default {
 		const price_list = this.pos_profile.selling_price_list;
 		if (this.selected_price_list !== price_list) {
 			this.selected_price_list = price_list;
-			// Clear any customer specific price list to avoid reloading items
-			this.eventBus.emit("update_customer_price_list", null);
 		}
 	},
 
@@ -1856,6 +1859,71 @@ export default {
 		});
 
 		this.$forceUpdate();
+	},
+
+	// Update prices for items already in the cart when price list changes
+	async update_cart_item_prices() {
+		if (!this.items || this.items.length === 0) {
+			return;
+		}
+
+		const vm = this;
+		const price_list = this.get_price_list();
+
+		// First try to apply cached prices for immediate visual update
+		this.apply_cached_price_list(price_list);
+
+		// Then fetch fresh prices from server for all cart items
+		try {
+			const itemCodes = [...new Set(this.items.map(item => item.item_code))];
+			const response = await frappe.call({
+				method: "posawesome.posawesome.api.items.get_items_details",
+				args: {
+					pos_profile: JSON.stringify(this.pos_profile),
+					items_data: JSON.stringify(this.items.map(item => ({
+						item_code: item.item_code,
+						posa_row_id: item.posa_row_id,
+						uom: item.uom,
+						qty: item.qty
+					}))),
+					price_list: price_list,
+				},
+			});
+
+			if (response && response.message) {
+				this.items.forEach((item) => {
+					const updated = response.message.find(
+						(el) => el.item_code === item.item_code && el.posa_row_id === item.posa_row_id
+					);
+
+					if (updated) {
+						// Update price list rate and rates if not manually set
+						if (updated.price_list_rate !== undefined) {
+							item.price_list_rate = updated.price_list_rate;
+							// Only update rate if it wasn't manually changed by user
+							if (!item._manual_rate_set) {
+								item.rate = updated.price_list_rate;
+								item.base_rate = updated.price_list_rate;
+							}
+						}
+
+						// Update stock quantities and batch/serial data
+						if (updated.actual_qty !== undefined) item.actual_qty = updated.actual_qty;
+						if (updated.serial_no_data) item.serial_no_data = updated.serial_no_data;
+						if (updated.batch_no_data) item.batch_no_data = updated.batch_no_data;
+						if (updated.item_uoms) item.item_uoms = updated.item_uoms;
+
+						// Recalculate item price
+						this.calc_item_price(item);
+					}
+				});
+
+				this.$forceUpdate();
+			}
+		} catch (error) {
+			console.error("Error updating cart item prices:", error);
+			// If server call fails, at least we have the cached prices applied
+		}
 	},
 
 	// Update additional discount amount based on percentage

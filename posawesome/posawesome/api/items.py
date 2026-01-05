@@ -605,6 +605,13 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 	res["batch_no_data"] = batch_no_data
 	res["serial_no_data"] = serial_no_data
 
+	# Preserve posa_row_id if provided (for cart item identification)
+	if item.get("posa_row_id"):
+		res["posa_row_id"] = item.get("posa_row_id")
+	
+	# Ensure item_code is in the response
+	res["item_code"] = item_code
+
 	# Add UOMs data directly from item document
 	uoms = frappe.get_all(
 		"UOM Conversion Detail",

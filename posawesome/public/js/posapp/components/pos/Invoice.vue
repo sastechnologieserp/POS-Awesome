@@ -312,6 +312,7 @@ export default {
 			available_currencies: [], // List of available currencies
 			price_lists: [], // Available selling price lists
 			selected_price_list: "", // Currently selected price list
+			customer_price_list: null, // Customer's price list (if any)
 			price_list_currency: "", // Currency of the selected price list
 			selected_columns: [], // Selected columns for items table
 			temp_selected_columns: [], // Temporary array for column selection
@@ -1086,6 +1087,13 @@ export default {
 		this.eventBus.on("add_item", this.add_item);
 		this.eventBus.on("update_customer", (customer) => {
 			this.customer = customer;
+		});
+		this.eventBus.on("update_customer_price_list", (priceList) => {
+			this.customer_price_list = priceList;
+		});
+		// Listen to ItemsSelector price list changes and sync to invoice
+		this.eventBus.on("price_list_changed", (pl) => {
+			this.selected_price_list = pl;
 		});
 		this.eventBus.on("fetch_customer_details", () => {
 			this.fetch_customer_details();

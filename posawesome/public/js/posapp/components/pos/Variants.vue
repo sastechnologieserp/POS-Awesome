@@ -85,6 +85,7 @@ export default {
 		filters: {},
 		filterdItems: [],
 		pos_profile: null,
+		price_list: null,
 	}),
 
 	computed: {
@@ -228,7 +229,7 @@ export default {
 					method: "posawesome.posawesome.api.items.get_item_detail",
 					args: {
 						warehouse: this.pos_profile.warehouse,
-						price_list: this.pos_profile.selling_price_list,
+						price_list: this.price_list || this.pos_profile.selling_price_list,
 						company: this.pos_profile.company,
 						item: JSON.stringify({
 							item_code: item.item_code,
@@ -271,8 +272,8 @@ export default {
 	},
 
 	created: function () {
-		this.eventBus.on("open_variants_model", async (item, items, profile) => {
-			console.log("open_variants_model", { item, items, profile });
+		this.eventBus.on("open_variants_model", async (item, items, profile, priceList) => {
+			console.log("open_variants_model", { item, items, profile, priceList });
 			this.varaintsDialog = true;
 			this.parentItem = item || null;
 			this.items = Array.isArray(items) ? items : [];
@@ -282,6 +283,8 @@ export default {
 			} else {
 				this.pos_profile = await ensurePosProfile();
 			}
+			// Store the price list to use for fetching variant rates
+			this.price_list = priceList || this.pos_profile.selling_price_list;
 			if (!this.items || this.items.length === 0) {
 				const parentCode = item.item_code || item.code || item.name;
 				await this.fetchVariants(parentCode, this.pos_profile);
