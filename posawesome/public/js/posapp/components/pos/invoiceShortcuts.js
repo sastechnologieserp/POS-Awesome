@@ -1480,18 +1480,27 @@ export default {
 
 		const defaultQty = this.isReturnInvoice ? Math.abs(item.qty || 1) : (item.qty || 1);
 
-		frappe.prompt(
-			[
+		const dialog = new frappe.ui.Dialog({
+			title: __("Update Quantity"),
+			fields: [
 				{
-					label: __("Enter new quantity for {0}", [item.item_name || item.item_code]),
 					fieldname: "qty",
 					fieldtype: "Float",
+					label: __("Enter new quantity for {0}", [item.item_name || item.item_code]),
 					default: defaultQty,
 					reqd: 1,
 				},
+				{
+					fieldname: "keypad",
+					fieldtype: "HTML",
+				},
 			],
-			(values) => {
+			primary_action_label: __("Update"),
+
+			// ✅ Arrow function fixes the warning
+			primary_action: (values) => {
 				const newQty = parseFloat(values.qty);
+
 				if (!isNaN(newQty) && newQty > 0) {
 					const appliedQty = this.isReturnInvoice ? -Math.abs(newQty) : newQty;
 					item.qty = appliedQty;
@@ -1507,6 +1516,8 @@ export default {
 						title: __("Quantity updated to {0}", [appliedQty]),
 						color: "success",
 					});
+
+					dialog.hide();
 				} else {
 					this.eventBus.emit("show_message", {
 						title: __("Invalid quantity value"),
@@ -1516,12 +1527,69 @@ export default {
 
 				this.eventBus.emit("refocus_item_search");
 			},
-			__("Update Quantity"),
-			__("Update")
-		);
+		});
 
+		// Numeric keypad UI
+		const keypadHTML = `
+		<div class="numeric-keypad">
+			<div class="keypad-row">
+				<button class="btn btn-primary btn-lg key">1</button>
+				<button class="btn btn-primary btn-lg key">2</button>
+				<button class="btn btn-primary btn-lg key">3</button>
+			</div>
+			<div class="keypad-row">
+				<button class="btn btn-primary btn-lg key">4</button>
+				<button class="btn btn-primary btn-lg key">5</button>
+				<button class="btn btn-primary btn-lg key">6</button>
+			</div>
+			<div class="keypad-row">
+				<button class="btn btn-primary btn-lg key">7</button>
+				<button class="btn btn-primary btn-lg key">8</button>
+				<button class="btn btn-primary btn-lg key">9</button>
+			</div>
+			<div class="keypad-row">
+				<button class="btn btn-secondary btn-lg key">.</button>
+				<button class="btn btn-secondary btn-lg key">0</button>
+				<button class="btn btn-danger btn-lg key clear">C</button>
+			</div>
+		</div>
+	`;
 
+		dialog.fields_dict.keypad.$wrapper.html(keypadHTML);
 
+		// Keypad click handling
+		dialog._keypadStarted = false;
+		dialog._pendingDecimal = false;
+
+		dialog.fields_dict.keypad.$wrapper.on("click", ".key", (e) => {
+			const key = (e.currentTarget && e.currentTarget.innerText) || "";
+			const field = dialog.get_field("qty");
+			
+			if (key === "C") {
+				field.set_value("");
+				dialog._pendingDecimal = false;
+				dialog._keypadStarted = false;
+			} else if (key === ".") {
+				dialog._pendingDecimal = true;
+				dialog._keypadStarted = true;
+			} else {
+				// On first key press start from empty value
+				if (!dialog._keypadStarted) {
+					field.set_value(`${key}`);
+					dialog._keypadStarted = true;
+				} else {
+					const current = field.get_value() || "";
+					if (dialog._pendingDecimal) {
+						field.set_value(`${current}.${key}`);
+						dialog._pendingDecimal = false;
+					} else {
+						field.set_value(`${current}${key}`);
+					}
+				}
+			}
+		});
+
+		dialog.show();
 	},
 
 	formatDateForBackend(date) {
