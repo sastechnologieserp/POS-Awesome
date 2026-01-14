@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-import frappe
+
+try:
+	import frappe
+except ModuleNotFoundError:  # pragma: no cover - frappe may not be installed during setup
+	frappe = None
 
 __version__ = "6.3.0"
 
