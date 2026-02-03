@@ -254,11 +254,10 @@ export default {
 						const html_content = r.message;
 						
 						// Create a new window with the HTML content
-						const printWindow = window.open('', '_blank', 'width=400,height=600');
+						const printWindow = window.open('', '_blank', 'width=' + screen.width + ',height=' + screen.height);
+						printWindow.document.open();
 						printWindow.document.write(html_content);
-						printWindow.document.close();
-						
-						// Wait for content to load then print
+						printWindow.document.close();	// Wait for content to load then print
 						printWindow.onload = function() {
 							printWindow.print();
 						};
