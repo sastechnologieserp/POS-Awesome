@@ -274,6 +274,7 @@ fixtures = [
 					"POS Profile-posa_decimal_precision",
 				    "POS Profile-custom_open_qty_popup_before_adding_item",
         			"POS Profile-custom_enable_price_list_dropdown",
+           			"POS Profile-posa_search_limit"
 				),
 			]
 		],
