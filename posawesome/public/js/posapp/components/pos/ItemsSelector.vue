@@ -634,6 +634,11 @@ export default {
 			let gr = vm.item_group !== "ALL" ? vm.item_group.toLowerCase() : "";
 			let sr = search || "";
 
+			const is_full_list_load =
+				!vm.pos_profile.pose_use_limit_search &&
+				!sr &&
+				!gr;
+
 			// Skip reload if items already loaded, not forcing, not searching and limit search disabled
 			if (
 				this.items_loaded &&
@@ -671,7 +676,7 @@ export default {
 
 					if (vm.items && vm.items.length > 0) {
 						vm.prePopulateStockCache(vm.items);
-						vm.update_items_details(vm.items);
+						vm.update_items_details(vm.filtered_items && vm.filtered_items.length ? vm.filtered_items : vm.items.slice(0, vm.itemsPerPage));
 					}
 					return;
 				}
@@ -701,12 +706,84 @@ export default {
 				vm.items_loaded = true;
 
 				if (vm.items && vm.items.length > 0) {
-					await vm.prePopulateStockCache(vm.items);
-					vm.update_items_details(vm.items);
+					vm.prePopulateStockCache(vm.items);
+					vm.update_items_details(vm.filtered_items && vm.filtered_items.length ? vm.filtered_items : vm.items.slice(0, vm.itemsPerPage));
 				}
 				return;
 			}
 			// Removed noisy debug log
+
+			// For large catalogs, fetch items in pages to avoid UI stalls.
+			if (is_full_list_load) {
+				try {
+					vm.items = [];
+					vm.items_loaded = false;
+					const pageSize = 200;
+					let offset = 0;
+					while (true) {
+						if (vm.items_request_token !== request_token) return;
+						const r = await frappe.call({
+							method: "posawesome.posawesome.api.items.get_items",
+							args: {
+								pos_profile: JSON.stringify(vm.pos_profile),
+								price_list: vm.active_price_list,
+								item_group: gr,
+								search_value: sr,
+								customer: vm.customer,
+								limit: pageSize,
+								offset: offset,
+							},
+							freeze: false,
+						});
+						const chunk = (r && r.message) || [];
+						if (!chunk.length) break;
+
+						chunk.forEach((it) => {
+							if (it.item_uoms && it.item_uoms.length > 0) {
+								saveItemUOMs(it.item_code, it.item_uoms);
+							} else {
+								const cached = getItemUOMs(it.item_code);
+								if (cached.length > 0) {
+									it.item_uoms = cached;
+								} else if (it.stock_uom) {
+									it.item_uoms = [{ uom: it.stock_uom, conversion_factor: 1.0 }];
+								}
+							}
+						});
+
+						vm.items.push(...chunk);
+						vm.eventBus.emit("set_all_items", vm.items);
+
+						if (offset === 0) {
+							vm.update_items_details(vm.items.slice(0, vm.itemsPerPage));
+						}
+
+						offset += chunk.length;
+						if (chunk.length < pageSize) break;
+						await new Promise((resolve) => setTimeout(resolve, 0));
+					}
+
+					savePriceListItems(vm.active_price_list, vm.items);
+					if (vm.pos_profile.posa_local_storage) {
+						try {
+							setItemsStorage(vm.items);
+						} catch (e) {
+							console.error(e);
+						}
+					}
+
+					// Initialize stock cache in background (do not await)
+					vm.prePopulateStockCache(vm.items);
+
+					vm.items_loaded = true;
+					vm.loading = false;
+					console.info("Items Loaded");
+					return;
+				} catch (e) {
+					console.error("Paged item load failed, falling back", e);
+					// Continue to the existing single-call logic below
+				}
+			}
 
 			if (this.itemWorker) {
 				try {
@@ -763,7 +840,7 @@ export default {
 
 							// Always refresh quantities after items are loaded
 							if (vm.items && vm.items.length > 0) {
-								vm.update_items_details(vm.items);
+								vm.update_items_details(vm.filtered_items && vm.filtered_items.length ? vm.filtered_items : vm.items.slice(0, vm.itemsPerPage));
 							}
 
 							if (vm.pos_profile.posa_local_storage && !vm.pos_profile.pose_use_limit_search) {
@@ -847,7 +924,7 @@ export default {
 
 							// Always refresh quantities after items are loaded
 							if (vm.items && vm.items.length > 0) {
-								vm.update_items_details(vm.items);
+								vm.update_items_details(vm.filtered_items && vm.filtered_items.length ? vm.filtered_items : vm.items.slice(0, vm.itemsPerPage));
 							}
 
 							if (vm.pos_profile.posa_local_storage && !vm.pos_profile.pose_use_limit_search) {
