@@ -677,6 +677,28 @@ def submit_printed_invoices(pos_opening_shift):
 
 
 @frappe.whitelist()
+def get_last_closed_shift(pos_profile=None, user=None):
+	"""Return the most recent submitted POS Closing Shift name.
+
+	- Defaults to the current session user.
+	- If pos_profile is provided, restrict results to that profile.
+	"""
+	user = user or frappe.session.user
+	filters = {"docstatus": 1, "user": user}
+	if pos_profile:
+		filters["pos_profile"] = pos_profile
+
+	rows = frappe.get_all(
+		"POS Closing Shift",
+		filters=filters,
+		pluck="name",
+		order_by="modified desc",
+		limit_page_length=1,
+	)
+	return rows[0] if rows else None
+
+
+@frappe.whitelist()
 def print_cashier_shift_report(closing_shift_name):
 	"""
 	Print the cashier shift report automatically when closing shift
