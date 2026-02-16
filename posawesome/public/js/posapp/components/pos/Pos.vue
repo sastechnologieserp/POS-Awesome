@@ -241,6 +241,34 @@ export default {
 					}
 				});
 		},
+
+		print_last_closing_shift(pos_profile = null) {
+			frappe
+				.call(
+					"posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.get_last_closed_shift",
+					{
+						pos_profile: pos_profile,
+					},
+				)
+				.then((r) => {
+					const closing_shift_name = r && r.message;
+					if (!closing_shift_name) {
+						this.eventBus.emit("show_message", {
+							title: "No previous closing shift found",
+							color: "warning",
+						});
+						return;
+					}
+					this.print_cashier_shift_report(closing_shift_name);
+				})
+				.catch((e) => {
+					console.error("Failed to load last closing shift", e);
+					this.eventBus.emit("show_message", {
+						title: "Failed to print last closing shift",
+						color: "error",
+					});
+				});
+		},
 		
 		print_cashier_shift_report(closing_shift_name) {
 			// Get the HTML content directly from backend
@@ -340,6 +368,9 @@ export default {
 			this.eventBus.on("submit_closing_pos", (data) => {
 				this.submit_closing_pos(data);
 			});
+				this.eventBus.on("print_last_closing_shift", (pos_profile) => {
+					this.print_last_closing_shift(pos_profile);
+				});
 		});
 	},
 	beforeUnmount() {
@@ -350,6 +381,7 @@ export default {
 		this.eventBus.off("show_coupons");
 		this.eventBus.off("open_closing_dialog");
 		this.eventBus.off("submit_closing_pos");
+		this.eventBus.off("print_last_closing_shift");
 	},
 	// In the created() or mounted() lifecycle hook
 	created() {
