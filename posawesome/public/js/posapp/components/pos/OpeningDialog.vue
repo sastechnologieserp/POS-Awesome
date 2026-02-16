@@ -103,17 +103,6 @@
 						<v-icon start>mdi-close-circle-outline</v-icon>
 						<span>{{ __("Cancel") }}</span>
 					</v-btn>
-					<v-btn
-						theme="dark"
-						:disabled="is_loading"
-						@click="print_last_closing_shift"
-						class="pos-action-btn info-action-btn"
-						size="large"
-						elevation="2"
-					>
-						<v-icon start>mdi-printer</v-icon>
-						<span>{{ __("Print Last Closing Shift") }}</span>
-					</v-btn>
 					<v-spacer />
 					<v-btn
 						theme="dark"
@@ -285,10 +274,6 @@ export default {
 		go_desk() {
 			frappe.set_route("/");
 			location.reload();
-		},
-
-		print_last_closing_shift() {
-			this.eventBus.emit("print_last_closing_shift", this.pos_profile || null);
 		},
 	},
 
@@ -669,18 +654,9 @@ export default {
 	background: linear-gradient(135deg, #388e3c 0%, #2e7d32 100%) !important;
 }
 
-.info-action-btn {
-	background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%) !important;
-}
-
 .submit-action-btn:hover {
 	transform: translateY(-2px);
 	box-shadow: 0 6px 20px rgba(46, 125, 50, 0.4);
-}
-
-.info-action-btn:hover {
-	transform: translateY(-2px);
-	box-shadow: 0 6px 20px rgba(25, 118, 210, 0.35);
 }
 
 .submit-action-btn:disabled {
