@@ -93,6 +93,7 @@ export default {
 		Variants,
 		MpesaPayments,
 		SalesOrders,
+			is_closing_shift_submitting: false,
 	},
 
 	methods: {
@@ -211,6 +212,11 @@ export default {
 				});
 		},
 		submit_closing_pos(data) {
+			if (this.is_closing_shift_submitting) {
+				return;
+			}
+
+			this.is_closing_shift_submitting = true;
 			frappe
 				.call(
 					"posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.submit_closing_shift",
@@ -239,6 +245,16 @@ export default {
 					} else {
 						// No action needed
 					}
+				})
+				.catch((e) => {
+					console.error("Failed to close POS shift", e);
+					this.eventBus.emit("show_message", {
+						title: "Failed to close POS shift",
+						color: "error",
+					});
+				})
+				.finally(() => {
+					this.is_closing_shift_submitting = false;
 				});
 		},
 

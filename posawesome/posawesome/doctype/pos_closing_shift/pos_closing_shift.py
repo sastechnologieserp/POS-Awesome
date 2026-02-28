@@ -653,10 +653,40 @@ def make_closing_shift_from_opening(opening_shift):
 def submit_closing_shift(closing_shift):
 	closing_shift = json.loads(closing_shift)
 	
+	opening_shift = closing_shift.get("pos_opening_shift")
+	user = closing_shift.get("user")
+	if opening_shift and user:
+		existing_shift = frappe.db.get_value(
+			"POS Closing Shift",
+			{
+				"pos_opening_shift": opening_shift,
+				"user": user,
+				"docstatus": 1,
+			},
+			"name",
+		)
+		if existing_shift:
+			return existing_shift
+	
 	closing_shift_doc = frappe.get_doc(closing_shift)
 	closing_shift_doc.flags.ignore_permissions = True
-	closing_shift_doc.save()
-	closing_shift_doc.submit()
+	try:
+		closing_shift_doc.save()
+		closing_shift_doc.submit()
+	except frappe.ValidationError:
+		if opening_shift and user:
+			existing_shift = frappe.db.get_value(
+				"POS Closing Shift",
+				{
+					"pos_opening_shift": opening_shift,
+					"user": user,
+					"docstatus": 1,
+				},
+				"name",
+			)
+			if existing_shift:
+				return existing_shift
+		raise
 	
 	# Return the closing shift name for frontend to handle printing
 	return closing_shift_doc.name
