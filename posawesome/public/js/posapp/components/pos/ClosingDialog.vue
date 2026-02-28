@@ -81,6 +81,8 @@
 				<v-card-actions class="dialog-actions-container">
 					<v-btn
 						theme="dark"
+						:disabled="is_submitting"
+						:loading="is_submitting"
 						@click="submit_dialog"
 						class="pos-action-btn submit-action-btn"
 						size="large"
@@ -122,6 +124,7 @@ export default {
 	mixins: [format],
 	data: () => ({
 		closingDialog: false,
+		is_submitting: false,
 		itemsPerPage: 20,
 		dialog_data: {},
 		pos_profile: "",
@@ -155,8 +158,16 @@ export default {
 			this.closingDialog = false;
 		},
 		submit_dialog() {
+			if (this.is_submitting) {
+				return;
+			}
+
+			this.is_submitting = true;
 			this.eventBus.emit("submit_closing_pos", this.dialog_data);
 			this.closingDialog = false;
+			setTimeout(() => {
+				this.is_submitting = false;
+			}, 1500);
 		},
 		updateDifference(item) {
 			// Calculate difference: closing_amount - expected_amount
@@ -190,6 +201,7 @@ export default {
 	created: function () {
 		this.eventBus.on("open_ClosingDialog", (data) => {
 			this.closingDialog = true;
+			this.is_submitting = false;
 			this.dialog_data = data;
 			// Initialize differences for all payment methods
 			if (this.dialog_data.payment_reconciliation) {
