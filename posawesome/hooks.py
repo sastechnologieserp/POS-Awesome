@@ -19,6 +19,7 @@ app_include_css = "/assets/posawesome/css/posawesome.css"
 # app_include_js = "/assets/posawesome/js/posawesome.js"
 app_include_js = [
 	"posawesome.bundle.js",
+	"/assets/posawesome/js/posapp_version_update_override.js",
 ]
 
 # include js, css files in header of web template
