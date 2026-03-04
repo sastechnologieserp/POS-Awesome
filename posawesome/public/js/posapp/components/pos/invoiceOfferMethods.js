@@ -980,8 +980,15 @@ export default {
 
 		console.log("Opening print window - will print IMMEDIATELY");
 
-		// Open print window and print immediately
-		const printWindow = window.open(url, "_blank");
+		// Open/reuse the same print window and print immediately
+		const printWindow = window.open(url, "Print");
+		if (!printWindow) {
+			this.eventBus.emit("show_message", {
+				title: __("Please allow popups to print"),
+				color: "error",
+			});
+			return;
+		}
 
 		// Print immediately when loaded
 		printWindow.addEventListener(
