@@ -962,42 +962,23 @@ export default {
 		}
 	},
 	load_print_page(invoice_name) {
-		// ALWAYS use SALES POS format for online printing
+		if (!invoice_name) return;
 		const print_format = this.pos_profile.print_format || "SALES POS";
-		const letter_head = this.pos_profile.letter_head || 0;
+		const no_letterhead = this.pos_profile?.letter_head ? 0 : 1;
+		const printOptions = {
+			invoiceDoc: { ...(this.invoice_doc || {}), name: invoice_name },
+			allowOfflineFallback: true,
+			fallbackDelay: 4000,
+		};
 
-		console.log("load_print_page: Using SALES POS format");
-
-		const url =
-			frappe.urllib.get_base_url() +
-			"/printview?doctype=Sales%20Invoice&name=" +
-			invoice_name +
-			"&trigger_print=1" +
-			"&format=" +
-			print_format +
-			"&no_letterhead=" +
-			letter_head;
-
-		console.log("Opening print window - will print IMMEDIATELY");
-
-		// Open/reuse the same print window and print immediately
-		const printWindow = window.open(url, "Print");
-		if (!printWindow) {
-			this.eventBus.emit("show_message", {
-				title: __("Please allow popups to print"),
-				color: "error",
-			});
-			return;
-		}
-
-		// Print immediately when loaded
-		printWindow.addEventListener(
-			"load",
-			function () {
-				console.log("Print window loaded - printing now");
-				printWindow.print();
+		silentPrint(
+			{
+				doctype: "Sales Invoice",
+				name: invoice_name,
+				print_format,
+				no_letterhead,
 			},
-			{ once: true },
+			printOptions,
 		);
 	},
 
