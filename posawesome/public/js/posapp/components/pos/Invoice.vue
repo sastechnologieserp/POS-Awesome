@@ -509,16 +509,28 @@ export default {
 				});
 				return;
 			}
-			let invoice_name = this.invoice_doc.name;
-			frappe.run_serially([
-				() => {
-					const invoice_doc = this.save_and_clear_invoice();
-					invoice_name = invoice_doc.name ? invoice_doc.name : invoice_name;
-				},
-				() => {
-					this.load_print_page(invoice_name);
-				},
-			]);
+
+			const doc = this.get_invoice_doc();
+			if (!doc?.items?.length) {
+				this.eventBus.emit("show_message", {
+					title: __("Nothing to save"),
+					color: "error",
+				});
+				return;
+			}
+
+			const saved_doc = this.update_invoice(doc);
+			const invoice_name = saved_doc?.name || this.invoice_doc?.name;
+
+			if (!invoice_name) {
+				this.eventBus.emit("show_message", {
+					title: __("Error saving the current invoice"),
+					color: "error",
+				});
+				return;
+			}
+
+			this.load_print_page(invoice_name);
 		},
 		async set_delivery_charges() {
 			var vm = this;
