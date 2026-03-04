@@ -963,7 +963,7 @@ export default {
 	},
 	load_print_page(invoice_name) {
 		// ALWAYS use SALES POS format for online printing
-		const print_format = this.profile.print_format || "SALES POS";
+		const print_format = this.pos_profile.print_format || "SALES POS";
 		const letter_head = this.pos_profile.letter_head || 0;
 
 		console.log("load_print_page: Using SALES POS format");
