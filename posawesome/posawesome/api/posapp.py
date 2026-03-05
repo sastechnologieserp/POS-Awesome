@@ -199,6 +199,7 @@ def get_items(
 		use_limit_search = pos_profile.get("pose_use_limit_search")
 		search_serial_no = pos_profile.get("posa_search_serial_no")
 		search_batch_no = pos_profile.get("posa_search_batch_no")
+		search_result_type = pos_profile.get("posa_search_result_type") or "Contains"
 		posa_show_template_items = pos_profile.get("posa_show_template_items")
 		posa_display_items_in_stock = pos_profile.get("posa_display_items_in_stock")
 		search_limit = 0
@@ -237,7 +238,13 @@ def get_items(
 			batch_no = data.get("batch_no") if data.get("batch_no") else ""
 			barcode = data.get("barcode") if data.get("barcode") else ""
 
-			condition += get_seearch_items_conditions(item_code, serial_no, batch_no, barcode)
+			condition += get_seearch_items_conditions(
+				item_code,
+				serial_no,
+				batch_no,
+				barcode,
+				search_result_type,
+			)
 			if item_group:
 				# Escape item_group to avoid SQL errors with special characters
 				safe_item_group = frappe.db.escape("%" + item_group + "%")
@@ -270,9 +277,19 @@ def get_items(
 			data = search_serial_or_batch_or_barcode_number(search_value, search_serial_no)
 			item_code = data.get("item_code") if data.get("item_code") else search_value
 
+			if search_result_type.lower() == "prefix":
+				search_pattern = f"{item_code}%"
+				operator = "like"
+			elif search_result_type.lower() == "exact":
+				search_pattern = item_code
+				operator = "="
+			else:
+				search_pattern = f"%{item_code}%"
+				operator = "like"
+
 			or_filters = [
-				["name", "like", f"%{item_code}%"],
-				["item_name", "like", f"%{item_code}%"],
+				["name", operator, search_pattern],
+				["item_name", operator, search_pattern],
 			]
 
 			# Check for exact barcode match
@@ -2394,16 +2411,27 @@ def search_serial_or_batch_or_barcode_number(search_value, search_serial_no):
 	return {}
 
 
-def get_seearch_items_conditions(item_code, serial_no, batch_no, barcode):
+def get_seearch_items_conditions(item_code, serial_no, batch_no, barcode, search_result_type="Contains"):
 	"""Build item search conditions safely."""
 	# Gracefully handle missing item_code values to avoid TypeErrors
 	item_code = item_code or ""
+	search_result_type = (search_result_type or "Contains").lower()
 
 	if serial_no or batch_no or barcode:
 		return " and name = {0}".format(frappe.db.escape(item_code))
 
+	if search_result_type == "prefix":
+		search_pattern = item_code + "%"
+	elif search_result_type == "exact":
+		search_pattern = item_code
+		return """ and (name = {item_code} or item_name = {item_code})""".format(
+			item_code=frappe.db.escape(search_pattern)
+		)
+	else:
+		search_pattern = "%" + item_code + "%"
+
 	return """ and (name like {item_code} or item_name like {item_code})""".format(
-		item_code=frappe.db.escape("%" + item_code + "%")
+		item_code=frappe.db.escape(search_pattern)
 	)
 
 

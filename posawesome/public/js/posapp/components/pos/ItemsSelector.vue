@@ -1537,6 +1537,25 @@ export default {
 
 			return combinations;
 		},
+		getSearchResultType() {
+			return (this.pos_profile?.posa_search_result_type || "Contains").toLowerCase();
+		},
+		matchSearchValue(value, term) {
+			if (!value && value !== 0) return false;
+			const haystack = String(value).toLowerCase();
+			const needle = String(term || "").toLowerCase();
+			const searchType = this.getSearchResultType();
+
+			if (!needle) return true;
+			if (searchType === "prefix") {
+				return haystack.startsWith(needle);
+			}
+			if (searchType === "exact") {
+				return haystack === needle;
+			}
+
+			return haystack.includes(needle);
+		},
 		clearSearch() {
 			this.search_backup = this.first_search;
 			this.first_search = "";
@@ -1664,11 +1683,11 @@ export default {
 			return this.items.filter((item) => {
 				const searchTerm = code.toLowerCase();
 				return (
-					item.item_code.toLowerCase().includes(searchTerm) ||
-					item.item_name.toLowerCase().includes(searchTerm) ||
-					(item.barcode && item.barcode.toLowerCase().includes(searchTerm)) ||
+					this.matchSearchValue(item.item_code, searchTerm) ||
+					this.matchSearchValue(item.item_name, searchTerm) ||
+					(item.barcode && this.matchSearchValue(item.barcode, searchTerm)) ||
 					(item.barcodes &&
-						item.barcodes.some((bc) => bc.barcode.toLowerCase().includes(searchTerm)))
+						item.barcodes.some((bc) => this.matchSearchValue(bc.barcode, searchTerm)))
 				);
 			});
 		},
@@ -1898,25 +1917,12 @@ export default {
 					);
 
 					if (filtred_list.length === 0) {
-						// Match by code or name containing the term
+						// Match by code or name using configured search result type
 						filtred_list = filtred_group_list.filter(
 							(item) =>
-								item.item_code.toLowerCase().includes(term) ||
-								item.item_name.toLowerCase().includes(term),
+								this.matchSearchValue(item.item_code, term) ||
+								this.matchSearchValue(item.item_name, term),
 						);
-					}
-
-					if (filtred_list.length === 0) {
-						// Fallback to partial fuzzy match on name
-						const search_combinations = this.generateWordCombinations(this.search);
-						filtred_list = filtred_group_list.filter((item) => {
-							const nameLower = item.item_name.toLowerCase();
-							return search_combinations.some((element) => {
-								element = element.toLowerCase().trim();
-								const element_regex = new RegExp(`.*${element.split("").join(".*")}.*`);
-								return element_regex.test(nameLower);
-							});
-						});
 					}
 
 					if (filtred_list.length === 0 && this.pos_profile.posa_search_serial_no) {
