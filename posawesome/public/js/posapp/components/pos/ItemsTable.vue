@@ -130,6 +130,17 @@
 									<v-icon size="large">mdi-plus-circle-outline</v-icon>
 									<span class="action-label">{{ __("Increase") }}</span>
 								</v-btn>
+								<v-btn
+									:disabled="!!item.posa_is_replace"
+									size="large"
+									color="blue"
+									variant="tonal"
+									class="item-action-btn plus-btn"
+									@click.stop="openItemHistory(item)"
+								>
+									<v-icon size="large">mdi-history</v-icon>
+									<span class="action-label">{{ __("Item History") }}</span>
+								</v-btn>
 							</div>
 						</div>
 
@@ -523,6 +534,62 @@
 				</td>
 			</template>
 		</v-data-table-virtual>
+		<v-dialog v-model="showItemHistoryDialog" width="900">
+			<v-card>
+
+				<v-card-title class="text-h6">
+					Item History
+				</v-card-title>
+
+				<v-card-text>
+					<div>
+						<b>Customer Name:</b> {{ invoice_doc.customer_name }}
+					</div>
+
+					<div>
+						<b>Item Name:</b> {{ selectedItem?.item_name }}
+					</div>
+
+					<div v-if="itemHistory.length">
+
+					<b>Last Purchase History:</b>
+
+					<v-table density="compact">
+				<thead>
+					<tr>
+						<th>Sr No</th>
+						<th>Cost Center</th>
+						<th>Date</th>
+						<th>Qty</th>
+						<th>Unit Price</th>
+						<th>Total Amount</th>
+					</tr>
+				</thead>
+				<tbody>
+
+					<tr v-for="(row,index) in itemHistory" :key="index">
+						<td>{{ index + 1 }}</td>
+						<td>{{ row.cost_center }}</td>
+						<td>{{ row.posting_date }}</td>
+						<td>{{ row.qty }}</td>
+						<td>{{ row.rate }}</td>
+						<td>{{ row.amount }}</td>
+					</tr>
+				</tbody>	
+			</v-table>
+			</div>
+				</v-card-text>
+
+				<v-card-actions>
+					<v-spacer></v-spacer>
+
+					<v-btn color="red" @click="showItemHistoryDialog=false">
+						Close
+					</v-btn>
+				</v-card-actions>
+
+			</v-card>
+		</v-dialog>
 	</div>
 </template>
 
@@ -564,6 +631,9 @@ export default {
 			draggedIndex: null,
 			dragOverIndex: null,
 			isDragging: false,
+			showItemHistoryDialog: false,
+			selectedItem: null,
+			itemHistory :[]
 		};
 	},
 	computed: {
@@ -587,6 +657,50 @@ export default {
 		},
 	},
 	methods: {
+		openItemHistory(item) {
+
+		console.log("Item clicked:", item)
+		console.log("Invoice Doc:", this.invoice_doc)
+
+		// store selected item
+		this.selectedItem = item
+
+		// clear previous history
+		this.itemHistory = []
+
+		// open dialog
+		this.showItemHistoryDialog = true
+
+		// call history function (we will create next)
+		this.loadItemHistory()
+
+		console.log("Dialog status:", this.showItemHistoryDialog)
+	},
+	loadItemHistory() {
+
+	console.log("Loading history for item:", this.selectedItem)
+
+	frappe.call({
+		method: "posawesome.posawesome.api.api.item_history",
+		args: {
+			item_code: this.selectedItem.item_code,
+			customer: this.invoice_doc.customer
+		},
+		callback: (r) => {
+
+			console.log("History Response:", r)
+
+			if (r.message) {
+				this.itemHistory = r.message
+			}
+
+		},
+		error: (err) => {
+			console.error("History API Error:", err)
+		}
+	})
+
+},
 		onDragOverFromSelector(event) {
 			// Check if drag data is from item selector
 			const dragData = event.dataTransfer.types.includes("application/json");
