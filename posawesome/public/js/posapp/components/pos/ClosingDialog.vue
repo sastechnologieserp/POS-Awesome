@@ -174,17 +174,19 @@ export default {
 			item.difference = (item.closing_amount || 0) - (item.expected_amount || 0);
 		},
 		print_preview() {
-			// Test the cashier shift report format
+			// Render preview from current closing dialog data (without submitting)
 			frappe.call({
 				method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.test_cashier_shift_report",
+				args: {
+					closing_shift: this.dialog_data,
+				},
 				callback: (r) => {
 					if (r.message) {
-						const print_url = r.message;
+						const html_content = r.message;
 						// Open in new window for preview
 						const previewWindow = window.open('', "Cashier Shift Report Preview", "width=400,height=600");
-						previewWindow.document.write('<html><head><title>Cashier Shift Report Preview</title></head><body>');
-						previewWindow.document.write('<iframe src="' + print_url + '" width="100%" height="100%" frameborder="0"></iframe>');
-						previewWindow.document.write('</body></html>');
+						previewWindow.document.open();
+						previewWindow.document.write(html_content);
 						previewWindow.document.close();
 					}
 				}
