@@ -165,6 +165,7 @@ fixtures = [
 					"POS Profile-posa_pos_awesome_settings",
 					"POS Profile-posa_allow_delete",
 					"POS Profile-posa_allow_user_to_edit_rate",
+					"POS Profile-posa_use_customer_last_selling_rate",
 					"POS Profile-posa_allow_user_to_edit_additional_discount",
 					"POS Profile-posa_allow_user_to_edit_item_discount",
 					"POS Profile-posa_display_items_in_stock",

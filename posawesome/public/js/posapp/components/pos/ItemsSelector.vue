@@ -965,6 +965,57 @@ export default {
 		async click_item_row(event, { item }) {
 			await this.add_item(item);
 		},
+		async apply_customer_last_selling_rate(item) {
+			if (!this.pos_profile?.posa_use_customer_last_selling_rate) {
+				return item;
+			}
+
+			if (!this.customer || !item?.item_code) {
+				return item;
+			}
+
+			try {
+				const response = await frappe.call({
+					method: "posawesome.posawesome.api.items.get_customer_last_selling_rate",
+					args: {
+						customer: this.customer,
+						item_code: item.item_code,
+						company: this.pos_profile?.company,
+						uom: item.uom || item.stock_uom,
+					},
+				});
+
+				const lastRate = response?.message;
+				if (!lastRate) {
+					return item;
+				}
+
+				const baseRate = this.flt(lastRate.base_rate ?? lastRate.rate ?? 0, this.currency_precision);
+				if (!baseRate) {
+					return item;
+				}
+
+				item.base_rate = baseRate;
+				item.base_price_list_rate = this.flt(
+					lastRate.base_price_list_rate ?? baseRate,
+					this.currency_precision,
+				);
+
+				const displayedRate =
+					this.selected_currency && this.selected_currency !== this.pos_profile.currency
+						? this.flt(baseRate * (this.exchange_rate || 1), this.currency_precision)
+						: baseRate;
+
+				item.rate = displayedRate;
+				item.price_list_rate = displayedRate;
+				item.original_rate = displayedRate;
+				item.original_currency = this.selected_currency || this.pos_profile.currency;
+			} catch (error) {
+				console.error("Failed to apply customer last selling rate", error);
+			}
+
+			return item;
+		},
 		async add_item(item) {
 			item = { ...item };
 			if (item.has_variants) {
@@ -1028,6 +1079,8 @@ export default {
 					item.base_rate = base_rate;
 					item.base_price_list_rate = base_rate;
 				}
+
+				await this.apply_customer_last_selling_rate(item);
 
 				if (!item.qty || item.qty === 1) {
 					let qtyVal = this.qty != null ? this.qty : 1;

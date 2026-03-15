@@ -695,6 +695,66 @@ def get_items_from_barcode(selling_price_list, currency, barcode):
 	return None
 
 
+@frappe.whitelist()
+def get_customer_last_selling_rate(customer, item_code, company=None, uom=None):
+	if not customer or not item_code:
+		return None
+
+	conditions = [
+		"si.docstatus = 1",
+		"ifnull(si.is_return, 0) = 0",
+		"ifnull(sii.is_free_item, 0) = 0",
+		"si.customer = %(customer)s",
+		"sii.item_code = %(item_code)s",
+	]
+
+	params = {
+		"customer": customer,
+		"item_code": item_code,
+	}
+
+	if company:
+		conditions.append("si.company = %(company)s")
+		params["company"] = company
+
+	if uom:
+		conditions.append("sii.uom = %(uom)s")
+		params["uom"] = uom
+
+	result = frappe.db.sql(
+		f"""
+			SELECT
+				sii.rate,
+				sii.base_rate,
+				sii.price_list_rate,
+				sii.base_price_list_rate,
+				sii.uom,
+				si.currency,
+				si.name AS sales_invoice
+			FROM `tabSales Invoice Item` sii
+			INNER JOIN `tabSales Invoice` si ON si.name = sii.parent
+			WHERE {' AND '.join(conditions)}
+			ORDER BY si.posting_date DESC, si.posting_time DESC, si.creation DESC, sii.idx DESC
+			LIMIT 1
+		""",
+		params,
+		as_dict=True,
+	)
+
+	if not result:
+		return None
+
+	last_row = result[0]
+	last_row["rate"] = flt(last_row.get("rate") or 0)
+	last_row["base_rate"] = flt(last_row.get("base_rate") or last_row.get("rate") or 0)
+	last_row["price_list_rate"] = flt(last_row.get("price_list_rate") or last_row.get("rate") or 0)
+	last_row["base_price_list_rate"] = flt(
+		last_row.get("base_price_list_rate") or last_row.get("base_rate") or 0
+	)
+
+	return last_row
+
+
 def build_item_cache(item_code):
 	"""Build item cache for faster access."""
 	# Implementation for building item cache
