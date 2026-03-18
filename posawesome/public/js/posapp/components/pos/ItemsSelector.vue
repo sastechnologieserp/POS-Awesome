@@ -1029,6 +1029,9 @@ export default {
 					item.base_price_list_rate = base_rate;
 				}
 
+				// Customer last selling rate is resolved centrally via get_item_detail
+				// in Invoice update_item_detail() to avoid race/overwrite issues.
+
 				if (!item.qty || item.qty === 1) {
 					let qtyVal = this.qty != null ? this.qty : 1;
 					qtyVal = Math.abs(qtyVal);
@@ -2052,6 +2055,7 @@ export default {
 			await initPromise;
 			await checkDbHealth();
 			this.pos_profile = data.pos_profile;
+			this.customer = (data.pos_profile && data.pos_profile.customer) || this.customer || null;
 			if (this.pos_profile.posa_force_reload_items && !this.pos_profile.posa_smart_reload_mode) {
 				await this.get_items(true);
 			} else {
@@ -2079,7 +2083,13 @@ export default {
 			this.selected_price_list = data;
 		});
 		this.eventBus.on("update_customer", (data) => {
-			this.customer = data;
+			if (typeof data === "string") {
+				this.customer = data || null;
+			} else if (data && typeof data === "object") {
+				this.customer = data.name || data.customer || null;
+			} else {
+				this.customer = null;
+			}
 		});
 
 		// Manually trigger a full item reload when requested

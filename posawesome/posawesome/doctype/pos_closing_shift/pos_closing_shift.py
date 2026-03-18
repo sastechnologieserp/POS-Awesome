@@ -714,6 +714,16 @@ def get_last_closed_shift(pos_profile=None, user=None):
 	- If pos_profile is provided, restrict results to that profile.
 	"""
 	user = user or frappe.session.user
+	if isinstance(pos_profile, str):
+		try:
+			parsed = json.loads(pos_profile)
+			if isinstance(parsed, dict):
+				pos_profile = parsed.get("name") or parsed.get("pos_profile") or pos_profile
+		except Exception:
+			pass
+	elif isinstance(pos_profile, dict):
+		pos_profile = pos_profile.get("name") or pos_profile.get("pos_profile")
+
 	filters = {"docstatus": 1, "user": user}
 	if pos_profile:
 		filters["pos_profile"] = pos_profile
@@ -722,10 +732,136 @@ def get_last_closed_shift(pos_profile=None, user=None):
 		"POS Closing Shift",
 		filters=filters,
 		pluck="name",
-		order_by="modified desc",
+		# Use shift end time first; modified can change later and reorder history.
+		order_by="period_end_date desc, creation desc",
 		limit_page_length=1,
 	)
 	return rows[0] if rows else None
+
+
+@frappe.whitelist()
+def test_cashier_shift_report(closing_shift=None, closing_shift_name=None):
+	"""Return cashier shift report HTML for preview.
+
+	Supports:
+	- `closing_shift`: unsaved closing shift payload from client (JSON string or dict)
+	- `closing_shift_name`: existing submitted POS Closing Shift name
+	"""
+	if closing_shift_name:
+		return direct_print_cashier_shift_report(closing_shift_name)
+
+	if not closing_shift:
+		frappe.throw("Missing closing shift data for preview")
+
+	if isinstance(closing_shift, str):
+		closing_shift = json.loads(closing_shift)
+
+	if not isinstance(closing_shift, dict):
+		frappe.throw("Invalid closing shift data for preview")
+
+	company_name = closing_shift.get("company")
+	user_id = closing_shift.get("user")
+	pos_profile_name = closing_shift.get("pos_profile")
+	opening_shift = closing_shift.get("pos_opening_shift")
+
+	if not company_name or not user_id or not pos_profile_name or not opening_shift:
+		frappe.throw("Incomplete closing shift data for preview")
+
+	company = frappe.get_doc("Company", company_name)
+	user = frappe.get_doc("User", user_id)
+	pos_profile = frappe.get_doc("POS Profile", pos_profile_name)
+
+	items_sold = get_items_sold_during_shift(opening_shift)
+	unpaid_invoices = get_unpaid_invoices(opening_shift)
+	overdue_invoices = get_overdue_invoices(opening_shift)
+	petty_cash_data = get_petty_cash_entries_for_shift(opening_shift)
+	sales_returns_data = get_sales_returns_for_shift(opening_shift)
+
+	returns_total = flt(closing_shift.get("return_sales_total") or 0)
+	returns_count = flt(closing_shift.get("return_sales_count") or 0)
+	credit_sales_total = flt(closing_shift.get("credit_sales_total") or 0)
+	overdue_sales_total = flt(closing_shift.get("overdue_sales_total") or 0)
+	unpaid_invoices_count = len(unpaid_invoices)
+	overdue_invoices_count = len(overdue_invoices)
+	grand_total = flt(closing_shift.get("grand_total") or 0)
+	net_total = flt(closing_shift.get("net_total") or 0)
+
+	opening_cash_balance = 0
+	cash_sales_net = 0
+	cash_payment_found = False
+	cash_closing_amount = 0
+
+	cash_mode_of_payment = frappe.get_value("POS Profile", pos_profile_name, "posa_cash_mode_of_payment")
+	if not cash_mode_of_payment:
+		cash_mode_of_payment = "Cash"
+
+	payment_reconciliation = closing_shift.get("payment_reconciliation") or []
+	for payment in payment_reconciliation:
+		mode = payment.get("mode_of_payment") if isinstance(payment, dict) else None
+		if not mode:
+			continue
+		if mode == cash_mode_of_payment or "cash" in mode.lower():
+			opening_cash_balance = flt(payment.get("opening_amount") or 0)
+			cash_sales_net = flt(payment.get("expected_amount") or 0) - flt(payment.get("opening_amount") or 0)
+			cash_payment_found = True
+			cash_closing_amount = flt(payment.get("closing_amount") or 0)
+			break
+
+	cash_sales_total = cash_sales_net + returns_total
+	total_payments = sum(
+		flt((p.get("expected_amount") if isinstance(p, dict) else 0) or 0)
+		- flt((p.get("opening_amount") if isinstance(p, dict) else 0) or 0)
+		for p in payment_reconciliation
+	)
+	net_sales = grand_total
+	gross_sales = grand_total
+	total_amount = total_payments + credit_sales_total + overdue_sales_total
+
+	pay_in_amount = flt(petty_cash_data.get("pay_in_total", 0) or 0)
+	pay_out_amount = flt(petty_cash_data.get("pay_out_total", 0) or 0)
+	expected_cash_in_drawer = opening_cash_balance + cash_sales_net + pay_in_amount - pay_out_amount
+	cash_over_short = cash_closing_amount - expected_cash_in_drawer if cash_payment_found else 0
+
+	report_data = {
+		"closing_shift": frappe._dict(closing_shift),
+		"company": company,
+		"user": user,
+		"pos_profile": pos_profile,
+		"items_sold": items_sold,
+		"unpaid_invoices": unpaid_invoices,
+		"overdue_invoices": overdue_invoices,
+		"petty_cash_data": petty_cash_data,
+		"sales_returns_data": sales_returns_data,
+		"currency": company.default_currency,
+		"report_date": frappe.utils.nowdate(),
+		"report_time": frappe.utils.nowtime(),
+		"opening_balance": opening_cash_balance,
+		"cash_sales_total": cash_sales_total,
+		"credit_sales_total": credit_sales_total,
+		"unpaid_invoices_count": unpaid_invoices_count,
+		"overdue_sales_total": overdue_sales_total,
+		"overdue_invoices_count": overdue_invoices_count,
+		"total_payments": total_payments,
+		"grand_total": grand_total,
+		"gross_sales": gross_sales,
+		"net_sales": net_sales,
+		"net_total": net_total,
+		"total_amount": total_amount,
+		"expected_cash_in_drawer": expected_cash_in_drawer,
+		"cash_over_short": cash_over_short,
+		"cash_payment_found": cash_payment_found,
+		"cash_closing_amount": cash_closing_amount,
+		"pay_in_amount": pay_in_amount,
+		"pay_out_amount": pay_out_amount,
+		"returns_total": returns_total,
+		"returns_count": returns_count,
+		"returns_list": sales_returns_data.get("returns", []),
+	}
+
+	return frappe.render_template(
+		"posawesome/posawesome/doctype/pos_closing_shift/cashier_shift_report.html",
+		report_data,
+	)
 
 
 @frappe.whitelist()

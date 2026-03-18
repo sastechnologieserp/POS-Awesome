@@ -330,17 +330,30 @@ export default {
 		this.$nextTick(() => {
 			this.eventBus.on("register_pos_profile", (pos_profile) => {
 				this.pos_profile = pos_profile;
+				const defaultCustomer = pos_profile && pos_profile.customer ? pos_profile.customer : null;
+				if (defaultCustomer) {
+					this.customer = defaultCustomer;
+					this.internalCustomer = defaultCustomer;
+					this.eventBus.emit("update_customer", defaultCustomer);
+				}
 				this.get_customer_names();
 			});
 
 			this.eventBus.on("payments_register_pos_profile", (pos_profile) => {
 				this.pos_profile = pos_profile;
+				const defaultCustomer = pos_profile && pos_profile.customer ? pos_profile.customer : null;
+				if (defaultCustomer) {
+					this.customer = defaultCustomer;
+					this.internalCustomer = defaultCustomer;
+					this.eventBus.emit("update_customer", defaultCustomer);
+				}
 				this.get_customer_names();
 			});
 
 			this.eventBus.on("set_customer", (customer) => {
 				this.customer = customer;
 				this.internalCustomer = customer;
+				this.eventBus.emit("update_customer", customer);
 			});
 
 			this.eventBus.on("add_customer_to_list", (customer) => {
