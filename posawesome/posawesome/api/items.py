@@ -540,6 +540,7 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 	item = json.loads(item)
 	today = nowdate()
 	item_code = item.get("item_code")
+	customer = item.get("customer")
 	batch_no_data = []
 	serial_no_data = []
 	if warehouse and item.get("has_batch_no"):
@@ -627,6 +628,39 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 		doc,
 		overwrite_warehouse=False,
 	)
+
+	# Apply customer last selling rate in the same detail pipeline used by cart updates.
+	# This avoids frontend race conditions where a later detail fetch overrides custom rate.
+	use_customer_last_rate = False
+	if customer and item.get("pos_profile"):
+		use_customer_last_rate = (
+			frappe.db.get_value(
+				"POS Profile",
+				item.get("pos_profile"),
+				"posa_use_customer_last_selling_rate",
+			)
+			or 0
+		)
+
+	if use_customer_last_rate:
+		last_rate = get_customer_last_selling_rate(
+			customer=customer,
+			item_code=item_code,
+			company=company,
+			uom=item.get("uom"),
+		)
+		if last_rate:
+			base_rate = flt(last_rate.get("base_rate") or last_rate.get("rate") or 0)
+			base_price_list_rate = flt(
+				last_rate.get("base_price_list_rate")
+				or last_rate.get("price_list_rate")
+				or base_rate
+			)
+			if base_rate:
+				res["rate"] = base_rate
+				res["price_list_rate"] = base_price_list_rate
+				res["customer_last_rate_applied"] = 1
+				res["customer_last_rate_customer"] = customer
 	if item.get("is_stock_item") and warehouse:
 		res["actual_qty"] = get_stock_availability(item_code, warehouse)
 	res["max_discount"] = max_discount
@@ -693,6 +727,66 @@ def get_items_from_barcode(selling_price_list, currency, barcode):
 			"currency": currency,
 		}
 	return None
+
+
+@frappe.whitelist()
+def get_customer_last_selling_rate(customer, item_code, company=None, uom=None):
+	if not customer or not item_code:
+		return None
+
+	conditions = [
+		"si.docstatus = 1",
+		"ifnull(si.is_return, 0) = 0",
+		"ifnull(sii.is_free_item, 0) = 0",
+		"si.customer = %(customer)s",
+		"sii.item_code = %(item_code)s",
+	]
+
+	params = {
+		"customer": customer,
+		"item_code": item_code,
+	}
+
+	if company:
+		conditions.append("si.company = %(company)s")
+		params["company"] = company
+
+	if uom:
+		conditions.append("sii.uom = %(uom)s")
+		params["uom"] = uom
+
+	result = frappe.db.sql(
+		f"""
+			SELECT
+				sii.rate,
+				sii.base_rate,
+				sii.price_list_rate,
+				sii.base_price_list_rate,
+				sii.uom,
+				si.currency,
+				si.name AS sales_invoice
+			FROM `tabSales Invoice Item` sii
+			INNER JOIN `tabSales Invoice` si ON si.name = sii.parent
+			WHERE {' AND '.join(conditions)}
+			ORDER BY si.posting_date DESC, si.posting_time DESC, si.creation DESC, sii.idx DESC
+			LIMIT 1
+		""",
+		params,
+		as_dict=True,
+	)
+
+	if not result:
+		return None
+
+	last_row = result[0]
+	last_row["rate"] = flt(last_row.get("rate") or 0)
+	last_row["base_rate"] = flt(last_row.get("base_rate") or last_row.get("rate") or 0)
+	last_row["price_list_rate"] = flt(last_row.get("price_list_rate") or last_row.get("rate") or 0)
+	last_row["base_price_list_rate"] = flt(
+		last_row.get("base_price_list_rate") or last_row.get("base_rate") or 0
+	)
+
+	return last_row
 
 
 def build_item_cache(item_code):
