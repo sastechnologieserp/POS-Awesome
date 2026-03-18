@@ -22,7 +22,7 @@ def item_history(item_code,customer = None):
 			AND si.customer = %s
 			AND si.docstatus = 1
 		ORDER BY si.posting_time DESC
-		LIMIT 10
+		LIMIT 20
 	""", (item_code,customer), as_dict=True)
 
 	return data

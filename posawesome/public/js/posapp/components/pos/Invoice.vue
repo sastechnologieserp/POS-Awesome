@@ -185,6 +185,7 @@
 						:expanded="expanded"
 						:itemsPerPage="itemsPerPage"
 						:itemSearch="itemSearch"
+						:customer="customer"
 						:pos_profile="pos_profile"
 						:invoice_doc="invoice_doc"
 						:invoiceType="invoiceType"
