@@ -1531,12 +1531,18 @@ export default {
 				if (r.message) {
 					const data = r.message;
 					const customerLastRateApplied = !!data.customer_last_rate_applied;
+					const primaryBaseRate = customerLastRateApplied
+						? data.rate
+						: data.price_list_rate;
+					const secondaryBaseRate = customerLastRateApplied
+						? data.price_list_rate
+						: data.rate;
 					const apiBaseRate = vm.flt(
-						data.rate ?? data.price_list_rate ?? item.base_rate ?? 0,
+						primaryBaseRate ?? secondaryBaseRate ?? item.base_rate ?? 0,
 						vm.currency_precision,
 					);
 					const apiBasePriceListRate = vm.flt(
-						data.price_list_rate ?? data.rate ?? item.base_price_list_rate ?? apiBaseRate,
+						data.price_list_rate ?? secondaryBaseRate ?? item.base_price_list_rate ?? apiBaseRate,
 						vm.currency_precision,
 					);
 					// Ensure price list currency is synced from server response
@@ -1959,12 +1965,19 @@ export default {
 					if (updated) {
 						// Update price list rate and rates if not manually set
 						if (updated.price_list_rate !== undefined || updated.rate !== undefined) {
+							const updatedCustomerLastRateApplied = !!updated.customer_last_rate_applied;
+							const updatedPrimaryBaseRate = updatedCustomerLastRateApplied
+								? updated.rate
+								: updated.price_list_rate;
+							const updatedSecondaryBaseRate = updatedCustomerLastRateApplied
+								? updated.price_list_rate
+								: updated.rate;
 							const updatedBaseRate = this.flt(
-								updated.rate ?? updated.price_list_rate,
+								updatedPrimaryBaseRate ?? updatedSecondaryBaseRate,
 								this.currency_precision,
 							);
 							const updatedBasePriceListRate = this.flt(
-								updated.price_list_rate ?? updated.rate,
+								updated.price_list_rate ?? updatedSecondaryBaseRate,
 								this.currency_precision,
 							);
 							item.base_price_list_rate = updatedBasePriceListRate;
