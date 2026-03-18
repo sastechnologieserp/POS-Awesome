@@ -970,15 +970,16 @@ export default {
 				return item;
 			}
 
-			if (!this.customer || !item?.item_code) {
+			const customer = this.customer || this.pos_profile?.customer || null;
+			if (!customer || !item?.item_code) {
 				return item;
 			}
-
+			
 			try {
 				const response = await frappe.call({
 					method: "posawesome.posawesome.api.items.get_customer_last_selling_rate",
 					args: {
-						customer: this.customer,
+						customer: customer,
 						item_code: item.item_code,
 						company: this.pos_profile?.company,
 						uom: item.uom || item.stock_uom,
@@ -2105,6 +2106,7 @@ export default {
 			await initPromise;
 			await checkDbHealth();
 			this.pos_profile = data.pos_profile;
+			this.customer = (data.pos_profile && data.pos_profile.customer) || this.customer || null;
 			if (this.pos_profile.posa_force_reload_items && !this.pos_profile.posa_smart_reload_mode) {
 				await this.get_items(true);
 			} else {
@@ -2132,7 +2134,13 @@ export default {
 			this.selected_price_list = data;
 		});
 		this.eventBus.on("update_customer", (data) => {
-			this.customer = data;
+			if (typeof data === "string") {
+				this.customer = data || null;
+			} else if (data && typeof data === "object") {
+				this.customer = data.name || data.customer || null;
+			} else {
+				this.customer = null;
+			}
 		});
 
 		// Manually trigger a full item reload when requested
