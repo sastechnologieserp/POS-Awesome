@@ -540,6 +540,7 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 	item = json.loads(item)
 	today = nowdate()
 	item_code = item.get("item_code")
+	customer = item.get("customer")
 	batch_no_data = []
 	serial_no_data = []
 	if warehouse and item.get("has_batch_no"):
@@ -627,6 +628,39 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 		doc,
 		overwrite_warehouse=False,
 	)
+
+	# Apply customer last selling rate in the same detail pipeline used by cart updates.
+	# This avoids frontend race conditions where a later detail fetch overrides custom rate.
+	use_customer_last_rate = False
+	if customer and item.get("pos_profile"):
+		use_customer_last_rate = (
+			frappe.db.get_value(
+				"POS Profile",
+				item.get("pos_profile"),
+				"posa_use_customer_last_selling_rate",
+			)
+			or 0
+		)
+
+	if use_customer_last_rate:
+		last_rate = get_customer_last_selling_rate(
+			customer=customer,
+			item_code=item_code,
+			company=company,
+			uom=item.get("uom"),
+		)
+		if last_rate:
+			base_rate = flt(last_rate.get("base_rate") or last_rate.get("rate") or 0)
+			base_price_list_rate = flt(
+				last_rate.get("base_price_list_rate")
+				or last_rate.get("price_list_rate")
+				or base_rate
+			)
+			if base_rate:
+				res["rate"] = base_rate
+				res["price_list_rate"] = base_price_list_rate
+				res["customer_last_rate_applied"] = 1
+				res["customer_last_rate_customer"] = customer
 	if item.get("is_stock_item") and warehouse:
 		res["actual_qty"] = get_stock_availability(item_code, warehouse)
 	res["max_discount"] = max_discount
