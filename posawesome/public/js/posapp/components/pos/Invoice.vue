@@ -70,17 +70,10 @@
 					:pos_profile="pos_profile"
 					:posting_date_display="posting_date_display"
 					:customer_balance="customer_balance"
-					:price-list="selected_price_list"
-					:price-lists="price_lists"
 					:formatCurrency="formatCurrency"
 					@update:posting_date_display="
 						(val) => {
 							posting_date_display = val;
-						}
-					"
-					@update:priceList="
-						(val) => {
-							selected_price_list = val;
 						}
 					"
 				/>
@@ -129,7 +122,7 @@
 							{{ __("Columns") }}
 						</v-btn>
 
-						<v-dialog v-model="show_column_selector" max-width="500px">
+						<v-dialog v-model="show_column_selector" max-width="600px">
 							<v-card>
 								<v-card-title class="text-h6 pa-4 d-flex align-center">
 									<span>{{ __("Select Columns to Display") }}</span>
@@ -141,28 +134,50 @@
 										@click="show_column_selector = false"
 									></v-btn>
 								</v-card-title>
-								<v-divider></v-divider>
 								<v-card-text class="pa-4">
-									<v-row dense>
-										<v-col
-											cols="12"
-											v-for="column in available_columns.filter((col) => !col.required)"
-											:key="column.key"
-										>
-											<v-switch
-												v-model="temp_selected_columns"
-												:label="column.title"
-												:value="column.key"
-												hide-details
-												density="compact"
-												color="primary"
-												class="column-switch mb-1"
-												:disabled="column.required"
-											></v-switch>
-										</v-col>
-									</v-row>
-									<div class="text-caption mt-2">
-										{{ __("Required columns cannot be hidden") }}
+									<div class="column-section mb-4">
+										<div class="section-title">{{ __("Cart Table Columns") }}</div>
+										<v-row dense>
+											<v-col
+												cols="12"
+												v-for="column in table_optional_columns"
+												:key="column.key"
+											>
+												<v-switch
+													v-model="temp_selected_columns"
+													:label="column.title"
+													:value="column.key"
+													hide-details
+													density="compact"
+													color="primary"
+													class="column-switch mb-1"
+												></v-switch>
+											</v-col>
+										</v-row>
+									</div>
+
+									<v-divider class="mb-4"></v-divider>
+
+									<div class="column-section">
+										<div class="section-title">{{ __("Item Details Fields") }}</div>
+										<v-row dense>
+											<v-col
+												cols="12"
+												sm="6"
+												v-for="column in detail_optional_columns"
+												:key="column.key"
+											>
+												<v-checkbox
+													v-model="temp_selected_columns"
+													:label="column.title"
+													:value="column.key"
+													hide-details
+													density="compact"
+													color="primary"
+													class="detail-checkbox"
+												></v-checkbox>
+											</v-col>
+										</v-row>
 									</div>
 								</v-card-text>
 								<v-card-actions class="pa-4 pt-0">
@@ -181,6 +196,7 @@
 					<!-- ItemsTable component with reorder event handler -->
 					<ItemsTable
 						:headers="items_headers"
+						:selectedColumns="selected_columns"
 						:items="items"
 						:expanded="expanded"
 						:itemsPerPage="itemsPerPage"
@@ -334,6 +350,18 @@ export default {
 	},
 	computed: {
 		...invoiceComputed,
+		table_columns() {
+			return this.available_columns.filter((col) => col.in_table !== false);
+		},
+		table_optional_columns() {
+			return this.table_columns.filter((col) => !col.required);
+		},
+		detail_columns() {
+			return this.available_columns.filter((col) => col.in_table === false);
+		},
+		detail_optional_columns() {
+			return this.detail_columns.filter((col) => !col.required);
+		},
 		isDarkTheme() {
 			return this.$theme.current === "dark";
 		},
@@ -350,14 +378,98 @@ export default {
 		initializeItemsHeaders() {
 			// Define all available columns
 			this.available_columns = [
-				{ title: __("Name"), align: "start", sortable: true, key: "item_name", required: true },
-				{ title: __("QTY"), key: "qty", align: "start", required: true },
-				{ title: __("UOM"), key: "uom", align: "start", required: false },
-				{ title: __("Rate"), key: "rate", align: "start", required: true },
-				{ title: __("Discount %"), key: "discount_value", align: "start", required: false },
-				{ title: __("Discount Amount"), key: "discount_amount", align: "start", required: false },
-				{ title: __("Amount"), key: "amount", align: "start", required: true },
-				{ title: __("Offer?"), key: "posa_is_offer", align: "center", required: false },
+				{
+					title: __("Name"),
+					align: "start",
+					sortable: true,
+					key: "item_name",
+					required: true,
+					in_table: true,
+				},
+				{ title: __("QTY"), key: "qty", align: "start", required: true, in_table: true },
+				{ title: __("UOM"), key: "uom", align: "start", required: false, in_table: true },
+				{ title: __("Rate"), key: "rate", align: "start", required: true, in_table: true },
+				{
+					title: __("Discount %"),
+					key: "discount_value",
+					align: "start",
+					required: false,
+					in_table: true,
+				},
+				{
+					title: __("Discount Amount"),
+					key: "discount_amount",
+					align: "start",
+					required: false,
+					in_table: true,
+				},
+				{ title: __("Amount"), key: "amount", align: "start", required: true, in_table: true },
+				{
+					title: __("Offer?"),
+					key: "posa_is_offer",
+					align: "center",
+					required: false,
+					in_table: true,
+				},
+				{
+					title: __("Item Code"),
+					key: "exp_item_code",
+					required: false,
+					in_table: false,
+				},
+				{ title: __("QTY"), key: "exp_qty", required: false, in_table: false },
+				{ title: __("UOM"), key: "exp_uom", required: false, in_table: false },
+				{ title: __("Rate"), key: "exp_rate", required: false, in_table: false },
+				{
+					title: __("Discount %"),
+					key: "exp_discount_percentage",
+					required: false,
+					in_table: false,
+				},
+				{
+					title: __("Discount Amount"),
+					key: "exp_discount_amount",
+					required: false,
+					in_table: false,
+				},
+				{
+					title: __("Price List Rate"),
+					key: "exp_price_list_rate",
+					required: false,
+					in_table: false,
+				},
+				{
+					title: __("Available QTY"),
+					key: "exp_available_qty",
+					required: false,
+					in_table: false,
+				},
+				{ title: __("Group"), key: "exp_group", required: false, in_table: false },
+				{
+					title: __("Stock QTY"),
+					key: "exp_stock_qty",
+					required: false,
+					in_table: false,
+				},
+				{
+					title: __("Stock UOM"),
+					key: "exp_stock_uom",
+					required: false,
+					in_table: false,
+				},
+				{
+					title: __("Warehouse"),
+					key: "exp_warehouse",
+					required: false,
+					in_table: false,
+				},
+				{
+					title: __("Price List Rate (Bottom)"),
+					key: "exp_price_list_rate_bottom",
+					required: false,
+					in_table: false,
+				},
+				{ title: __("Amount"), key: "exp_amount", required: false, in_table: false },
 			];
 
 			// Initialize selected columns if empty
@@ -366,6 +478,7 @@ export default {
 				this.selected_columns = this.available_columns
 					.filter((col) => {
 						if (col.required) return true;
+						if (col.in_table === false) return true;
 						if (col.key === "discount_value" && this.pos_profile.posa_display_discount_percentage)
 							return true;
 						if (col.key === "discount_amount" && this.pos_profile.posa_display_discount_amount)
@@ -418,7 +531,7 @@ export default {
 		updateHeadersFromSelection() {
 			// Generate headers based on selected columns (without closing dialog)
 			this.items_headers = this.available_columns.filter(
-				(col) => this.selected_columns.includes(col.key) || col.required,
+				(col) => col.in_table !== false && (this.selected_columns.includes(col.key) || col.required),
 			);
 		},
 
@@ -1401,5 +1514,36 @@ export default {
 :deep(.column-switch .v-label) {
 	opacity: 0.9;
 	font-size: 0.95rem;
+}
+
+.column-section {
+	border: 1px solid rgba(0, 0, 0, 0.08);
+	border-radius: 10px;
+	padding: 12px;
+	background: rgba(0, 0, 0, 0.015);
+}
+
+:deep(.dark-theme) .column-section,
+:deep(.v-theme--dark) .column-section {
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	background: rgba(255, 255, 255, 0.03);
+}
+
+.section-title {
+	font-weight: 600;
+	font-size: 0.95rem;
+	margin-bottom: 8px;
+}
+
+.subsection-title {
+	font-weight: 500;
+	font-size: 0.85rem;
+	opacity: 0.85;
+	margin-bottom: 4px;
+}
+
+:deep(.detail-checkbox) {
+	margin-top: 0;
+	margin-bottom: 2px;
 }
 </style>
