@@ -1,6 +1,6 @@
 <template>
-	<v-row align="center" class="items px-3 py-2 mt-0" v-if="pos_profile.posa_allow_change_posting_date">
-		<v-col cols="12" sm="4" class="pb-2">
+	<v-row align="center" justify="space-between" class="items px-3 py-2 mt-0" v-if="showPostingDate || showCustomerBalance">
+		<v-col v-if="showPostingDate" cols="12" :sm="showCustomerBalance ? 4 : 12" class="pb-2">
 			<VueDatePicker
 				v-model="internal_posting_date_display"
 				model-type="format"
@@ -13,32 +13,10 @@
 			/>
 		</v-col>
 		<v-col
-			v-if="pos_profile.posa_enable_price_list_dropdown"
+			v-if="showCustomerBalance"
 			cols="12"
-			sm="6"
-			class="pb-2 d-flex align-center"
-		>
-			<v-select
-				density="comfortable"
-				variant="solo"
-				color="primary"
-				:items="priceLists"
-				:label="frappe._('Price List')"
-				v-model="internal_price_list"
-				hide-details
-				class="flex-grow-1 sleek-field"
-				@update:model-value="onPriceListUpdate"
-			/>
-			<div v-if="pos_profile.posa_show_customer_balance" class="balance-field ml-3">
-				<strong>{{ __("Customer Balance") }}:</strong>
-				<span class="balance-value">{{ formatCurrency(customer_balance) }}</span>
-			</div>
-		</v-col>
-		<v-col
-			v-else-if="pos_profile.posa_show_customer_balance"
-			cols="12"
-			sm="8"
-			class="pb-2 d-flex align-center"
+			:sm="showPostingDate ? 8 : 12"
+			class="pb-2 d-flex align-center justify-sm-end"
 		>
 			<div class="balance-field">
 				<strong>{{ __("Customer Balance") }}:</strong>
@@ -55,34 +33,31 @@ export default {
 		posting_date_display: String,
 		customer_balance: Number,
 		formatCurrency: Function,
-		priceList: String,
-		priceLists: Array,
 	},
 	data() {
 		return {
 			internal_posting_date_display: this.posting_date_display,
-			internal_price_list: this.priceList,
 		};
 	},
 	computed: {
 		isDarkTheme() {
 			return this.$theme?.current === "dark";
 		},
+		showPostingDate() {
+			return !!this.pos_profile?.posa_allow_change_posting_date;
+		},
+		showCustomerBalance() {
+			return !!this.pos_profile?.posa_show_customer_balance;
+		},
 	},
 	watch: {
 		posting_date_display(val) {
 			this.internal_posting_date_display = val;
 		},
-		priceList(val) {
-			this.internal_price_list = val;
-		},
 	},
 	methods: {
 		onUpdate(val) {
 			this.$emit("update:posting_date_display", val);
-		},
-		onPriceListUpdate(val) {
-			this.$emit("update:priceList", val);
 		},
 	},
 };

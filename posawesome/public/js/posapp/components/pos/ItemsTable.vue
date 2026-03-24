@@ -11,7 +11,9 @@
 			<!-- Rate column -->
 			<template v-slot:item.rate="{ item }">
 				<div class="currency-display">
-					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
+					<span v-if="safeCurrencySymbol(displayCurrency)" class="currency-symbol">{{
+						safeCurrencySymbol(displayCurrency)
+					}}</span>
 					<span class="amount-value">{{ formatCurrency(item.rate) }}</span>
 				</div>
 			</template>
@@ -19,7 +21,9 @@
 			<!-- Amount column -->
 			<template v-slot:item.amount="{ item }">
 				<div class="currency-display">
-					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
+					<span v-if="safeCurrencySymbol(displayCurrency)" class="currency-symbol">{{
+						safeCurrencySymbol(displayCurrency)
+					}}</span>
 					<span class="amount-value">{{ formatCurrency(item.qty * item.rate) }}</span>
 				</div>
 			</template>
@@ -41,7 +45,9 @@
 			<!-- Discount amount column -->
 			<template v-slot:item.discount_amount="{ item }">
 				<div class="currency-display">
-					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
+					<span v-if="safeCurrencySymbol(displayCurrency)" class="currency-symbol">{{
+						safeCurrencySymbol(displayCurrency)
+					}}</span>
 					<span class="amount-value">{{ formatCurrency(item.discount_amount || 0) }}</span>
 				</div>
 			</template>
@@ -49,7 +55,9 @@
 			<!-- Price list rate column -->
 			<template v-slot:item.price_list_rate="{ item }">
 				<div class="currency-display">
-					<span class="currency-symbol">{{ currencySymbol(displayCurrency) }}</span>
+					<span v-if="safeCurrencySymbol(displayCurrency)" class="currency-symbol">{{
+						safeCurrencySymbol(displayCurrency)
+					}}</span>
 					<span class="amount-value">{{ formatCurrency(item.price_list_rate) }}</span>
 				</div>
 			</template>
@@ -92,17 +100,17 @@
 						<div class="item-details-form">
 							<!-- First row of fields -->
 							<div class="form-row">
-								<div class="form-field">
+								<div class="form-field" v-if="isFieldVisible('exp_item_code')">
 									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Item Code')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.item_code" disabled prepend-inner-icon="mdi-barcode"></v-text-field>
 								</div>
-								<div class="form-field">
+								<div class="form-field" v-if="isFieldVisible('exp_qty')">
 									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('QTY')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatFloat(item.qty, hide_qty_decimals ? 0 : undefined)
 										" @change="[
 											setFormatedQty(item, 'qty', null, false, $event.target.value),
 											calcStockQty(item, item.qty),
 										]" :rules="[isNumber]" :disabled="!!item.posa_is_replace" prepend-inner-icon="mdi-numeric"></v-text-field>
 								</div>
-								<div class="form-field">
+								<div class="form-field" v-if="isFieldVisible('exp_uom')">
 									<v-select density="compact" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" :label="frappe._('UOM')" v-model="item.uom" :items="item.item_uoms" variant="outlined" item-title="uom" item-value="uom" hide-details @update:model-value="calcUom(item, $event)" :disabled="!!item.posa_is_replace ||
 										(isReturnInvoice && invoice_doc.return_against)
 										" prepend-inner-icon="mdi-weight"></v-select>
@@ -111,13 +119,13 @@
 
 							<!-- Second row of fields -->
 							<div class="form-row">
-								<div class="form-field">
+								<div class="form-field" v-if="isFieldVisible('exp_rate')">
 									<v-text-field density="compact" variant="outlined" color="primary" id="rate" :label="frappe._('Rate')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatCurrency(item.rate)" @change="[
 										setFormatedCurrency(item, 'rate', null, false, $event),
 										calcPrices(item, $event.target.value, $event),
 									]" :disabled="!!item.posa_is_replace || !!item.posa_offer_applied" prepend-inner-icon="mdi-currency-usd"></v-text-field>
 								</div>
-								<div class="form-field">
+								<div class="form-field" v-if="isFieldVisible('exp_discount_percentage')">
 									<v-text-field density="compact" variant="outlined" color="primary" id="discount_percentage" :label="frappe._('Discount %')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatFloat(item.discount_percentage || 0)" @change="[
 										setFormatedCurrency(
 											item,
@@ -129,7 +137,7 @@
 										calcPrices(item, $event.target.value, $event),
 									]" :disabled="!!item.posa_is_replace || !!item.posa_offer_applied" prepend-inner-icon="mdi-percent"></v-text-field>
 								</div>
-								<div class="form-field">
+								<div class="form-field" v-if="isFieldVisible('exp_discount_amount')">
 									<v-text-field density="compact" variant="outlined" color="primary" id="discount_amount" :label="frappe._('Discount Amount')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatCurrency(item.discount_amount || 0)" @change="[
 										setFormatedCurrency(item, 'discount_amount', null, false, $event),
 										calcPrices(item, $event.target.value, $event),
@@ -139,23 +147,23 @@
 
 							<!-- Third row of fields -->
 							<div class="form-row">
-								<div class="form-field">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Price list Rate')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatCurrency(item.price_list_rate)" :disabled="!pos_profile.posa_allow_price_list_rate_change" :prefix="currencySymbol(pos_profile.currency)" @change="changePriceListRate(item)"></v-text-field>
+								<div class="form-field" v-if="isFieldVisible('exp_price_list_rate')">
+									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Price list Rate')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatCurrency(item.price_list_rate)" :disabled="!pos_profile.posa_allow_price_list_rate_change" :prefix="safeCurrencySymbol(pos_profile.currency)" @change="changePriceListRate(item)"></v-text-field>
 								</div>
-								<div class="form-field">
+								<div class="form-field" v-if="isFieldVisible('exp_available_qty')">
 									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Available QTY')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatFloat(item.actual_qty)" disabled></v-text-field>
 								</div>
-								<div class="form-field">
+								<div class="form-field" v-if="isFieldVisible('exp_group')">
 									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Group')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.item_group" disabled></v-text-field>
 								</div>
 							</div>
 
 							<!-- Fourth row of fields -->
 							<div class="form-row">
-								<div class="form-field">
+								<div class="form-field" v-if="isFieldVisible('exp_stock_qty')">
 									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Stock QTY')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatFloat(item.stock_qty)" disabled></v-text-field>
 								</div>
-								<div class="form-field">
+								<div class="form-field" v-if="isFieldVisible('exp_stock_uom')">
 									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Stock UOM')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.stock_uom" disabled></v-text-field>
 								</div>
 								<div class="form-field" v-if="item.posa_offer_applied">
@@ -211,14 +219,14 @@
 
 							<!-- Fourth row for warehouse and other details -->
 							<div class="form-row">
-								<div class="form-field">
+								<div class="form-field" v-if="isFieldVisible('exp_warehouse')">
 									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Warehouse')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.warehouse" disabled prepend-inner-icon="mdi-warehouse"></v-text-field>
 								</div>
-								<div class="form-field">
+								<div class="form-field" v-if="isFieldVisible('exp_price_list_rate_bottom')">
 									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Price List Rate')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatCurrency(item.price_list_rate || 0)" :disabled="!pos_profile.posa_allow_price_list_rate_change" prepend-inner-icon="mdi-format-list-numbered" @change="changePriceListRate(item)"></v-text-field>
 									<v-btn v-if="pos_profile.posa_allow_price_list_rate_change" size="x-small" class="ml-1" @click.stop="changePriceListRate(item)">{{ __("Change") }}</v-btn>
 								</div>
-								<div class="form-field">
+								<div class="form-field" v-if="isFieldVisible('exp_amount')">
 									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Amount')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatCurrency(item.qty * item.rate)" disabled prepend-inner-icon="mdi-calculator"></v-text-field>
 								</div>
 							</div>
@@ -305,6 +313,10 @@ export default {
 		formatFloat: Function,
 		formatCurrency: Function,
 		currencySymbol: Function,
+		selectedColumns: {
+			type: Array,
+			default: () => [],
+		},
 		isNumber: Function,
 		setFormatedQty: Function,
 		calcStockQty: Function,
@@ -353,6 +365,23 @@ export default {
 		},
 	},
 	methods: {
+		safeCurrencySymbol(currency) {
+			const symbol = this.currencySymbol ? this.currencySymbol(currency) : "";
+			if (typeof symbol !== "string") {
+				return "";
+			}
+			const normalized = symbol.trim();
+			if (/^[A-Z]{3}$/.test(normalized)) {
+				return "";
+			}
+			return normalized || "";
+		},
+		isFieldVisible(key) {
+			if (!Array.isArray(this.selectedColumns) || this.selectedColumns.length === 0) {
+				return true;
+			}
+			return this.selectedColumns.includes(key);
+		},
 		openItemHistory(item) {
 
 			console.log("Item clicked:", item)

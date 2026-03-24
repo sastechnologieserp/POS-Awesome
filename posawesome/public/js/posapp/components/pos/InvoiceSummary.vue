@@ -89,8 +89,8 @@
 
 			<!-- Action Buttons -->
 			<v-col cols="12" md="5">
-				<v-row dense>
-					<v-col cols="6">
+				<v-row dense class="action-btn-row">
+					<v-col class="action-btn-col">
 						<v-btn
 							block
 							color="accent"
@@ -102,7 +102,7 @@
 							{{ __("Hold") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="6">
+					<v-col class="action-btn-col">
 						<v-btn
 							block
 							color="warning"
@@ -114,7 +114,7 @@
 							{{ __("Release") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="6" v-if="pos_profile.custom_allow_select_sales_order == 1">
+					<v-col class="action-btn-col" v-if="pos_profile.custom_allow_select_sales_order == 1">
 						<v-btn
 							block
 							color="info"
@@ -126,7 +126,7 @@
 							{{ __("Select S.O") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="6">
+					<v-col class="action-btn-col">
 						<v-btn
 							block
 							color="error"
@@ -138,7 +138,7 @@
 							{{ __("Cancel Sale") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="6" v-if="pos_profile.posa_allow_return == 1">
+					<v-col class="action-btn-col" v-if="pos_profile.posa_allow_return == 1">
 						<v-btn
 							block
 							color="secondary"
@@ -150,7 +150,7 @@
 							{{ __("Sales Return") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="6" v-if="pos_profile.posa_allow_print_draft_invoices">
+					<v-col class="action-btn-col" v-if="pos_profile.posa_allow_print_draft_invoices">
 						<v-btn
 							block
 							color="primary"
@@ -163,7 +163,7 @@
 						</v-btn>
 					</v-col>
 
-					<v-col cols="12">
+					<v-col class="action-btn-col pay-btn-col">
 						<v-btn
 							block
 							color="success"
@@ -262,6 +262,26 @@ export default {
 /* ensure long button labels stay within the button */
 .summary-btn :deep(.v-btn__content) {
 	white-space: normal !important;
+}
+
+.action-btn-row {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.action-btn-col {
+	flex: 1 1 calc(50% - 4px);
+	min-width: 140px;
+}
+
+.pay-btn-col {
+	flex-basis: 100%;
+}
+
+@media (max-width: 600px) {
+	.action-btn-col {
+		flex-basis: 100%;
+	}
 }
 
 .total-field-bold :deep(.v-field__input) {

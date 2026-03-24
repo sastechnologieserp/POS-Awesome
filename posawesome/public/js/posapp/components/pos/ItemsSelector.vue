@@ -270,8 +270,15 @@
 			</div>
 		</v-card>
 		<v-card class="cards mb-0 mt-3 dynamic-padding resizable" style="resize: vertical; overflow: auto">
-			<v-row no-gutters align="center" justify="center" class="dynamic-spacing-sm">
-				<v-col cols="6" class="mb-2">
+			<v-row no-gutters align="center" justify="center" class="dynamic-spacing-sm selector-controls-row">
+				<v-col
+					:class="[
+						'mb-2',
+						pos_profile.posa_enable_price_list_dropdown
+							? 'selector-control-col-half'
+							: 'selector-control-col-full',
+					]"
+				>
 					<v-select
 						:items="items_group"
 						:label="frappe._('Items Group')"
@@ -281,7 +288,7 @@
 						v-model="item_group"
 					></v-select>
 				</v-col>
-				<v-col cols="6" class="mb-2" v-if="pos_profile.posa_enable_price_list_dropdown">
+				<v-col class="mb-2 selector-control-col-half" v-if="pos_profile.posa_enable_price_list_dropdown">
 					<v-select
 						:items="price_lists"
 						:label="frappe._('Price List')"
@@ -289,9 +296,6 @@
 						variant="solo"
 						hide-details
 						v-model="selected_price_list"
-						item-text="name"
-						item-value="name"
-						return-object
 						@update:modelValue="on_price_list_change"
 					>
 					</v-select>
@@ -933,9 +937,11 @@ export default {
 
 			return this.price_lists;
 		},
-		on_price_list_change() {
-				this.get_items(true);
-				this.eventBus.emit("price_list_changed", this.selected_price_list);
+		on_price_list_change(val) {
+			const normalized = typeof val === "object" && val !== null ? val.name || val.value : val;
+			this.selected_price_list = normalized || this.pos_profile.selling_price_list;
+			this.get_items(true);
+			this.eventBus.emit("price_list_changed", this.selected_price_list);
 		},
 		
 		getItemsHeaders() {
@@ -2266,6 +2272,19 @@ export default {
 	padding: var(--dynamic-sm) !important;
 }
 
+.selector-controls-row {
+	row-gap: var(--dynamic-xs);
+}
+
+.selector-control-col-half {
+	flex: 1 1 calc(50% - var(--dynamic-xs));
+	min-width: 220px;
+}
+
+.selector-control-col-full {
+	flex: 1 1 100%;
+}
+
 .action-btn-consistent {
 	margin-top: var(--dynamic-xs) !important;
 	padding: var(--dynamic-xs) var(--dynamic-sm) !important;
@@ -2292,6 +2311,11 @@ export default {
 
 	.dynamic-spacing-sm {
 		padding: var(--dynamic-xs) !important;
+	}
+
+	.selector-control-col-half {
+		flex-basis: 100%;
+		min-width: 0;
 	}
 
 	.action-btn-consistent {
