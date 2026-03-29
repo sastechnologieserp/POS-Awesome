@@ -356,21 +356,6 @@
 							</template>
 						</v-autocomplete>
 					</v-col>
-
-					<v-col cols="12" v-if="pos_profile.posa_display_additional_notes">
-						<v-textarea
-							class="pa-0 dark-field sleek-field"
-							variant="solo"
-							density="compact"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							clearable
-							color="primary"
-							auto-grow
-							rows="2"
-							:label="frappe._('Additional Notes')"
-							v-model="invoice_doc.posa_notes"
-						></v-textarea>
-					</v-col>
 				</v-row>
 
 				<!-- Customer Purchase Order (if enabled in POS profile) -->
