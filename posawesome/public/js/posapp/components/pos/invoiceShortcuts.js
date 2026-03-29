@@ -554,9 +554,9 @@ export default {
 				<div style="max-height: 400px; overflow-y: auto;">
 					${invoices.map((invoice, index) => `
 						<div style="padding: 12px; border: 1px solid #ddd; margin-bottom: 12px; border-radius: 6px; background: #f9f9f9;">
-							<div style="font-weight: bold; font-size: 14px; margin-bottom: 4px;">${invoice.name}</div>
-							<div style="font-size: 12px; color: #666; margin-bottom: 4px;">Customer: ${invoice.customer_name || invoice.customer}</div>
-							<div style="font-size: 12px; color: #666; margin-bottom: 8px;">Date: ${invoice.posting_date} - Total: ${this.formatCurrency(invoice.grand_total)}</div>
+							<div style="font-weight: 600; font-size: 14px; margin-bottom: 2px;">${invoice.name}</div>
+							<div style="font-size: 13px; color: #666; margin-bottom: 2px;">Customer: <span style="font-weight: bolder;">${invoice.customer_name || invoice.customer}</span></div>
+							<div style="font-size: 13px; color: #666; margin-bottom: 4px;">Date: ${invoice.posting_date} - Total: <span style="font-weight: bolder;">${this.formatCurrency(invoice.grand_total)}</span></div>
 							<div style="margin-bottom: 8px;">
 								<strong style="font-size: 12px;">Items:</strong>
 								<div style="margin-left: 10px; font-size: 11px; color: #555;">
