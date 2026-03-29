@@ -16,6 +16,40 @@ from frappe.utils.caching import redis_cache
 from typing import List, Dict
 
 
+def _tokenize_search_value(search_value):
+	"""Split a free-text search value into tokens, ignoring 'or'."""
+	if not search_value:
+		return []
+
+	tokens = [token.strip() for token in cstr(search_value).lower().split()]
+	return [token for token in tokens if token and token != "or"]
+
+
+def _parse_search_groups(search_value):
+	"""Parse search text into OR groups; each group contains AND tokens."""
+	normalized = cstr(search_value or "").strip().lower()
+	if not normalized:
+		return []
+
+	groups = []
+	for group_text in normalized.split(" or "):
+		tokens = [token.strip() for token in group_text.split() if token.strip()]
+		if tokens:
+			groups.append(tokens)
+
+	return groups
+
+
+def _matches_any_word_expression(item_code, item_name, search_value):
+	"""True when text matches at least one OR-group where all tokens are present."""
+	groups = _parse_search_groups(search_value)
+	if not groups:
+		return True
+
+	haystack = f"{cstr(item_code)} {cstr(item_name)}".lower()
+	return any(all(token in haystack for token in group) for group in groups)
+
+
 def get_seearch_items_conditions(item_code, serial_no, batch_no, barcode, search_result_type="Contains"):
 	"""Build item search conditions safely."""
 	# Gracefully handle missing item_code values to avoid TypeErrors
@@ -32,6 +66,21 @@ def get_seearch_items_conditions(item_code, serial_no, batch_no, barcode, search
 		return """ and (name = {item_code} or item_name = {item_code})""".format(
 			item_code=frappe.db.escape(search_pattern)
 		)
+	elif search_result_type == "any word":
+		groups = _parse_search_groups(item_code)
+		if not groups:
+			return ""
+
+		group_parts = []
+		for group in groups:
+			token_parts = []
+			for token in group:
+				escaped = frappe.db.escape(f"%{token}%")
+				token_parts.append(f"(name like {escaped} or item_name like {escaped})")
+
+			group_parts.append("(" + " and ".join(token_parts) + ")")
+
+		return " and (" + " or ".join(group_parts) + ")"
 	else:
 		search_pattern = "%" + item_code + "%"
 
@@ -238,6 +287,7 @@ def get_items(
 
 		# Add search conditions
 		or_filters = []
+		strict_any_word_filter = False
 		if use_limit_search and search_value:
 			data = search_serial_or_batch_or_barcode_number(search_value, search_serial_no)
 			item_code = data.get("item_code") if data.get("item_code") else search_value
@@ -248,14 +298,28 @@ def get_items(
 			elif search_result_type.lower() == "exact":
 				search_pattern = item_code
 				operator = "="
+			elif search_result_type.lower() == "any word":
+				tokens = _tokenize_search_value(item_code)
+				or_filters = []
+				for token in tokens:
+					pattern = f"%{token}%"
+					or_filters.append(["name", "like", pattern])
+					or_filters.append(["item_name", "like", pattern])
+
+				if not tokens:
+					or_filters = []
+
+				# Apply strict (AND within group / OR between groups) after fetch.
+				strict_any_word_filter = True
 			else:
 				search_pattern = f"%{item_code}%"
 				operator = "like"
 
-			or_filters = [
-				["name", operator, search_pattern],
-				["item_name", operator, search_pattern],
-			]
+			if search_result_type.lower() != "any word":
+				or_filters = [
+					["name", operator, search_pattern],
+					["item_name", operator, search_pattern],
+				]
 
 			# Check for exact barcode match
 			if data.get("item_code"):
@@ -305,6 +369,16 @@ def get_items(
 			limit_page_length=limit_page_length,
 			order_by="item_name asc",
 		)
+
+		if strict_any_word_filter and search_value and items_data:
+			items_data = [
+				item
+				for item in items_data
+				if _matches_any_word_expression(item.get("item_code"), item.get("item_name"), search_value)
+			]
+
+			if limit_page_length is not None:
+				items_data = items_data[:limit_page_length]
 
 		if items_data:
 			items = [d.item_code for d in items_data]

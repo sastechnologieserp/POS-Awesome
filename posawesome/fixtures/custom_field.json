@@ -5681,7 +5681,7 @@
   "name": "POS Profile-posa_search_result_type",
   "no_copy": 0,
   "non_negative": 0,
-  "options": "Contains\nPrefix\nExact",
+    "options": "Contains\nPrefix\nExact\nAny Word",
   "permlevel": 0,
   "placeholder": null,
   "precision": "",
