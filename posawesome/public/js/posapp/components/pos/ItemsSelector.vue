@@ -1549,6 +1549,22 @@ export default {
 		getSearchResultType() {
 			return (this.pos_profile?.posa_search_result_type || "Contains").toLowerCase();
 		},
+		parseSearchTermGroups(term) {
+			const normalized = String(term || "").toLowerCase().trim();
+			if (!normalized) {
+				return [];
+			}
+
+			return normalized
+				.split(/\s+or\s+/)
+				.map((group) =>
+					group
+						.split(/\s+/)
+						.map((token) => token.trim())
+						.filter(Boolean),
+				)
+				.filter((group) => group.length > 0);
+		},
 		matchSearchValue(value, term) {
 			if (!value && value !== 0) return false;
 			const haystack = String(value).toLowerCase();
@@ -1561,6 +1577,15 @@ export default {
 			}
 			if (searchType === "exact") {
 				return haystack === needle;
+			}
+			if (searchType === "any word") {
+				const groups = this.parseSearchTermGroups(needle);
+				if (!groups.length) {
+					return true;
+				}
+
+				// Group logic: tokens in a group are AND, groups are OR.
+				return groups.some((group) => group.every((token) => haystack.includes(token)));
 			}
 
 			return haystack.includes(needle);
