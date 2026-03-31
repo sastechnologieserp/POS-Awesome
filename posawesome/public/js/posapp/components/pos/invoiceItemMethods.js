@@ -234,11 +234,12 @@ export default {
 		this.expanded = [];
 		this.eventBus.emit("set_pos_coupons", []);
 		this.posa_coupons = [];
-		this.invoice_doc = "";
+		this.invoice_doc = {};
 		this.return_doc = "";
 		this.discount_amount = 0;
 		this.additional_discount = 0; // Added for additional discount
 		this.additional_discount_percentage = 0;
+		this.additional_notes = "";
 		this.delivery_charges_rate = 0;
 		this.selected_delivery_charge = "";
 		// Reset posting date to today
@@ -367,6 +368,7 @@ export default {
 		}
 
 		this.invoice_doc = data;
+		this.additional_notes = data.posa_notes || "";
 		this.items = data.items || [];
 		console.log("Items set:", this.items.length, "items");
 
@@ -389,6 +391,7 @@ export default {
 		this.posting_date = this.formatDateForBackend(data.posting_date || frappe.datetime.nowdate());
 		this.discount_amount = data.discount_amount;
 		this.additional_discount_percentage = data.additional_discount_percentage;
+		this.additional_notes = data.posa_notes || "";
 
 		if (this.items.length > 0) {
 			this.items.forEach((item) => {
@@ -460,9 +463,10 @@ export default {
 		if (!data.name && !data.is_return) {
 			this.items = [];
 			this.customer = this.pos_profile.customer;
-			this.invoice_doc = "";
+			this.invoice_doc = {};
 			this.discount_amount = 0;
 			this.additional_discount_percentage = 0;
+			this.additional_notes = "";
 			this.invoiceType = "Invoice";
 			this.invoiceTypes = ["Invoice", "Order"];
 		} else {
@@ -479,6 +483,7 @@ export default {
 				this.invoiceTypes = ["Return"];
 			}
 			this.invoice_doc = data;
+			this.additional_notes = data.posa_notes || "";
 			this.items = data.items;
 			this.update_items_details(this.items);
 			this.posa_offers = data.posa_offers || [];
@@ -494,6 +499,7 @@ export default {
 			this.posting_date = this.formatDateForBackend(data.posting_date || frappe.datetime.nowdate());
 			this.discount_amount = data.discount_amount;
 			this.additional_discount_percentage = data.additional_discount_percentage;
+			this.additional_notes = data.posa_notes || "";
 			this.items.forEach((item) => {
 				if (item.serial_no) {
 					item.serial_no_selected = [];
@@ -545,6 +551,7 @@ export default {
 		doc.selling_price_list = this.get_price_list();
 		doc.naming_series = doc.naming_series || this.pos_profile.naming_series;
 		doc.customer = this.customer;
+		doc.posa_notes = this.additional_notes || this.invoice_doc?.posa_notes || "";
 
 		// Determine if this is a return invoice
 		const isReturn = this.isReturnInvoice;
