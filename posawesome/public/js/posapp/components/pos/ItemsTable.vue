@@ -82,6 +82,10 @@
 									<v-icon size="large">mdi-history</v-icon>
 									<span class="action-label">{{ __("History") }}</span>
 								</v-btn>
+								<v-btn :disabled="!!item.posa_is_replace" size="large" color="indigo" variant="tonal" class="item-action-btn plus-btn" @click.stop="openItemWarehouseStock(item)">
+									<v-icon size="large">mdi-warehouse</v-icon>
+									<span class="action-label">{{ __("Stock") }}</span>
+								</v-btn>
 							</div>
 
 							<div class="action-button-group">
@@ -293,6 +297,59 @@
 
 			</v-card>
 		</v-dialog>
+		<v-dialog v-model="showWarehouseStockDialog" width="700">
+			<v-card>
+
+				<v-card-title class="text-h6">
+					Warehouse Stock
+				</v-card-title>
+
+				<v-card-text>
+					<div>
+						<b>Item Name:</b> {{ selectedStockItem?.item_name }}
+					</div>
+
+					<div class="mt-2">
+						<b>Item Code:</b> {{ selectedStockItem?.item_code }}
+					</div>
+
+					<div v-if="warehouseStockLoading" class="mt-3 text-medium-emphasis">
+						Loading warehouse stock...
+					</div>
+
+					<div v-else-if="warehouseStock.length" class="mt-3">
+						<v-table density="compact">
+							<thead>
+								<tr>
+									<th>Sr No</th>
+									<th>Warehouse</th>
+									<th>Available Qty</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr v-for="(row, index) in warehouseStock" :key="`${row.warehouse}-${index}`">
+									<td>{{ index + 1 }}</td>
+									<td>{{ row.warehouse }}</td>
+									<td>{{ formatFloat(row.actual_qty) }}</td>
+								</tr>
+							</tbody>
+						</v-table>
+					</div>
+					<div v-else class="mt-3 text-medium-emphasis">
+						No warehouses found to display stock.
+					</div>
+				</v-card-text>
+
+				<v-card-actions>
+					<v-spacer></v-spacer>
+
+					<v-btn color="red" @click="showWarehouseStockDialog = false">
+						Close
+					</v-btn>
+				</v-card-actions>
+
+			</v-card>
+		</v-dialog>
 	</div>
 </template>
 
@@ -340,8 +397,12 @@ export default {
 			dragOverIndex: null,
 			isDragging: false,
 			showItemHistoryDialog: false,
+			showWarehouseStockDialog: false,
 			selectedItem: null,
-			itemHistory: []
+			selectedStockItem: null,
+			itemHistory: [],
+			warehouseStock: [],
+			warehouseStockLoading: false,
 		};
 	},
 	computed: {
@@ -425,6 +486,36 @@ export default {
 				}
 			})
 
+		},
+		openItemWarehouseStock(item) {
+			this.selectedStockItem = item;
+			this.warehouseStock = [];
+			this.showWarehouseStockDialog = true;
+			this.loadItemWarehouseStock();
+		},
+		loadItemWarehouseStock() {
+			if (!this.selectedStockItem?.item_code) {
+				return;
+			}
+
+			this.warehouseStockLoading = true;
+
+			frappe.call({
+				method: "posawesome.posawesome.api.api.item_stock_by_warehouse",
+				args: {
+					item_code: this.selectedStockItem.item_code,
+					company: this.pos_profile?.company,
+				},
+				callback: (r) => {
+					this.warehouseStock = Array.isArray(r.message) ? r.message : [];
+					this.warehouseStockLoading = false;
+				},
+				error: (err) => {
+					console.error("Warehouse stock API Error:", err);
+					this.warehouseStock = [];
+					this.warehouseStockLoading = false;
+				},
+			});
 		},
 		onDragOverFromSelector(event) {
 			// Check if drag data is from item selector
