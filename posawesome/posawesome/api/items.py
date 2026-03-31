@@ -288,9 +288,11 @@ def get_items(
 		# Add search conditions
 		or_filters = []
 		strict_any_word_filter = False
+		barcode_match = False
 		if use_limit_search and search_value:
 			data = search_serial_or_batch_or_barcode_number(search_value, search_serial_no)
 			item_code = data.get("item_code") if data.get("item_code") else search_value
+			barcode_match = bool(data.get("barcode") or data.get("serial_no") or data.get("batch_no"))
 
 			if search_result_type.lower() == "prefix":
 				search_pattern = f"{item_code}%"
@@ -325,6 +327,8 @@ def get_items(
 			if data.get("item_code"):
 				filters["name"] = data.get("item_code")
 				or_filters = []
+				# Do not apply any-word post-filtering for exact barcode/serial/batch matches.
+				strict_any_word_filter = False
 
 		if item_group:
 			filters["item_group"] = ["like", f"%{item_group}%"]
@@ -370,7 +374,7 @@ def get_items(
 			order_by="item_name asc",
 		)
 
-		if strict_any_word_filter and search_value and items_data:
+		if strict_any_word_filter and search_value and items_data and not barcode_match:
 			items_data = [
 				item
 				for item in items_data
