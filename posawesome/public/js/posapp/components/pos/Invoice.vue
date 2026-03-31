@@ -238,7 +238,7 @@
 			:total_qty="total_qty"
 			:additional_discount="additional_discount"
 			:additional_discount_percentage="additional_discount_percentage"
-			:additional_notes="invoice_doc.posa_notes"
+			:additional_notes="additional_notes"
 			:total_items_discount_amount="total_items_discount_amount"
 			:subtotal="subtotal"
 			:displayCurrency="displayCurrency"
@@ -249,7 +249,7 @@
 			:isNumber="isNumber"
 			@update:additional_discount="(val) => (additional_discount = val)"
 			@update:additional_discount_percentage="(val) => (additional_discount_percentage = val)"
-			@update:additional_notes="(val) => (invoice_doc.posa_notes = val)"
+			@update:additional_notes="(val) => (additional_notes = val)"
 			@update_discount_umount="update_discount_umount"
 			@save-and-clear="save_and_clear_invoice"
 			@load-drafts="get_draft_invoices"
@@ -292,7 +292,7 @@ export default {
 			pos_profile: "",
 			pos_opening_shift: "",
 			stock_settings: "",
-			invoice_doc: "",
+			invoice_doc: {},
 			return_doc: "",
 			customer: "",
 			customer_info: "",
@@ -300,6 +300,7 @@ export default {
 			discount_amount: 0,
 			additional_discount: 0,
 			additional_discount_percentage: 0,
+			additional_notes: "",
 			total_tax: 0,
 			items: [], // List of invoice items
 			posOffers: [], // All available offers
