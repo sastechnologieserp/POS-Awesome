@@ -17,6 +17,12 @@ This document describes the keyboard shortcuts available in POS Awesome.
 - **Ctrl+A** - Toggle expand/collapse first item details
 - **Ctrl+E** - Focus discount field
 
+### Selector and Cart Navigation
+- **Arrow Up / Arrow Down** - Navigate inside the currently active selector or cart list
+- **Ctrl+Right** - Switch keyboard focus from item selector to cart list
+- **Ctrl+Left** - Switch keyboard focus from cart list back to item selector
+- **Mouse click on cart row** - Sets that row as active keyboard selection for next Up/Down navigation
+
 ### New Shortcuts (Added)
 
 #### Cash Drawer Control
@@ -117,7 +123,7 @@ The shortcuts are implemented in:
 1. **F1 for Help**: Press F1 anytime to see all available shortcuts
 2. **F4 for Quick Sales**: Add items, select customer, press F4 for instant cash payment and print
 3. **End for Invoice Management**: Press End to see today's invoices and quickly return or reprint them
-4. **/** and **.** for Quick Edits**: Use these keys to quickly edit the first item's price and quantity
+4. **Ctrl+Right / Ctrl+Left for Navigation**: Use these keys to switch between item selector and cart list navigation
 5. **Home for Cash Drawer**: Press Home to open the cash drawer (requires printer setup)
 6. **Shortcuts Button**: Click the "Shortcuts" button for visual access to all shortcuts
 
@@ -129,6 +135,9 @@ The shortcuts are implemented in:
 | F4 | Open payment dialog | Payment & Invoice |
 | F6 | Quick cash payment & print | Quick Actions |
 | F7 | Edit quantity of first item | Item Management |
+| Arrow Up / Arrow Down | Navigate active selector or cart list | Navigation |
+| Ctrl+Right | Switch from selector to cart list | Navigation |
+| Ctrl+Left | Switch from cart list to selector | Navigation |
 | Home | Open cash drawer | Quick Actions |
 | End | Recall today's invoices | Quick Actions |
 | / | Edit price of first item | Item Management |

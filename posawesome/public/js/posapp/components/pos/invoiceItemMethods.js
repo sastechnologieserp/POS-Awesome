@@ -1105,11 +1105,7 @@ export default {
 	// Show payment dialog after validation and processing
 	async show_payment() {
 		try {
-
-
-
 			if (!this.customer) {
-
 				this.eventBus.emit("show_message", {
 					title: __(`Select a customer`),
 					color: "error",
@@ -1118,7 +1114,6 @@ export default {
 			}
 
 			if (!this.items.length) {
-
 				this.eventBus.emit("show_message", {
 					title: __(`Select items to sell`),
 					color: "error",
@@ -1126,12 +1121,8 @@ export default {
 				return;
 			}
 
-
-			const isValid = this.validate();
-
-
+			const isValid = await this.validate();
 			if (!isValid) {
-
 				return;
 			}
 
@@ -1142,18 +1133,26 @@ export default {
 				!this.new_delivery_date &&
 				!this.invoice_doc.posa_delivery_date
 			) {
-
 				invoice_doc = this.get_invoice_doc();
 			} else if (this.invoice_doc.doctype == "Sales Order" && this.invoiceType === "Invoice") {
-
 				invoice_doc = await this.process_invoice_from_order();
 			} else {
-
 				invoice_doc = this.process_invoice();
 			}
 
 			if (!invoice_doc) {
+				this.eventBus.emit("show_message", {
+					title: __("Unable to prepare invoice for payment"),
+					color: "error",
+				});
+				return;
+			}
 
+			if (!Array.isArray(this.pos_profile?.payments) || !this.pos_profile.payments.length) {
+				this.eventBus.emit("show_message", {
+					title: __("No payment methods configured in POS Profile"),
+					color: "error",
+				});
 				return;
 			}
 
@@ -1233,9 +1232,9 @@ export default {
 				console.log("Ensured negative payment amounts for return:", invoice_doc.payments);
 			}
 
+			this.eventBus.emit("send_invoice_doc_payment", invoice_doc);
 			console.log("Showing payment dialog with currency:", invoice_doc.currency);
 			this.eventBus.emit("show_payment", "true");
-			this.eventBus.emit("send_invoice_doc_payment", invoice_doc);
 		} catch (error) {
 			console.error("Error in show_payment:", error);
 			this.eventBus.emit("show_message", {

@@ -359,6 +359,14 @@ export default {
 				]
 			},
 			{
+				category: "🔀 Navigation",
+				shortcuts: [
+					{ key: "Arrow Up/Down", description: "Navigate rows inside the active selector or cart list" },
+					{ key: "Ctrl+Right", description: "Switch keyboard focus from item selector to cart list" },
+					{ key: "Ctrl+Left", description: "Switch keyboard focus from cart list back to item selector" }
+				]
+			},
+			{
 				category: "💰 Payment & Invoice",
 				shortcuts: [
 					{ key: "F4", description: "Open payment dialog" },
@@ -421,6 +429,8 @@ export default {
 						<li>Use <strong>F6</strong> for quick cash transactions</li>
 						<li>Use <strong>F7</strong> to submit and print current invoice</li>
 						<li>Use <strong>F5</strong> to submit and print when payment page is open</li>
+						<li>Use <strong>Ctrl+Right</strong> and <strong>Ctrl+Left</strong> to switch between selector and cart navigation</li>
+						<li>Use <strong>Arrow Up/Down</strong> to move inside the currently active list</li>
 						<li>Press <strong>End</strong> to find and reprint today's invoices</li>
 						<li>Use <strong>/</strong> and <strong>F8</strong> to quickly edit first item</li>
 						<li>Hold invoices for later with the <strong>Hold</strong> button</li>
@@ -450,6 +460,9 @@ export default {
 			{ key: "F6", description: "Quick cash payment → submit → print" },
 			{ key: "F7", description: "Edit quantity of first item" },
 			{ key: "F5", description: "Submit and print when payment page is open" },
+			{ key: "Arrow Up/Down", description: "Navigate inside the active selector or cart list" },
+			{ key: "Ctrl+Right", description: "Switch from item selector to cart list" },
+			{ key: "Ctrl+Left", description: "Switch from cart list to item selector" },
 			{ key: "Home", description: "Open cash drawer" },
 			{ key: "End", description: "Recall today's invoices" },
 			{ key: "/", description: "Edit price of first item" },
@@ -493,6 +506,8 @@ export default {
 				<div style="margin-top: 30px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
 					<h3>💡 Pro Tips:</h3>
 					<ul>
+						<li>Use Ctrl+Right and Ctrl+Left to switch between selector and cart navigation</li>
+						<li>Use Arrow Up and Arrow Down to navigate inside the active list</li>
 						<li>Use F4 for quick cash transactions</li>
 						<li>Use F6 to submit and print current invoice</li>
 						<li>Press End to find and reprint today's invoices</li>
@@ -1478,6 +1493,12 @@ export default {
 			return;
 		}
 
+		const refocusSearch = () => {
+			this.$nextTick(() => {
+				this.eventBus.emit("refocus_item_search");
+			});
+		};
+
 		const defaultQty = this.isReturnInvoice ? Math.abs(item.qty || 1) : (item.qty || 1);
 
 		const dialog = new frappe.ui.Dialog({
@@ -1524,10 +1545,11 @@ export default {
 						color: "error",
 					});
 				}
-
-				this.eventBus.emit("refocus_item_search");
 			},
 		});
+
+		// Always refocus selector search after the popup closes
+		dialog.$wrapper.on("hidden.bs.modal", refocusSearch);
 
 		// Numeric keypad UI
 		const keypadHTML = `

@@ -1,6 +1,6 @@
 <template>
-	<div class="my-0 py-0 overflow-y-auto items-table-container" :style="{ height: 'calc(100% - 80px)', maxHeight: 'calc(100% - 80px)' }" @dragover="onDragOverFromSelector($event)" @drop="onDropFromSelector($event)" @dragenter="onDragEnterFromSelector" @dragleave="onDragLeaveFromSelector">
-		<v-data-table-virtual :headers="headers" :items="items" :theme="$theme.current" :expanded="expanded" show-expand item-value="posa_row_id" class="modern-items-table elevation-2" :items-per-page="itemsPerPage" expand-on-click density="compact" hide-default-footer :single-expand="true" :header-props="headerProps" @update:expanded="$emit('update:expanded', $event)" :search="itemSearch">
+	<div ref="itemsTableContainer" tabindex="-1" class="my-0 py-0 overflow-y-auto items-table-container" :style="{ height: 'calc(100% - 80px)', maxHeight: 'calc(100% - 80px)' }" @dragover="onDragOverFromSelector($event)" @drop="onDropFromSelector($event)" @dragenter="onDragEnterFromSelector" @dragleave="onDragLeaveFromSelector">
+		<v-data-table-virtual :headers="headers" :items="items" :theme="$theme.current" :expanded="expanded" show-expand item-value="posa_row_id" class="modern-items-table elevation-2" :items-per-page="itemsPerPage" expand-on-click density="compact" hide-default-footer :single-expand="true" :header-props="headerProps" @update:expanded="$emit('update:expanded', $event)" :search="itemSearch" :row-props="getCartRowProps" @click:row="handleCartRowClick">
 			<!-- Quantity column -->
 			<template v-slot:item.qty="{ item }">
 				<div class="amount-value">
@@ -403,7 +403,29 @@ export default {
 			itemHistory: [],
 			warehouseStock: [],
 			warehouseStockLoading: false,
+			keyboardCartActive: false,
+			keyboardCartIndex: -1,
+			selectedCartRowId: null,
+			keyboardContext: "sales-selector",
 		};
+	},
+	mounted() {
+		document.addEventListener("keydown", this.handleCartKeydown);
+
+		this.eventBus.on("focus_cart_items", () => {
+			this.activateCartKeyboard();
+		});
+		this.eventBus.on("pos_keyboard_context", (context) => {
+			this.keyboardContext = context;
+			if (context !== "sales-cart") {
+				this.keyboardCartActive = false;
+			}
+		});
+	},
+	beforeUnmount() {
+		document.removeEventListener("keydown", this.handleCartKeydown);
+		this.eventBus.off("focus_cart_items");
+		this.eventBus.off("pos_keyboard_context");
 	},
 	computed: {
 		headerProps() {
@@ -442,6 +464,185 @@ export default {
 				return true;
 			}
 			return this.selectedColumns.includes(key);
+		},
+		getCartRowProps(row) {
+			const rowItem = row?.item || row;
+			if (!rowItem || !rowItem.posa_row_id) {
+				return {};
+			}
+
+			return {
+				class:
+					this.keyboardCartActive && rowItem.posa_row_id === this.selectedCartRowId
+						? "keyboard-cart-selected-row"
+						: "",
+				"data-row-id": rowItem.posa_row_id,
+			};
+		},
+		handleCartRowClick(event, row) {
+			const rowItem = row?.item?.raw || row?.item || row?.raw || row;
+			if (!rowItem?.posa_row_id) {
+				return;
+			}
+
+			const itemIndex = this.items.findIndex((item) => item.posa_row_id === rowItem.posa_row_id);
+			if (itemIndex < 0) {
+				return;
+			}
+
+			this.keyboardCartIndex = itemIndex;
+			this.selectedCartRowId = rowItem.posa_row_id;
+			this.activateCartKeyboard();
+		},
+		activateCartKeyboard() {
+			if (!["sales-selector", "sales-cart"].includes(this.keyboardContext)) {
+				return;
+			}
+
+			if (!this.items.length) {
+				this.keyboardCartActive = false;
+				this.keyboardContext = "sales-selector";
+				this.eventBus.emit("show_message", {
+					title: __("No item added to cart"),
+					color: "warning",
+				});
+				this.eventBus.emit("focus_item_selector");
+				// Force selector context after cart activation request is rejected.
+				setTimeout(() => {
+					this.eventBus.emit("pos_keyboard_context", "sales-selector");
+				}, 0);
+				return;
+			}
+
+			this.keyboardCartActive = true;
+			this.keyboardContext = "sales-cart";
+			this.eventBus.emit("pos_keyboard_context", "sales-cart");
+			const activeElement = document.activeElement;
+			if (activeElement && typeof activeElement.blur === "function") {
+				activeElement.blur();
+			}
+			this.$nextTick(() => {
+				if (this.$refs.itemsTableContainer && typeof this.$refs.itemsTableContainer.focus === "function") {
+					this.$refs.itemsTableContainer.focus();
+				}
+			});
+			if (this.keyboardCartIndex < 0 || this.keyboardCartIndex >= this.items.length) {
+				this.keyboardCartIndex = 0;
+			}
+
+			this.focusCartItem(this.keyboardCartIndex);
+		},
+		isAnyModalOpen() {
+			return !!document.querySelector(
+				".modal.show, .modal.in, .frappe-dialog.modal.show, .frappe-dialog.modal.in, .v-overlay--active .v-dialog",
+			);
+		},
+		isEditableTarget(target) {
+			if (!target || !target.closest) {
+				return false;
+			}
+
+			return !!target.closest(
+				'input:not([readonly]), textarea:not([readonly]), [contenteditable="true"], .v-field input:not([readonly]), .v-select, .v-autocomplete',
+			);
+		},
+		handleCartKeydown(event) {
+			if (!this.keyboardCartActive || this.keyboardContext !== "sales-cart") {
+				return;
+			}
+
+			if (this.showItemHistoryDialog || this.showWarehouseStockDialog) {
+				return;
+			}
+
+			if (this.isAnyModalOpen()) {
+				return;
+			}
+
+			if (this.isEditableTarget(event.target)) {
+				return;
+			}
+
+			if (!this.items.length) {
+				this.keyboardCartActive = false;
+				return;
+			}
+
+			if (event.ctrlKey && event.key === "ArrowLeft") {
+				event.preventDefault();
+				event.stopPropagation();
+				this.keyboardCartActive = false;
+				this.keyboardContext = "sales-selector";
+				this.eventBus.emit("pos_keyboard_context", "sales-selector");
+				this.eventBus.emit("focus_item_selector");
+				return;
+			}
+
+			if (event.key === "ArrowDown") {
+				event.preventDefault();
+				this.keyboardCartIndex = (this.keyboardCartIndex + 1 + this.items.length) % this.items.length;
+				this.focusCartItem(this.keyboardCartIndex);
+				if (this.$refs.itemsTableContainer && typeof this.$refs.itemsTableContainer.focus === "function") {
+					this.$refs.itemsTableContainer.focus();
+				}
+				return;
+			}
+
+			if (event.key === "ArrowUp") {
+				event.preventDefault();
+				this.keyboardCartIndex = (this.keyboardCartIndex - 1 + this.items.length) % this.items.length;
+				this.focusCartItem(this.keyboardCartIndex);
+				if (this.$refs.itemsTableContainer && typeof this.$refs.itemsTableContainer.focus === "function") {
+					this.$refs.itemsTableContainer.focus();
+				}
+				return;
+			}
+
+			if (event.key === "Enter") {
+				event.preventDefault();
+				this.expandAndEditCurrentCartItem();
+			}
+		},
+		focusCartItem(index) {
+			const item = this.items[index];
+			if (!item) {
+				return;
+			}
+
+			this.selectedCartRowId = item.posa_row_id;
+
+			this.$nextTick(() => {
+				const rowEl = this.$el.querySelector(`[data-row-id="${item.posa_row_id}"]`);
+				if (rowEl) {
+					rowEl.scrollIntoView({ block: "nearest" });
+				}
+			});
+		},
+		expandAndEditCurrentCartItem() {
+			const item = this.items[this.keyboardCartIndex];
+			if (!item) {
+				return;
+			}
+
+			this.selectedCartRowId = item.posa_row_id;
+			this.$emit("update:expanded", [item.posa_row_id]);
+			this.focusFirstEditableField();
+		},
+		focusFirstEditableField() {
+			this.$nextTick(() => {
+				const selector = [
+					'.expanded-content input:not([disabled]):not([readonly])',
+					'.expanded-content textarea:not([disabled]):not([readonly])',
+					'.expanded-content .v-field:not(.v-field--disabled) input',
+				].join(",");
+				const editable = this.$el.querySelector(selector);
+				if (editable) {
+					editable.focus();
+					if (typeof editable.select === "function") {
+						editable.select();
+					}
+				}
+			});
 		},
 		openItemHistory(item) {
 
@@ -608,6 +809,11 @@ export default {
 	background-color: var(--table-row-hover);
 	transform: translateY(-1px);
 	box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.modern-items-table :deep(tbody tr.keyboard-cart-selected-row) {
+	background-color: rgba(255, 152, 0, 0.12) !important;
+	outline: 2px solid #ff9800;
 }
 
 /* Table cell styling */

@@ -75,6 +75,8 @@ export default {
 			payment: false,
 			offers: false,
 			coupons: false,
+			sales_keyboard_target: "sales-selector",
+			keyboard_context: "sales-selector",
 		};
 	},
 
@@ -97,6 +99,40 @@ export default {
 	},
 
 	methods: {
+		isSalesScreenActive() {
+			return !this.dialog && !this.payment && !this.offers && !this.coupons;
+		},
+		emitKeyboardContext(context) {
+			if (this.keyboard_context === context) {
+				return;
+			}
+
+			this.keyboard_context = context;
+			this.eventBus.emit("pos_keyboard_context", context);
+		},
+		syncKeyboardContext() {
+			if (this.dialog) {
+				this.emitKeyboardContext("dialog-paused");
+				return;
+			}
+
+			if (this.payment) {
+				this.emitKeyboardContext("payment");
+				return;
+			}
+
+			if (this.offers) {
+				this.emitKeyboardContext("offers");
+				return;
+			}
+
+			if (this.coupons) {
+				this.emitKeyboardContext("coupons");
+				return;
+			}
+
+			this.emitKeyboardContext(this.sales_keyboard_target || "sales-selector");
+		},
 		async check_opening_entry() {
 			await initPromise;
 			await checkDbHealth();
@@ -194,6 +230,7 @@ export default {
 		},
 		create_opening_voucher() {
 			this.dialog = true;
+			this.syncKeyboardContext();
 		},
 		get_closing_data() {
 			return frappe
@@ -355,6 +392,7 @@ export default {
 			this.get_pos_setting();
 			this.eventBus.on("close_opening_dialog", () => {
 				this.dialog = false;
+				this.syncKeyboardContext();
 			});
 			this.eventBus.on("register_pos_data", (data) => {
 				this.pos_profile = data.pos_profile;
@@ -367,16 +405,19 @@ export default {
 				this.payment = data === "true";
 				this.offers = false;
 				this.coupons = false;
+				this.syncKeyboardContext();
 			});
 			this.eventBus.on("show_offers", (data) => {
 				this.offers = data === "true";
 				this.payment = false;
 				this.coupons = false;
+				this.syncKeyboardContext();
 			});
 			this.eventBus.on("show_coupons", (data) => {
 				this.coupons = data === "true";
 				this.offers = false;
 				this.payment = false;
+				this.syncKeyboardContext();
 			});
 			this.eventBus.on("open_closing_dialog", () => {
 				this.get_closing_data();
@@ -387,12 +428,15 @@ export default {
 				this.eventBus.on("print_last_closing_shift", (pos_profile) => {
 					this.print_last_closing_shift(pos_profile);
 				});
+
+			this.syncKeyboardContext();
 		});
 	},
 	beforeUnmount() {
 		this.eventBus.off("close_opening_dialog");
 		this.eventBus.off("register_pos_data");
 		this.eventBus.off("LoadPosProfile");
+		this.eventBus.off("show_payment");
 		this.eventBus.off("show_offers");
 		this.eventBus.off("show_coupons");
 		this.eventBus.off("open_closing_dialog");

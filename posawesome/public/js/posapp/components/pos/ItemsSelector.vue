@@ -31,14 +31,18 @@
 							density="compact"
 							clearable
 							autofocus
+							autocomplete="off"
+							autocorrect="off"
+							autocapitalize="off"
+							spellcheck="false"
 							variant="solo"
 							color="primary"
 							:label="frappe._('Search Items')"
 							hint="Search by item code, serial number, batch no or barcode"
 							hide-details
+							name="posa-item-search"
 							v-model="debounce_search"
 							@keydown.esc="esc_event"
-							@keydown.enter="search_onchange"
 							@click:clear="clearSearch"
 							prepend-inner-icon="mdi-magnify"
 							@focus="handleItemSearchFocus"
@@ -158,10 +162,12 @@
 							:style="{ maxHeight: 'calc(100% - 80px)' }"
 						>
 							<v-card
-								v-for="item in filtered_items"
+								v-for="(item, index) in filtered_items"
 								:key="item.item_code"
 								hover
 								class="dynamic-item-card"
+								:class="{ 'keyboard-selected-item': isKeyboardSelected(item, index) }"
+								:data-item-index="index"
 								:draggable="true"
 								@dragstart="onDragStart($event, item)"
 								@dragend="onDragEnd"
@@ -224,6 +230,7 @@
 								class="sleek-data-table overflow-y-auto"
 								:style="{ maxHeight: 'calc(100% - 80px)' }"
 								item-key="item_code"
+								:row-props="getSelectorRowProps"
 								@click:row="click_item_row"
 							>
 								<template v-slot:item.rate="{ item }">
@@ -415,6 +422,10 @@ export default {
 		isDragging: false,
 		// Track if the current search was triggered by a scanner
 		search_from_scanner: false,
+		keyboardSelectedIndex: -1,
+		keyboardSelectorActive: true,
+		keyboardContext: "sales-selector",
+		preserveSearchOnProgrammaticFocus: false,
 	}),
 
 	watch: {
@@ -463,6 +474,15 @@ export default {
 			if (!this.pos_profile.pose_use_limit_search && new_value.length !== old_value.length) {
 				this.update_items_details(new_value);
 			}
+
+			if (!new_value.length) {
+				this.keyboardSelectedIndex = -1;
+				return;
+			}
+
+			if (this.keyboardSelectedIndex < 0 || this.keyboardSelectedIndex >= new_value.length) {
+				this.keyboardSelectedIndex = 0;
+			}
 		},
 		// Automatically search and add item whenever the query changes
 		first_search: _.debounce(function (val) {
@@ -495,6 +515,137 @@ export default {
 			const columns = Math.max(1, Math.floor(width / cardWidth));
 			const rows = Math.max(1, Math.floor(containerHeight / cardHeight));
 			this.itemsPerPage = columns * rows;
+		},
+		handleSearchEnter() {
+			if (this.filtered_items.length) {
+				if (this.keyboardSelectedIndex < 0 || this.keyboardSelectedIndex >= this.filtered_items.length) {
+					this.keyboardSelectedIndex = 0;
+				}
+				this.addHighlightedItem();
+				return;
+			}
+
+			this.search_onchange(this.first_search);
+		},
+		navigateItems(step) {
+			if (!this.filtered_items.length) {
+				return;
+			}
+
+			this.keyboardSelectorActive = true;
+			if (this.keyboardSelectedIndex < 0) {
+				this.keyboardSelectedIndex = 0;
+			}
+
+			const total = this.filtered_items.length;
+			this.keyboardSelectedIndex = (this.keyboardSelectedIndex + step + total) % total;
+			this.scrollToSelectedItem();
+		},
+		isKeyboardSelected(item, index) {
+			if (!this.keyboardSelectorActive) {
+				return false;
+			}
+			if (typeof index === "number") {
+				return index === this.keyboardSelectedIndex;
+			}
+
+			const selected = this.filtered_items[this.keyboardSelectedIndex];
+			return !!selected && selected.item_code === item.item_code;
+		},
+		getSelectorRowProps(row) {
+			const rowItem = row?.item || row;
+			if (!rowItem) {
+				return {};
+			}
+
+			return {
+				class: this.isKeyboardSelected(rowItem)
+					? "keyboard-selected-item-row"
+					: "",
+			};
+		},
+		async addHighlightedItem() {
+			const selected = this.filtered_items[this.keyboardSelectedIndex];
+			if (!selected) {
+				return;
+			}
+
+			await this.add_item(selected);
+			this.clearSearch();
+			this.$nextTick(() => {
+				if (this.$refs.debounce_search) {
+					this.$refs.debounce_search.focus();
+				}
+			});
+		},
+		moveFocusToCart() {
+			this.keyboardSelectorActive = false;
+			this.eventBus.emit("focus_cart_items");
+		},
+		isAnyModalOpen() {
+			return !!document.querySelector(
+				".modal.show, .modal.in, .frappe-dialog.modal.show, .frappe-dialog.modal.in, .v-overlay--active .v-dialog",
+			);
+		},
+		handleGlobalSelectorKeydown(event) {
+			if (
+				event.defaultPrevented ||
+				!this.keyboardSelectorActive ||
+				this.keyboardContext !== "sales-selector"
+			) {
+				return;
+			}
+
+			if (this.isAnyModalOpen()) {
+				return;
+			}
+
+			const activeElement = document.activeElement;
+			if (activeElement && activeElement.closest && activeElement.closest(".items-table-container")) {
+				return;
+			}
+
+			if (event.key === "ArrowDown") {
+				event.preventDefault();
+				this.navigateItems(1);
+				return;
+			}
+
+			if (event.key === "ArrowUp") {
+				event.preventDefault();
+				this.navigateItems(-1);
+				return;
+			}
+
+			if (event.ctrlKey && event.key === "ArrowRight") {
+				event.preventDefault();
+				this.moveFocusToCart();
+				return;
+			}
+
+			if (event.key === "Enter") {
+				event.preventDefault();
+				this.handleSearchEnter();
+			}
+		},
+		scrollToSelectedItem() {
+			this.$nextTick(() => {
+				if (this.items_view === "card") {
+					const selectedCard = this.$el.querySelector(
+						`.dynamic-item-card[data-item-index="${this.keyboardSelectedIndex}"]`,
+					);
+					if (selectedCard) {
+						selectedCard.scrollIntoView({ block: "nearest" });
+					}
+					return;
+				}
+
+				const rows = this.$el.querySelectorAll(".sleek-data-table tbody tr");
+				const selectedRow = rows[this.keyboardSelectedIndex];
+				if (selectedRow) {
+					selectedRow.scrollIntoView({ block: "nearest" });
+				}
+			});
 		},
 		refreshPricesForVisibleItems() {
 			const vm = this;
@@ -1605,6 +1756,15 @@ export default {
 			}
 		},
 		handleItemSearchFocus() {
+			if (this.preserveSearchOnProgrammaticFocus) {
+				this.preserveSearchOnProgrammaticFocus = false;
+				return;
+			}
+
+			this.keyboardSelectorActive = true;
+			if (this.filtered_items.length && this.keyboardSelectedIndex < 0) {
+				this.keyboardSelectedIndex = 0;
+			}
 			this.first_search = "";
 			this.search = "";
 			// Optionally, you might want to also clear search_backup if the behaviour should be a full reset on focus
@@ -2154,6 +2314,35 @@ export default {
 			this.applyCurrencyConversionToItems();
 			this.update_cur_items_details();
 		});
+
+		this.eventBus.on("pos_keyboard_context", (context) => {
+			this.keyboardContext = context;
+			this.keyboardSelectorActive = context === "sales-selector";
+		});
+
+		this.eventBus.on("focus_item_selector", () => {
+			if (!["sales-selector", "sales-cart"].includes(this.keyboardContext)) {
+				return;
+			}
+
+			this.preserveSearchOnProgrammaticFocus = true;
+			this.keyboardSelectorActive = true;
+			if (this.filtered_items.length && this.keyboardSelectedIndex < 0) {
+				this.keyboardSelectedIndex = 0;
+			}
+			this.$nextTick(() => {
+				if (this.$refs.debounce_search) {
+					this.$refs.debounce_search.focus();
+				}
+				this.scrollToSelectedItem();
+			});
+		});
+
+		this.eventBus.on("focus_cart_items", () => {
+			this.keyboardSelectorActive = false;
+		});
+
+		document.addEventListener("keydown", this.handleGlobalSelectorKeydown);
 	},
 
 	async mounted() {
@@ -2215,6 +2404,10 @@ export default {
 		this.eventBus.off("update_customer");
 		this.eventBus.off("force_reload_items");
 		this.eventBus.off("refocus_item_search");
+		this.eventBus.off("focus_item_selector");
+		this.eventBus.off("focus_cart_items");
+		this.eventBus.off("pos_keyboard_context");
+		document.removeEventListener("keydown", this.handleGlobalSelectorKeydown);
 	},
 };
 </script>
@@ -2260,6 +2453,16 @@ export default {
 
 .dynamic-item-card:hover {
 	transform: scale(calc(1 + 0.02 * var(--font-scale)));
+}
+
+.dynamic-item-card.keyboard-selected-item {
+	outline: 2px solid #1976d2;
+	box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.2);
+}
+
+.sleek-data-table :deep(tbody tr.keyboard-selected-item-row) {
+	background-color: rgba(25, 118, 210, 0.12) !important;
+	outline: 2px solid #1976d2;
 }
 
 .text-success {
