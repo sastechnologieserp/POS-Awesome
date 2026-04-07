@@ -37,7 +37,7 @@
 							hint="Search by item code, serial number, batch no or barcode"
 							hide-details
 							v-model="debounce_search"
-							@keydown.esc="esc_event"
+							@keydown.esc.stop.prevent="esc_event"
 							@keydown.enter="search_onchange"
 							@click:clear="clearSearch"
 							prepend-inner-icon="mdi-magnify"
@@ -68,7 +68,7 @@
 							v-model="debounce_qty"
 							type="text"
 							@keydown.enter="enter_event"
-							@keydown.esc="esc_event"
+							@keydown.esc.stop.prevent="esc_event"
 							@focus="clearQty"
 						></v-text-field>
 					</v-col>
@@ -1202,12 +1202,37 @@ export default {
 		}
 		return search_term;
 	},
-		esc_event() {
-			this.search = null;
-			this.first_search = null;
-			this.search_backup = null;
-			this.qty = 1;
-			this.$refs.debounce_search.focus();
+		toggleItemSearchFocus() {
+			this.$nextTick(() => {
+				const searchField = this.$refs.debounce_search;
+				if (!searchField) {
+					return;
+				}
+
+				const searchInput = searchField.$el?.querySelector?.("input") || null;
+				if (searchInput && document.activeElement === searchInput) {
+					searchInput.blur();
+					return;
+				}
+
+				if (typeof searchField.focus === "function") {
+					searchField.focus();
+				} else if (searchInput) {
+					searchInput.focus();
+				}
+
+				if (searchInput && typeof searchInput.select === "function") {
+					searchInput.select();
+				}
+			});
+		},
+		esc_event(event) {
+			if (event) {
+				event.preventDefault();
+				event.stopPropagation();
+			}
+
+			this.toggleItemSearchFocus();
 		},
 		async update_items_details(items) {
 			const vm = this;
@@ -2173,6 +2198,7 @@ export default {
 				}
 			});
 		});
+		this.eventBus.on("toggle_item_search_focus", this.toggleItemSearchFocus);
 	},
 
 	beforeUnmount() {
@@ -2215,6 +2241,7 @@ export default {
 		this.eventBus.off("update_customer");
 		this.eventBus.off("force_reload_items");
 		this.eventBus.off("refocus_item_search");
+		this.eventBus.off("toggle_item_search_focus");
 	},
 };
 </script>
