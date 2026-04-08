@@ -341,6 +341,7 @@ export default {
 				category: "🎯 Quick Actions",
 				shortcuts: [
 					{ key: "F1", description: "Show this shortcuts help dialog" },
+					{ key: "Esc", description: "Toggle item search focus in sales screen" },
 					{ key: "F4", description: "Open payment dialog" },
 					{ key: "F6", description: "Quick cash payment → submit → print" },
 					{ key: "F7", description: "Edit quantity of first item" },
@@ -446,6 +447,7 @@ export default {
 	printShortcutsHelp() {
 		const shortcuts = [
 			{ key: "F1", description: "Show shortcuts help" },
+			{ key: "Esc", description: "Toggle item search focus in sales screen" },
 			{ key: "F4", description: "Open payment dialog" },
 			{ key: "F6", description: "Quick cash payment → submit → print" },
 			{ key: "F7", description: "Edit quantity of first item" },
