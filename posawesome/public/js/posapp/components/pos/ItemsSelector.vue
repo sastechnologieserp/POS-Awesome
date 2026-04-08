@@ -36,9 +36,9 @@
 							:label="frappe._('Search Items')"
 							hint="Search by item code, serial number, batch no or barcode"
 							hide-details
-							v-model="debounce_search"
+							v-model="search_input"
 							@keydown.esc.stop.prevent="esc_event"
-							@keydown.enter="search_onchange"
+							@keydown.enter.prevent="handleSearchEnter"
 							@click:clear="clearSearch"
 							prepend-inner-icon="mdi-magnify"
 							@focus="handleItemSearchFocus"
@@ -382,6 +382,7 @@ export default {
 		items_group: ["ALL"],
 		items: [],
 		search: "",
+		search_input: "",
 		first_search: "",
 		search_backup: "",
 		// Limit the displayed items to avoid overly large lists
@@ -464,11 +465,10 @@ export default {
 				this.update_items_details(new_value);
 			}
 		},
-		// Automatically search and add item whenever the query changes
-		first_search: _.debounce(function (val) {
-			// Call without arguments so search_onchange treats it like an Enter key
-			this.search_onchange();
-		}, 300),
+		search_input(val) {
+			this.first_search = val || "";
+			this.queueSearchOnChange(this.first_search);
+		},
 
 		// Refresh item prices whenever the user changes currency
 		selected_currency() {
@@ -1101,11 +1101,24 @@ export default {
 				this.$refs.debounce_search.focus();
 			}
 		},
-		search_onchange: _.debounce(function (newSearchTerm) {
+		queueSearchOnChange: _.debounce(function (newSearchTerm) {
+			this.search_onchange(newSearchTerm);
+		}, 300),
+		handleSearchEnter(event) {
+			if (event) {
+				event.preventDefault();
+			}
+			if (this.queueSearchOnChange && this.queueSearchOnChange.cancel) {
+				this.queueSearchOnChange.cancel();
+			}
+			this.search_onchange(this.search_input);
+		},
+		search_onchange(newSearchTerm) {
 			const vm = this;
 
 			// Determine the actual query string and trim whitespace
 			const query = typeof newSearchTerm === "string" ? newSearchTerm : vm.first_search;
+			vm.first_search = query || "";
 
 			vm.search = (query || "").trim();
 
@@ -1146,8 +1159,6 @@ export default {
 					vm.fetch_price_lists();
 				}
 			} else {
-				// Save the current filtered items before search to maintain quantity data
-				const current_items = [...vm.filtered_items];
 				if (vm.search && vm.search.length >= 3) {
 					vm.enter_event();
 				}
@@ -1166,7 +1177,7 @@ export default {
 				vm.$refs.debounce_search && vm.$refs.debounce_search.focus();
 				vm.search_from_scanner = false;
 			}
-		}, 300),
+		},
 	get_item_qty(first_search) {
 		const qtyVal = this.qty != null ? this.qty : 1;
 		let scal_qty = Math.abs(qtyVal);
@@ -1530,6 +1541,7 @@ export default {
 			// indicate this search came from a scanner
 			this.search_from_scanner = true;
 			// apply scanned code as search term
+			this.search_input = sCode;
 			this.first_search = sCode;
 			this.search = sCode;
 
@@ -1616,20 +1628,30 @@ export default {
 			return haystack.includes(needle);
 		},
 		clearSearch() {
-			this.search_backup = this.first_search;
+			this.search_backup = this.search_input;
+			if (this.queueSearchOnChange && this.queueSearchOnChange.cancel) {
+				this.queueSearchOnChange.cancel();
+			}
+			this.search_input = "";
 			this.first_search = "";
 			this.search = "";
 			// No need to call get_items() again
 		},
 
 		restoreSearch() {
-			if (this.first_search === "") {
+			if (this.search_input === "") {
+				this.search_input = this.search_backup;
 				this.first_search = this.search_backup;
 				this.search = this.search_backup;
+				this.queueSearchOnChange(this.search_backup);
 				// No need to reload items when focus is lost
 			}
 		},
 		handleItemSearchFocus() {
+			if (this.queueSearchOnChange && this.queueSearchOnChange.cancel) {
+				this.queueSearchOnChange.cancel();
+			}
+			this.search_input = "";
 			this.first_search = "";
 			this.search = "";
 			// Optionally, you might want to also clear search_backup if the behaviour should be a full reset on focus
@@ -1652,10 +1674,12 @@ export default {
 			this.search_from_scanner = true;
 
 			// Clear any previous search
+			this.search_input = "";
 			this.search = "";
 			this.first_search = "";
 
 			// Set the scanned code as search term
+			this.search_input = scannedCode;
 			this.first_search = scannedCode;
 			this.search = scannedCode;
 
@@ -2051,14 +2075,6 @@ export default {
 				return items_list;
 			}
 		},
-		debounce_search: {
-			get() {
-				return this.first_search;
-			},
-			set: _.debounce(function (newValue) {
-				this.first_search = (newValue || "").trim();
-			}, 200),
-		},
 		debounce_qty: {
 			get() {
 				// Display the raw quantity while typing to avoid forced decimal format
@@ -2211,6 +2227,9 @@ export default {
 			clearTimeout(this.itemDetailsRetryTimeout);
 		}
 		this.itemDetailsRetryCount = 0;
+		if (this.queueSearchOnChange && this.queueSearchOnChange.cancel) {
+			this.queueSearchOnChange.cancel();
+		}
 
 		// Call cleanup function for abort controller
 		if (this.cleanupBeforeDestroy) {
