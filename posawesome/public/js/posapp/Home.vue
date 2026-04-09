@@ -26,6 +26,7 @@
 				@refresh-cache-usage="handleRefreshCacheUsage"
 				@update-after-delete="handleUpdateAfterDelete"
 				@show-shortcuts="handleShowShortcuts"
+				@recall-invoices="handleRecallInvoices"
 			/>
 			<div class="page-content">
 				<component v-bind:is="page" class="mx-4 md-4"></component>
@@ -625,6 +626,9 @@ export default {
 		handleShowShortcuts() {
 			// Emit event to show shortcuts help
 			this.eventBus.emit("show_shortcuts_help");
+		},
+		handleRecallInvoices() {
+			this.eventBus.emit("recall_todays_invoices");
 		},
 
 		remove_frappe_nav() {
