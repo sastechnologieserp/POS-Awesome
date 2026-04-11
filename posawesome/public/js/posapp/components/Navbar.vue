@@ -51,6 +51,7 @@
 					@toggle-theme="toggleTheme"
 					@logout="logOut"
 					@show-shortcuts="handleShowShortcuts"
+					@recall-invoices="handleRecallInvoices"
 				/>
 			</template>
 		</NavbarAppBar>
@@ -472,6 +473,9 @@ export default {
 		handleShowShortcuts() {
 			this.$emit("show-shortcuts");
 		},
+		handleRecallInvoices() {
+			this.$emit("recall-invoices");
+		},
 		refreshCacheUsage() {
 			this.$emit("refresh-cache-usage");
 		},
@@ -652,6 +656,7 @@ export default {
 		"refresh-cache-usage",
 		"update-after-delete",
 		"show-shortcuts",
+		"recall-invoices",
 	],
 };
 </script>

@@ -1200,6 +1200,9 @@ export default {
 		this.eventBus.on("show_shortcuts_help", () => {
 			this.showShortcutsHelp();
 		});
+		this.eventBus.on("recall_todays_invoices", () => {
+			this.recallTodaysInvoices();
+		});
 	},
 	// Cleanup event listeners before component is destroyed
 	beforeUnmount() {
@@ -1212,6 +1215,8 @@ export default {
 		this.eventBus.off("submit_invoice_with_print");
 		// Cleanup reset_posting_date listener
 		this.eventBus.off("reset_posting_date");
+		this.eventBus.off("show_shortcuts_help");
+		this.eventBus.off("recall_todays_invoices");
 	},
 	// Register global keyboard shortcuts when component is created
 	created() {
