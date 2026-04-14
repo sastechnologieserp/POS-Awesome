@@ -138,7 +138,7 @@ apps/posawesome/posawesome/posawesome/api/posapp.py,Invoice {0} Deleted,فاتو
 DocType: POS Offer,Title,عنوان
 DocType: POS Closing Shift,Total Quantity,الكمية الكلية
 DocType: POS Offer,Transaction,عملية
-Custom Field - label: Item Barcode-posa_uom,UOM,UOM
+Custom Field - label: Item Barcode-uom,UOM,UOM
 Custom Field - label: POS Profile-posa_local_storage,Use Browser Local Storage,استخدم التخزين المحلي للمتصفح
 Custom Field - label: POS Profile-use_cashback,Use Cashback,استخدم استرداد النقود
 Custom Field - label: POS Profile-use_customer_credit,Use Customer Credit,استخدم ائتمان العملاء
