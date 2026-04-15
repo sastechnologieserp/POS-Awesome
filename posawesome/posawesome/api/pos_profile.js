@@ -9,6 +9,14 @@ frappe.ui.form.on("POS Profile", {
 			};
 		});
 
+		frm.set_query("posa_payment_entry_print_format", function () {
+			return {
+				filters: {
+					doc_type: "Payment Entry",
+				},
+			};
+		});
+
 		frappe.call({
 			method: "posawesome.posawesome.api.utilities.get_language_options",
 			callback: function (r) {

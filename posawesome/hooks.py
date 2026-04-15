@@ -266,6 +266,7 @@ fixtures = [
 					"POS Profile-posa_smart_reload_mode",
      				"POS Profile-posa_default_country",
      				"POS Profile-posa_silent_print",
+					"POS Profile-posa_payment_entry_print_format",
      				"POS Profile-posa_force_reload_items",
 					"POS Profile-posa_default_sales_order",
 					"POS Profile-column_break_dqsba",
