@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import json
+import re
 import frappe
 from frappe import _
 from frappe.utils import nowdate, flt, cstr
@@ -14,6 +15,9 @@ from erpnext.stock.doctype.batch.batch import (
 )
 from frappe.utils.caching import redis_cache
 from typing import List, Dict
+
+
+_WORD_SPLIT_RE = re.compile(r"[^a-z0-9]+")
 
 
 def _tokenize_search_value(search_value):
@@ -48,6 +52,86 @@ def _matches_any_word_expression(item_code, item_name, search_value):
 
 	haystack = f"{cstr(item_code)} {cstr(item_name)}".lower()
 	return any(all(token in haystack for token in group) for group in groups)
+
+
+def _extract_words(value):
+	"""Split text into normalized words for prefix scoring."""
+	return [word for word in _WORD_SPLIT_RE.split(cstr(value).lower()) if word]
+
+
+def _has_sequential_prefix_match(words, tokens):
+	"""Return True when tokens match word-prefixes in order."""
+	if not tokens:
+		return False
+
+	last_index = -1
+	for token in tokens:
+		matched = False
+		for index in range(last_index + 1, len(words)):
+			if words[index].startswith(token):
+				last_index = index
+				matched = True
+				break
+
+		if not matched:
+			return False
+
+	return True
+
+
+def _score_any_word_group(item_code, item_name, tokens):
+	"""Score one OR group; higher score means better relevance."""
+	if not tokens:
+		return 0
+
+	item_code_lower = cstr(item_code).lower()
+	item_name_lower = cstr(item_name).lower()
+	words = _extract_words(f"{item_code_lower} {item_name_lower}")
+	haystack = " ".join(words)
+
+	if not all(token in haystack for token in tokens):
+		return -1
+
+	score = 0
+	first_token = tokens[0]
+
+	# Strong preference for items that start with the first query token.
+	if item_name_lower.startswith(first_token):
+		score += 450
+	if item_code_lower.startswith(first_token):
+		score += 430
+
+	for token in tokens:
+		token_score = 0
+		prefix_positions = [idx for idx, word in enumerate(words) if word.startswith(token)]
+		if prefix_positions:
+			best_position = min(prefix_positions)
+			token_score = 340 if best_position == 0 else max(220 - (best_position * 10), 130)
+		elif token in haystack:
+			token_score = 30
+
+		score += token_score
+
+	# Bonus when tokens map to word-starts in order (e.g. "hot m" -> "hotoil ... mixed ...").
+	if _has_sequential_prefix_match(words, tokens):
+		score += 180
+
+	return score
+
+
+def _score_any_word_match(item_code, item_name, search_value):
+	"""Score any-word match across OR groups and return the best score."""
+	groups = _parse_search_groups(search_value)
+	if not groups:
+		return 0
+
+	best_score = -1
+	for group in groups:
+		group_score = _score_any_word_group(item_code, item_name, group)
+		if group_score > best_score:
+			best_score = group_score
+
+	return max(best_score, 0)
 
 
 def get_seearch_items_conditions(item_code, serial_no, batch_no, barcode, search_result_type="Contains"):
@@ -349,6 +433,14 @@ def get_items(
 			if pos_profile.get("posa_force_reload_items") and search_value:
 				limit_page_length = None
 
+		# For "Any Word", fetch a wider candidate set then re-rank by prefix relevance.
+		if (
+			search_result_type.lower() == "any word"
+			and search_value
+			and limit_page_length is not None
+		):
+			limit_page_length = max(limit_page_length, 2000)
+
 		items_data = frappe.get_all(
 			"Item",
 			filters=filters,
@@ -380,6 +472,18 @@ def get_items(
 				for item in items_data
 				if _matches_any_word_expression(item.get("item_code"), item.get("item_name"), search_value)
 			]
+
+			items_data.sort(
+				key=lambda item: (
+					-_score_any_word_match(
+						item.get("item_code"),
+						item.get("item_name"),
+						search_value,
+					),
+					cstr(item.get("item_name")).lower(),
+					cstr(item.get("item_code")).lower(),
+				)
+			)
 
 			if limit_page_length is not None:
 				items_data = items_data[:limit_page_length]
