@@ -456,8 +456,40 @@ export default {
 				this.tableFocusObserverRaf = null;
 			}
 		},
+		hasActiveModalOverlay() {
+			return !!document.querySelector(
+				".v-overlay-container .v-overlay--active, .v-dialog.v-dialog--active, .modal.show",
+			);
+		},
+		releaseStaleScrollLock() {
+			if (this.hasActiveModalOverlay()) {
+				return;
+			}
+
+			const body = document.body;
+			if (!body) {
+				return;
+			}
+
+			body.classList.remove("v-overlay-scroll-blocked");
+			if (body.style.overflow === "hidden") {
+				body.style.overflow = "";
+			}
+			if (body.style.paddingRight) {
+				body.style.paddingRight = "";
+			}
+		},
 		handleGlobalEscape(event) {
 			if (!event || event.key !== "Escape") {
+				return;
+			}
+
+			// Let dialogs consume Escape first, then recover from stale scroll lock if needed.
+			setTimeout(() => {
+				this.releaseStaleScrollLock();
+			}, 0);
+
+			if (this.hasActiveModalOverlay()) {
 				return;
 			}
 

@@ -252,6 +252,7 @@ export default {
 			price_list_currency: "", // Currency of the selected price list
 			selected_columns: [], // Selected columns for items table
 			available_columns: [], // All available columns
+			shortcutKeyHandlers: [],
 			invoiceHeight: null,
 		};
 	},
@@ -1220,37 +1221,32 @@ export default {
 	},
 	// Register global keyboard shortcuts when component is created
 	created() {
-		document.addEventListener("keydown", this.shortOpenPayment.bind(this));
-		document.addEventListener("keydown", this.shortDeleteFirstItem.bind(this));
-		document.addEventListener("keydown", this.shortOpenFirstItem.bind(this));
-		document.addEventListener("keydown", this.shortSelectDiscount.bind(this));
+		this.shortcutKeyHandlers = [
+			this.shortOpenPayment,
+			this.shortDeleteFirstItem,
+			this.shortOpenFirstItem,
+			this.shortSelectDiscount,
+			this.shortRecallTodaysInvoices,
+			this.shortCashPaymentAndPrint,
+			this.shortEditPrice,
+			this.shortEditQuantity,
+			this.shortShowShortcutsHelp,
+			this.shortOpenCashDrawer,
+			this.shortEditQuantityF7,
+			this.shortOpenPaymentF4,
+			this.shortSubmitAndPrintFromPayment,
+		];
 
-		document.addEventListener("keydown", this.shortRecallTodaysInvoices.bind(this));
-		document.addEventListener("keydown", this.shortCashPaymentAndPrint.bind(this));
-		document.addEventListener("keydown", this.shortEditPrice.bind(this));
-		document.addEventListener("keydown", this.shortEditQuantity.bind(this));
-		document.addEventListener("keydown", this.shortShowShortcutsHelp.bind(this));
-		document.addEventListener("keydown", this.shortOpenCashDrawer.bind(this));
-		document.addEventListener("keydown", this.shortEditQuantityF7.bind(this));
-		document.addEventListener("keydown", this.shortOpenPaymentF4.bind(this));
-		document.addEventListener("keydown", this.shortSubmitAndPrintFromPayment.bind(this));
+		this.shortcutKeyHandlers.forEach((handler) => {
+			document.addEventListener("keydown", handler);
+		});
 	},
 	// Remove global keyboard shortcuts when component is unmounted
 	unmounted() {
-		document.removeEventListener("keydown", this.shortOpenPayment);
-		document.removeEventListener("keydown", this.shortDeleteFirstItem);
-		document.removeEventListener("keydown", this.shortOpenFirstItem);
-		document.removeEventListener("keydown", this.shortSelectDiscount);
-
-		document.removeEventListener("keydown", this.shortRecallTodaysInvoices);
-		document.removeEventListener("keydown", this.shortCashPaymentAndPrint);
-		document.removeEventListener("keydown", this.shortEditPrice);
-		document.removeEventListener("keydown", this.shortEditQuantity);
-		document.removeEventListener("keydown", this.shortShowShortcutsHelp);
-		document.removeEventListener("keydown", this.shortOpenCashDrawer);
-		document.removeEventListener("keydown", this.shortEditQuantityF7);
-		document.removeEventListener("keydown", this.shortOpenPaymentF4);
-		document.removeEventListener("keydown", this.shortSubmitAndPrintFromPayment);
+		this.shortcutKeyHandlers.forEach((handler) => {
+			document.removeEventListener("keydown", handler);
+		});
+		this.shortcutKeyHandlers = [];
 	},
 	watch: invoiceWatchers,
 };
