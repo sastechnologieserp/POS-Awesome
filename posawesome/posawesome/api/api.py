@@ -10,6 +10,7 @@ def item_history(item_code,customer = None):
 	data = frappe.db.sql("""
 		SELECT
 			si.cost_center,
+			si.modified,
 			si.posting_date,
 			sii.qty,
 			sii.rate,
@@ -21,7 +22,7 @@ def item_history(item_code,customer = None):
 			sii.item_code = %s
 			AND si.customer = %s
 			AND si.docstatus = 1
-		ORDER BY si.posting_time DESC
+		ORDER BY si.modified DESC, si.posting_date DESC, si.posting_time DESC
 		LIMIT 20
 	""", (item_code,customer), as_dict=True)
 

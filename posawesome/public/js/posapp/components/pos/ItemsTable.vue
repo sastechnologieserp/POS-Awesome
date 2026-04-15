@@ -207,7 +207,7 @@
 							<thead>
 								<tr>
 									<th>Sr No</th>
-									<th>Cost Center</th>
+									<th>Branch</th>
 									<th>Date</th>
 									<th>Qty</th>
 									<th>Unit Price</th>
@@ -623,7 +623,27 @@ export default {
 					console.log("History Response:", r)
 
 					if (r.message) {
-						this.itemHistory = r.message
+						const historyRows = Array.isArray(r.message) ? [...r.message] : [];
+						const parseRowTime = (row) => {
+							if (!row) {
+								return 0;
+							}
+
+							const modifiedTs = row.modified ? Date.parse(row.modified) : NaN;
+							if (!Number.isNaN(modifiedTs)) {
+								return modifiedTs;
+							}
+
+							const postingDateTs = row.posting_date ? Date.parse(row.posting_date) : NaN;
+							if (!Number.isNaN(postingDateTs)) {
+								return postingDateTs;
+							}
+
+							return 0;
+						};
+
+						historyRows.sort((a, b) => parseRowTime(b) - parseRowTime(a));
+						this.itemHistory = historyRows;
 					}
 
 				},
