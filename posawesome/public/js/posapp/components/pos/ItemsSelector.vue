@@ -1238,6 +1238,13 @@ export default {
 			});
 		},
 		esc_event(event) {
+			const hasActiveDialog = !!document.querySelector(
+				".v-overlay-container .v-overlay--active, .v-dialog.v-dialog--active, .modal.show",
+			);
+			if (hasActiveDialog) {
+				return;
+			}
+
 			if (event) {
 				event.preventDefault();
 				event.stopPropagation();
