@@ -1179,6 +1179,7 @@ export default {
 
 			const print_format = this.pos_profile?.posa_payment_voucher_print_format || "Standard";
 			const letter_head = this.pos_profile?.letter_head || 0;
+			const no_letterhead = letter_head ? 0 : 1;
 			const url =
 				frappe.urllib.get_base_url() +
 				"/printview?doctype=" +
@@ -1189,7 +1190,7 @@ export default {
 				"&format=" +
 				encodeURIComponent(print_format) +
 				"&no_letterhead=" +
-				letter_head;
+				no_letterhead;
 
 			console.log("Opening printing URL:", url);
 
