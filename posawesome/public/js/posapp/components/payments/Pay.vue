@@ -1017,10 +1017,7 @@ export default {
 						frappe.utils.play_sound("submit");
 
 						// Extract payment name from server response
-						const payment_name =
-							r.message.new_payments_entry && r.message.new_payments_entry.length > 0
-								? r.message.new_payments_entry[0].name
-								: null;
+						const payment_name = vm.get_payment_entry_name(r.message);
 
 						if (payment_name) {
 							console.log("Opening print view with payment name:", payment_name);
@@ -1080,6 +1077,31 @@ export default {
 		isSelected(item) {
 			return this.isInvoiceSelected(item) ? "selected-row bg-primary bg-lighten-4" : "";
 		},
+		get_payment_entry_name(response) {
+			if (!response) {
+				return null;
+			}
+
+			const createdEntries = []
+				.concat(Array.isArray(response.new_payments_entry) ? response.new_payments_entry : [])
+				.concat(Array.isArray(response.all_payments_entry) ? response.all_payments_entry : []);
+
+			const firstEntryWithName = createdEntries.find((entry) => entry && entry.name);
+			if (firstEntryWithName && firstEntryWithName.name) {
+				return firstEntryWithName.name;
+			}
+
+			const paymentAllocationEntry = (
+				Array.isArray(response.created_journal_entries)
+					? response.created_journal_entries
+					: []
+			).find((entry) => entry && entry.type === "Payment Entry" && entry.name);
+
+			return paymentAllocationEntry ? paymentAllocationEntry.name : null;
+		},
+		get_payment_entry_print_format() {
+			return this.pos_profile?.posa_payment_entry_print_format || "Standard";
+		},
 
 		load_print_page(payment_name) {
 			if (!payment_name) {
@@ -1087,18 +1109,28 @@ export default {
 				return;
 			}
 
-			// Use simplest URL possible to avoid errors
-			const url =
-				frappe.urllib.get_base_url() +
-				"/printview?doctype=Payment%20Entry" +
-				"&name=" +
-				payment_name +
-				"&trigger_print=1";
+			const print_format = this.get_payment_entry_print_format();
+			const no_letterhead = this.pos_profile?.letter_head ? 0 : 1;
+			const params = new URLSearchParams({
+				doctype: "Payment Entry",
+				name: payment_name,
+				trigger_print: "1",
+				format: print_format,
+				no_letterhead: String(no_letterhead),
+				_: String(Date.now()),
+			});
+
+			const url = `${frappe.urllib.get_base_url()}/printview?${params.toString()}`;
 
 			console.log("Opening printing URL:", url);
 
 			if (this.pos_profile?.posa_silent_print) {
-				silentPrint(url);
+				silentPrint({
+					doctype: "Payment Entry",
+					name: payment_name,
+					print_format,
+					no_letterhead,
+				});
 			} else {
 				window.open(url, "_blank");
 			}
