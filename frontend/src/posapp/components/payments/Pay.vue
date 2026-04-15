@@ -1177,13 +1177,19 @@ export default {
 				return;
 			}
 
-			// Use simplest URL possible to avoid errors
+			const print_format = this.pos_profile?.posa_payment_voucher_print_format || "Standard";
+			const letter_head = this.pos_profile?.letter_head || 0;
 			const url =
 				frappe.urllib.get_base_url() +
-				"/printview?doctype=Payment%20Entry" +
+				"/printview?doctype=" +
+				encodeURIComponent("Payment Entry") +
 				"&name=" +
-				payment_name +
-				"&trigger_print=1";
+				encodeURIComponent(payment_name) +
+				"&trigger_print=1" +
+				"&format=" +
+				encodeURIComponent(print_format) +
+				"&no_letterhead=" +
+				letter_head;
 
 			console.log("Opening printing URL:", url);
 
