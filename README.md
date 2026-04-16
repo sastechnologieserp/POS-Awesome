@@ -91,11 +91,15 @@ For switching branches or pulling latest changes:
 
 ### Shortcuts:
 
-- `CTRL or CMD + S` open payments
-- `CTRL or CMD + X` submit payments
-- `CTRL or CMD + D` remove the first item from the top
-- `CTRL or CMD + A` expand the first item from the top
-- `CTRL or CMD + E` focus on discount field
+- `F5` or `CTRL/CMD + S` open payment, or submit and print when payment page is open
+- `F6` quick cash payment, submit, and print
+- `CTRL/CMD + X` submit payment (payment page)
+- `Delete` remove the first item from the cart
+- `F7` edit quantity of the first item
+- `/` edit price of the first item
+- `CTRL/CMD + A` toggle first item details
+- `CTRL/CMD + E` focus discount field
+- `CTRL/CMD + Z` remove last added item
 
 ---
 

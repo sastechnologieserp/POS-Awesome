@@ -1,6 +1,11 @@
 <template>
 	<div class="my-0 py-0 overflow-y-auto items-table-container" :style="{ height: 'calc(100% - 80px)', maxHeight: 'calc(100% - 80px)' }" @dragover="onDragOverFromSelector($event)" @drop="onDropFromSelector($event)" @dragenter="onDragEnterFromSelector" @dragleave="onDragLeaveFromSelector">
 		<v-data-table-virtual :headers="headers" :items="items" :theme="$theme.current" :expanded="expanded" show-expand item-value="posa_row_id" class="modern-items-table elevation-2" :items-per-page="itemsPerPage" density="compact" hide-default-footer :single-expand="true" :header-props="headerProps" :row-props="getRowProps" @update:expanded="$emit('update:expanded', $event)" :search="itemSearch">
+			<!-- Serial number column -->
+			<template v-slot:item.si_no="{ item }">
+				<span>{{ getRowSerial(item) }}</span>
+			</template>
+
 			<!-- Item name column (explicit expand trigger) -->
 			<template v-slot:item.item_name="{ item }">
 				<div class="item-name-cell" @click.stop="toggleRowExpand(item)">
@@ -464,6 +469,20 @@ export default {
 				return true;
 			}
 			return this.selectedColumns.includes(key);
+		},
+		getRowSerial(item) {
+			if (!item) {
+				return "";
+			}
+
+			const rows = Array.isArray(this.items) ? this.items : [];
+			const index = rows.findIndex((row) => row.posa_row_id === item.posa_row_id);
+			if (index >= 0) {
+				return index + 1;
+			}
+
+			const fallbackIndex = rows.indexOf(item);
+			return fallbackIndex >= 0 ? fallbackIndex + 1 : "";
 		},
 		sanitizeGridTabStops() {
 			this.$nextTick(() => {

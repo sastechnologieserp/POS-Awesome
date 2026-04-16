@@ -151,6 +151,8 @@
 		<!-- Payment Section -->
 		<InvoiceSummary
 			:pos_profile="pos_profile"
+			:action-loading="summaryActionLoading || isPaymentSubmitting"
+			:action-loading-type="summaryActionLoadingType"
 			:total_qty="total_qty"
 			:additional_discount="additional_discount"
 			:additional_discount_percentage="additional_discount_percentage"
@@ -167,14 +169,14 @@
 			@update:additional_discount_percentage="(val) => (additional_discount_percentage = val)"
 			@update:additional_notes="(val) => (additional_notes = val)"
 			@update_discount_umount="update_discount_umount"
-			@save-and-clear="save_and_clear_invoice"
-			@load-drafts="get_draft_invoices"
-			@select-order="get_draft_orders"
+			@save-and-clear="handleSaveAndClearAction"
+			@load-drafts="handleLoadDraftsAction"
+			@select-order="handleSelectOrderAction"
 			@cancel-sale="cancel_dialog = true"
 			@open-returns="open_returns"
-			@print-draft="print_draft_invoice"
+			@print-draft="handlePrintDraftAction"
 
-			@show-payment="show_payment"
+			@show-payment="handleShowPaymentAction"
 		/>
 	</div>
 </template>
@@ -254,6 +256,10 @@ export default {
 			available_columns: [], // All available columns
 			shortcutKeyHandlers: [],
 			invoiceHeight: null,
+			isPaymentViewOpen: false,
+			summaryActionLoading: false,
+			summaryActionLoadingType: "",
+			isPaymentSubmitting: false,
 		};
 	},
 
@@ -335,6 +341,13 @@ export default {
 		initializeItemsHeaders() {
 			// Define all available columns
 			this.available_columns = [
+				{
+					title: __("SI"),
+					align: "center",
+					key: "si_no",
+					required: true,
+					in_table: true,
+				},
 				{
 					title: __("Name"),
 					align: "start",
@@ -445,6 +458,43 @@ export default {
 					itemsTable.classList.remove("drag-over");
 				}
 			}
+		},
+		handlePaymentSubmissionLoading(loading) {
+			this.isPaymentSubmitting = !!loading;
+		},
+		async runSummaryAction(actionType, handler) {
+			if (this.summaryActionLoading || this.isPaymentSubmitting) {
+				return;
+			}
+
+			this.summaryActionLoading = true;
+			this.summaryActionLoadingType = actionType;
+			await this.$nextTick();
+
+			try {
+				return await Promise.resolve(handler());
+			} finally {
+				this.summaryActionLoading = false;
+				this.summaryActionLoadingType = "";
+			}
+		},
+		handleShowPaymentAction() {
+			return this.runSummaryAction("pay", () => this.show_payment());
+		},
+		handlePrintDraftAction() {
+			return this.runSummaryAction("print-draft", () => this.print_draft_invoice());
+		},
+		handleSaveAndClearAction() {
+			return this.runSummaryAction("hold", () => this.save_and_clear_invoice());
+		},
+		handleLoadDraftsAction() {
+			return this.runSummaryAction("release", () => this.get_draft_invoices());
+		},
+		handleSelectOrderAction() {
+			return this.runSummaryAction("select-order", () => this.get_draft_orders());
+		},
+		handlePaymentViewState(visible) {
+			this.isPaymentViewOpen = visible === "true";
 		},
 		updateHeadersFromSelection() {
 			// Generate table headers based on profile-driven column visibility.
@@ -1196,6 +1246,8 @@ export default {
 				this.eventBus.emit("submit_with_print");
 			}, 100);
 		});
+		this.eventBus.on("show_payment", this.handlePaymentViewState);
+		this.eventBus.on("payment_submission_loading", this.handlePaymentSubmissionLoading);
 
 		// Listen for shortcuts help request from navbar
 		this.eventBus.on("show_shortcuts_help", () => {
@@ -1214,6 +1266,8 @@ export default {
 		this.eventBus.off("fetch_customer_details");
 		this.eventBus.off("clear_invoice");
 		this.eventBus.off("submit_invoice_with_print");
+		this.eventBus.off("show_payment", this.handlePaymentViewState);
+		this.eventBus.off("payment_submission_loading", this.handlePaymentSubmissionLoading);
 		// Cleanup reset_posting_date listener
 		this.eventBus.off("reset_posting_date");
 		this.eventBus.off("show_shortcuts_help");
@@ -1229,11 +1283,9 @@ export default {
 			this.shortRecallTodaysInvoices,
 			this.shortCashPaymentAndPrint,
 			this.shortEditPrice,
-			this.shortEditQuantity,
 			this.shortShowShortcutsHelp,
 			this.shortOpenCashDrawer,
 			this.shortEditQuantityF7,
-			this.shortOpenPaymentF4,
 			this.shortSubmitAndPrintFromPayment,
 		];
 
