@@ -112,6 +112,8 @@
 							theme="dark"
 							size="large"
 							prepend-icon="mdi-credit-card"
+							:loading="actionLoadingType === 'pay'"
+							:disabled="actionLoading"
 							@click="$emit('show-payment')"
 							class="summary-btn"
 						>
@@ -124,6 +126,8 @@
 							color="primary"
 							theme="dark"
 							prepend-icon="mdi-printer"
+							:loading="actionLoadingType === 'print-draft'"
+							:disabled="actionLoading"
 							@click="$emit('print-draft')"
 							class="summary-btn"
 						>
@@ -136,6 +140,7 @@
 							color="secondary"
 							theme="dark"
 							prepend-icon="mdi-backup-restore"
+							:disabled="actionLoading"
 							@click="$emit('open-returns')"
 							class="summary-btn"
 						>
@@ -148,6 +153,7 @@
 							color="error"
 							theme="dark"
 							prepend-icon="mdi-close-circle"
+							:disabled="actionLoading"
 							@click="$emit('cancel-sale')"
 							class="summary-btn"
 						>
@@ -160,6 +166,8 @@
 							color="info"
 							theme="dark"
 							prepend-icon="mdi-book-search"
+							:loading="actionLoadingType === 'select-order'"
+							:disabled="actionLoading"
 							@click="$emit('select-order')"
 							class="summary-btn"
 						>
@@ -172,6 +180,8 @@
 							color="warning"
 							theme="dark"
 							prepend-icon="mdi-file-document"
+							:loading="actionLoadingType === 'release'"
+							:disabled="actionLoading"
 							@click="$emit('load-drafts')"
 							class="white-text-btn summary-btn"
 						>
@@ -184,6 +194,8 @@
 							color="accent"
 							theme="dark"
 							prepend-icon="mdi-content-save"
+							:loading="actionLoadingType === 'hold'"
+							:disabled="actionLoading"
 							@click="$emit('save-and-clear')"
 							class="summary-btn"
 						>
@@ -200,6 +212,14 @@
 export default {
 	props: {
 		pos_profile: Object,
+		actionLoading: {
+			type: Boolean,
+			default: false,
+		},
+		actionLoadingType: {
+			type: String,
+			default: "",
+		},
 		total_qty: [Number, String],
 		additional_discount: Number,
 		additional_discount_percentage: Number,

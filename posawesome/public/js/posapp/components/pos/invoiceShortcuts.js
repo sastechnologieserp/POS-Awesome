@@ -44,7 +44,6 @@ export default {
 			}
 		}
 	},
-
 	handleExpandedUpdate(newExpanded) {
 		console.log("Expanded state updated:", newExpanded);
 		this.expanded = newExpanded;
@@ -60,18 +59,82 @@ export default {
 		}
 	},
 
+	isEditableElement(target) {
+		if (!target) {
+			return false;
+		}
+
+		if (
+			target.closest &&
+			target.closest(
+				"input, textarea, select, [contenteditable='true'], [contenteditable=''], .ql-editor",
+			)
+		) {
+			return true;
+		}
+
+		const tagName = target.tagName;
+		if (!tagName) {
+			return false;
+		}
+
+		return ["INPUT", "TEXTAREA", "SELECT"].includes(tagName) || target.isContentEditable === true;
+	},
+
+	setSubmitActionLoading(isLoading, actionType = "pay") {
+		if (typeof this.summaryActionLoading !== "undefined") {
+			this.summaryActionLoading = isLoading;
+		}
+
+		if (typeof this.summaryActionLoadingType !== "undefined") {
+			this.summaryActionLoadingType = isLoading ? actionType : "";
+		}
+	},
+
+	handlePaymentShortcut() {
+		if (this.isPaymentSubmitting || this.summaryActionLoading) {
+			return;
+		}
+
+		if (this.isPaymentViewOpen) {
+			this.eventBus.emit("submit_with_print");
+			return;
+		}
+
+		if (typeof this.handleShowPaymentAction === "function") {
+			this.handleShowPaymentAction();
+			return;
+		}
+
+		this.show_payment();
+	},
+
 	shortOpenPayment(e) {
 		if (e.key === "s" && (e.ctrlKey || e.metaKey)) {
 			e.preventDefault();
-			this.show_payment();
+			e.stopPropagation();
+			this.handlePaymentShortcut();
 		}
 	},
 
 	shortDeleteFirstItem(e) {
-		if (e.key === "F10") {
-			e.preventDefault();
-			this.remove_item(this.items[0]);
+		const isDeleteKey = e.key === "Delete" || e.keyCode === 46 || e.which === 46;
+		if (!isDeleteKey || this.isEditableElement(e.target) || this.isPaymentViewOpen) {
+			return;
 		}
+
+		e.preventDefault();
+		e.stopPropagation();
+
+		if (!this.items || this.items.length === 0) {
+			this.eventBus.emit("show_message", {
+				title: __("No items in cart to remove"),
+				color: "warning",
+			});
+			return;
+		}
+
+		this.remove_item(this.items[0]);
 	},
 
 	shortDeleteLastItem(e) {
@@ -251,6 +314,10 @@ export default {
 	 */
 	shortCashPaymentAndPrint(e) {
 		if (e.key === "F6") {
+			if (this.isPaymentSubmitting || this.summaryActionLoading) {
+				return;
+			}
+
 			console.log("F6 key pressed - triggering cash payment and print");
 			console.log("This shortcut should use silent printing for better cashier experience");
 			e.preventDefault();
@@ -292,16 +359,6 @@ export default {
 		}
 	},
 
-	shortOpenPaymentF4(e) {
-		if (e.key === "F4" || e.keyCode === 115 || e.which === 115) {
-			e.preventDefault();
-			e.stopPropagation();
-
-			// F4: Open payment dialog (moved from Ctrl+S)
-			this.show_payment();
-		}
-	},
-
 	shortEditPrice(e) {
 		if (e.key === "/") {
 			e.preventDefault();
@@ -310,20 +367,11 @@ export default {
 		}
 	},
 
-	shortEditQuantity(e) {
-		if (e.key === "F8") {
-			e.preventDefault();
-			e.stopPropagation();
-			this.editQuantity();
-		}
-	},
-
 	shortSubmitAndPrintFromPayment(e) {
 		if (e.key === "F5") {
 			e.preventDefault();
 			e.stopPropagation();
-			// F5: Submit and print when in payment page
-			this.eventBus.emit("submit_with_print");
+			this.handlePaymentShortcut();
 		}
 	},
 
@@ -342,10 +390,16 @@ export default {
 				shortcuts: [
 					{ key: "F1", description: "Show this shortcuts help dialog" },
 					{ key: "Esc", description: "Toggle item search focus in sales screen" },
-					{ key: "F4", description: "Open payment dialog" },
+					{
+						key: "F5",
+						description: "Open payment dialog, or submit + print when payment page is open",
+					},
+					{
+						key: "Ctrl+S",
+						description: "Same as F5 (open payment / submit + print)",
+					},
 					{ key: "F6", description: "Quick cash payment → submit → print" },
-					{ key: "F7", description: "Edit quantity of first item" },
-					{ key: "F5", description: "Submit and print when payment page is open" },
+					{ key: "Home", description: "Open cash drawer" },
 					{ key: "End", description: "Recall today's invoices with Return/Print options" }
 				]
 			},
@@ -353,32 +407,22 @@ export default {
 				category: "📝 Item Management",
 				shortcuts: [
 					{ key: "/", description: "Edit price of first item" },
-					{ key: "F7", description: "Edit quantity of first item (popup)" },
-					{ key: "Ctrl+A", description: "Toggle expand/collapse first item details" },
-					{ key: "F10", description: "Delete first item from invoice" },
-					{ key: "Ctrl+Z", description: "Remove last added item from cart" }
+					{ key: "F7", description: "Edit quantity of first item" },
+					{ key: "Delete", description: "Delete first item from invoice" },
+					{ key: "Ctrl+Z", description: "Remove last added item from cart" },
+					{ key: "Ctrl+A", description: "Toggle expand/collapse first item details" }
 				]
 			},
 			{
 				category: "💰 Payment & Invoice",
 				shortcuts: [
-					{ key: "F4", description: "Open payment dialog" },
 					{ key: "Ctrl+E", description: "Focus discount field" },
 					{ key: "Ctrl+X", description: "Submit payment (when in payment screen)" }
 				]
 			},
 			{
-				category: "🖨️ Printing & Receipts",
-				shortcuts: [
-					{ key: "F6", description: "Auto-print after cash payment" },
-					{ key: "F5", description: "Submit and print when payment page is open" },
-					{ key: "End → Print", description: "Print any today's invoice" }
-				]
-			},
-			{
 				category: "💾 Invoice Management",
 				shortcuts: [
-					{ key: "End → Return", description: "Load any today's invoice back to POS" },
 					{ key: "Hold Button", description: "Save current invoice as draft and clear" },
 					{ key: "Release Button", description: "Load previously saved draft invoices" }
 				]
@@ -419,11 +463,12 @@ export default {
 				<div style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px;">
 					<h4 style="margin: 0 0 10px 0; color: #856404;">💡 Pro Tips:</h4>
 					<ul style="margin: 0; padding-left: 20px; color: #856404;">
+						<li>Use <strong>F5</strong> or <strong>Ctrl+S</strong> to open payment quickly</li>
+						<li>On payment screen, press <strong>F5</strong> or <strong>Ctrl+S</strong> to submit and print</li>
+						<li>Use <strong>Delete</strong> to remove the first item from cart</li>
 						<li>Use <strong>F6</strong> for quick cash transactions</li>
-						<li>Use <strong>F7</strong> to submit and print current invoice</li>
-						<li>Use <strong>F5</strong> to submit and print when payment page is open</li>
 						<li>Press <strong>End</strong> to find and reprint today's invoices</li>
-						<li>Use <strong>/</strong> and <strong>F8</strong> to quickly edit first item</li>
+						<li>Use <strong>/</strong> and <strong>F7</strong> to quickly edit first item</li>
 						<li>Hold invoices for later with the <strong>Hold</strong> button</li>
 					</ul>
 				</div>
@@ -448,16 +493,16 @@ export default {
 		const shortcuts = [
 			{ key: "F1", description: "Show shortcuts help" },
 			{ key: "Esc", description: "Toggle item search focus in sales screen" },
-			{ key: "F4", description: "Open payment dialog" },
+			{ key: "F5", description: "Open payment dialog, or submit + print when payment page is open" },
+			{ key: "Ctrl+S", description: "Same as F5 (open payment / submit + print)" },
 			{ key: "F6", description: "Quick cash payment → submit → print" },
 			{ key: "F7", description: "Edit quantity of first item" },
-			{ key: "F5", description: "Submit and print when payment page is open" },
 			{ key: "Home", description: "Open cash drawer" },
 			{ key: "End", description: "Recall today's invoices" },
 			{ key: "/", description: "Edit price of first item" },
-			{ key: "Ctrl+A", description: "Toggle first item details" },
-			{ key: "F10", description: "Delete first item" },
+			{ key: "Delete", description: "Delete first item" },
 			{ key: "Ctrl+Z", description: "Remove last added item" },
+			{ key: "Ctrl+A", description: "Toggle first item details" },
 			{ key: "Ctrl+E", description: "Focus discount field" },
 			{ key: "Ctrl+X", description: "Submit payment" }
 		];
@@ -495,10 +540,12 @@ export default {
 				<div style="margin-top: 30px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
 					<h3>💡 Pro Tips:</h3>
 					<ul>
-						<li>Use F4 for quick cash transactions</li>
-						<li>Use F6 to submit and print current invoice</li>
+						<li>Use F5 or Ctrl+S to open payment quickly</li>
+						<li>On payment screen, press F5 or Ctrl+S to submit and print</li>
+						<li>Use Delete to remove the first item from cart</li>
+						<li>Use F6 for quick cash transactions</li>
 						<li>Press End to find and reprint today's invoices</li>
-						<li>Use / and . to quickly edit first item</li>
+						<li>Use / and F7 to quickly edit first item</li>
 						<li>Hold invoices for later with the Hold button</li>
 					</ul>
 				</div>
@@ -1065,7 +1112,7 @@ export default {
 	},
 
 	/**
-	 * F4 Shortcut: Direct cash payment and print
+	 * F6 Shortcut: Direct cash payment and print
 	 * 
 	 * This method handles the complete invoice submission process:
 	 * 1. Validates all required data (items, customer, POS shift, profile)
@@ -1076,6 +1123,10 @@ export default {
 	 * 6. Clears invoice for next use
 	 */
 	async cashPaymentAndPrint() {
+		if (this.isPaymentSubmitting) {
+			return;
+		}
+
 		try {
 			console.log("cashPaymentAndPrint method called - direct submission mode");
 			if (!this.items || this.items.length === 0) {
@@ -1134,6 +1185,9 @@ export default {
 				return;
 			}
 
+			this.isPaymentSubmitting = true;
+			this.setSubmitActionLoading(true, "pay");
+
 			console.log("All validations passed - preparing invoice using same method as show_payment()");
 
 			// USE THE SAME METHOD AS show_payment() FOR CONSISTENCY
@@ -1160,6 +1214,8 @@ export default {
 					title: __("Error processing invoice"),
 					color: "error",
 				});
+				this.isPaymentSubmitting = false;
+				this.setSubmitActionLoading(false);
 				return;
 			}
 
@@ -1286,6 +1342,9 @@ export default {
 					invoice: invoice_doc
 				},
 				callback: (r) => {
+					this.isPaymentSubmitting = false;
+					this.setSubmitActionLoading(false);
+
 					if (r.message && r.message.name) {
 						// Print the invoice immediately
 						this.printInvoiceByName(r.message.name);
@@ -1313,6 +1372,9 @@ export default {
 					}
 				},
 				error: (r) => {
+					this.isPaymentSubmitting = false;
+					this.setSubmitActionLoading(false);
+
 					console.error("Error submitting invoice:", r);
 					this.eventBus.emit("show_message", {
 						title: __("Error submitting invoice"),
@@ -1322,6 +1384,9 @@ export default {
 			});
 
 		} catch (error) {
+			this.isPaymentSubmitting = false;
+			this.setSubmitActionLoading(false);
+
 			console.error("Error in cashPaymentAndPrint:", error);
 			this.eventBus.emit("show_message", {
 				title: __("Error processing cash payment"),
@@ -1345,6 +1410,10 @@ export default {
 	 * 6. Clears invoice for next use
 	 */
 	async submitAndPrintDirect() {
+		if (this.isPaymentSubmitting) {
+			return;
+		}
+
 		try {
 
 			// Validate required data
@@ -1403,6 +1472,9 @@ export default {
 				});
 				return;
 			}
+
+			this.isPaymentSubmitting = true;
+			this.setSubmitActionLoading(true, "pay");
 
 			// Calculate totals from current items
 			const netTotal = this.items.reduce((sum, item) => {
@@ -1501,6 +1573,9 @@ export default {
 					invoice: invoiceDoc
 				},
 				callback: (r) => {
+					this.isPaymentSubmitting = false;
+					this.setSubmitActionLoading(false);
+
 					if (r.message && r.message.name) {
 						// Print the invoice immediately
 						this.printInvoiceByName(r.message.name);
@@ -1528,6 +1603,9 @@ export default {
 					}
 				},
 				error: (r) => {
+					this.isPaymentSubmitting = false;
+					this.setSubmitActionLoading(false);
+
 					console.error("Error submitting invoice:", r);
 					this.eventBus.emit("show_message", {
 						title: __("Error submitting invoice"),
@@ -1537,6 +1615,9 @@ export default {
 			});
 
 		} catch (error) {
+			this.isPaymentSubmitting = false;
+			this.setSubmitActionLoading(false);
+
 			this.eventBus.emit("show_message", {
 				title: __("Error processing invoice submission"),
 				color: "error",

@@ -828,6 +828,9 @@ export default {
 		},
 	},
 	watch: {
+		loading(newVal) {
+			this.eventBus.emit("payment_submission_loading", !!newVal);
+		},
 		diff_payment(newVal) {
 			if (!this.is_user_editing_paid_change) {
 				this.paid_change = -newVal;
@@ -955,6 +958,10 @@ export default {
 			});
 		},
 		submit(event, payment_received = false, print = false) {
+			if (this.loading) {
+				return;
+			}
+
 			try {
 			if (this.invoice_doc.is_return) {
 				this.ensureReturnPaymentsAreNegative();
@@ -1101,17 +1108,14 @@ export default {
 				});
 				this.loading = false;
 				frappe.utils.play_sound("error");
-			} finally {
-				// Ensure loading is always reset
-				if (this.loading) {
-					console.log("Ensuring loading state is reset in finally block");
-					this.loading = false;
-				}
 			}
 		},
 		// Submit invoice to backend after all validations
 		submit_invoice(print) {
 			const vm = this;
+			if (!vm.loading) {
+				vm.loading = true;
+			}
 			
 			// Ensure loading state is reset on any error
 			const resetLoading = () => {
@@ -1458,13 +1462,20 @@ export default {
 			if (e.key.toLowerCase() === "x" && (e.ctrlKey || e.metaKey)) {
 				e.preventDefault();
 				e.stopPropagation();
+				if (this.loading) {
+					return;
+				}
 				if (this.invoice_doc && this.invoice_doc.payments) {
-					this.submit_invoice();
+					this.submit();
 				}
 			}
 		},
 		// Method to set cash payment and print (for F4 shortcut)
 		setCashPaymentAndPrint() {
+			if (this.loading) {
+				return;
+			}
+
 			console.log("setCashPaymentAndPrint method called");
 			console.log("Invoice doc:", this.invoice_doc);
 			console.log("Payments:", this.invoice_doc?.payments);
@@ -1509,7 +1520,7 @@ export default {
 
 			// Submit with print after a short delay
 			setTimeout(() => {
-				this.submit_invoice(true); // true = print
+				this.submit(undefined, false, true);
 			}, 200);
 		},
 
@@ -1987,7 +1998,7 @@ export default {
 			});
 			// Handle submit with print event from shortcuts
 			this.eventBus.on("submit_with_print", () => {
-				this.submit_invoice(true); // true = print
+				this.submit(undefined, false, true);
 			});
 			// Handle cash payment and print event from F4 shortcut
 			this.eventBus.on("set_cash_payment_and_print", () => {
@@ -2030,6 +2041,8 @@ export default {
 		this.eventBus.off("register_invoice");
 		this.eventBus.off("register_customer_info");
 		this.eventBus.off("show_payment");
+		this.eventBus.off("submit_with_print");
+		this.eventBus.off("set_cash_payment_and_print");
 	},
 	
 	/**
