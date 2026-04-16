@@ -84,73 +84,41 @@
 							class="total-field-bold"
 						/>
 					</v-col>
+
+					<v-col cols="12" v-if="pos_profile.posa_display_additional_notes">
+						<v-textarea
+							:model-value="additional_notes"
+							@update:model-value="$emit('update:additional_notes', $event)"
+							:label="frappe._('Additional Notes')"
+							prepend-inner-icon="mdi-note-text-outline"
+							variant="solo"
+							density="compact"
+							auto-grow
+							rows="2"
+							clearable
+							color="primary"
+						/>
+					</v-col>
 				</v-row>
 			</v-col>
 
 			<!-- Action Buttons -->
 			<v-col cols="12" md="5">
-				<v-row dense>
-					<v-col cols="6">
+				<v-row dense class="action-btn-row">
+					<v-col class="action-btn-col pay-btn-col">
 						<v-btn
 							block
-							color="accent"
+							color="success"
 							theme="dark"
-							prepend-icon="mdi-content-save"
-							@click="$emit('save-and-clear')"
+							size="large"
+							prepend-icon="mdi-credit-card"
+							@click="$emit('show-payment')"
 							class="summary-btn"
 						>
-							{{ __("Hold") }}
+							{{ __("PAY") }}
 						</v-btn>
 					</v-col>
-					<v-col cols="6">
-						<v-btn
-							block
-							color="warning"
-							theme="dark"
-							prepend-icon="mdi-file-document"
-							@click="$emit('load-drafts')"
-							class="white-text-btn summary-btn"
-						>
-							{{ __("Release") }}
-						</v-btn>
-					</v-col>
-					<v-col cols="6" v-if="pos_profile.custom_allow_select_sales_order == 1">
-						<v-btn
-							block
-							color="info"
-							theme="dark"
-							prepend-icon="mdi-book-search"
-							@click="$emit('select-order')"
-							class="summary-btn"
-						>
-							{{ __("Select S.O") }}
-						</v-btn>
-					</v-col>
-					<v-col cols="6">
-						<v-btn
-							block
-							color="error"
-							theme="dark"
-							prepend-icon="mdi-close-circle"
-							@click="$emit('cancel-sale')"
-							class="summary-btn"
-						>
-							{{ __("Cancel Sale") }}
-						</v-btn>
-					</v-col>
-					<v-col cols="6" v-if="pos_profile.posa_allow_return == 1">
-						<v-btn
-							block
-							color="secondary"
-							theme="dark"
-							prepend-icon="mdi-backup-restore"
-							@click="$emit('open-returns')"
-							class="summary-btn"
-						>
-							{{ __("Sales Return") }}
-						</v-btn>
-					</v-col>
-					<v-col cols="6" v-if="pos_profile.posa_allow_print_draft_invoices">
+					<v-col class="action-btn-col" v-if="pos_profile.posa_allow_print_draft_invoices">
 						<v-btn
 							block
 							color="primary"
@@ -162,18 +130,64 @@
 							{{ __("Print Draft") }}
 						</v-btn>
 					</v-col>
-
-					<v-col cols="12">
+					<v-col class="action-btn-col" v-if="pos_profile.posa_allow_return == 1">
 						<v-btn
 							block
-							color="success"
+							color="secondary"
 							theme="dark"
-							size="large"
-							prepend-icon="mdi-credit-card"
-							@click="$emit('show-payment')"
+							prepend-icon="mdi-backup-restore"
+							@click="$emit('open-returns')"
 							class="summary-btn"
 						>
-							{{ __("PAY") }}
+							{{ __("Sales Return") }}
+						</v-btn>
+					</v-col>
+					<v-col class="action-btn-col">
+						<v-btn
+							block
+							color="error"
+							theme="dark"
+							prepend-icon="mdi-close-circle"
+							@click="$emit('cancel-sale')"
+							class="summary-btn"
+						>
+							{{ __("Cancel Sale") }}
+						</v-btn>
+					</v-col>
+					<v-col class="action-btn-col" v-if="pos_profile.custom_allow_select_sales_order == 1">
+						<v-btn
+							block
+							color="info"
+							theme="dark"
+							prepend-icon="mdi-book-search"
+							@click="$emit('select-order')"
+							class="summary-btn"
+						>
+							{{ __("Select S.O") }}
+						</v-btn>
+					</v-col>
+					<v-col class="action-btn-col">
+						<v-btn
+							block
+							color="warning"
+							theme="dark"
+							prepend-icon="mdi-file-document"
+							@click="$emit('load-drafts')"
+							class="white-text-btn summary-btn"
+						>
+							{{ __("Release") }}
+						</v-btn>
+					</v-col>
+					<v-col class="action-btn-col">
+						<v-btn
+							block
+							color="accent"
+							theme="dark"
+							prepend-icon="mdi-content-save"
+							@click="$emit('save-and-clear')"
+							class="summary-btn"
+						>
+							{{ __("Hold") }}
 						</v-btn>
 					</v-col>
 				</v-row>
@@ -189,6 +203,7 @@ export default {
 		total_qty: [Number, String],
 		additional_discount: Number,
 		additional_discount_percentage: Number,
+		additional_notes: String,
 		total_items_discount_amount: Number,
 		subtotal: Number,
 		displayCurrency: String,
@@ -202,6 +217,7 @@ export default {
 	emits: [
 		"update:additional_discount",
 		"update:additional_discount_percentage",
+		"update:additional_notes",
 		"update_discount_umount",
 		"save-and-clear",
 		"load-drafts",
@@ -262,6 +278,26 @@ export default {
 /* ensure long button labels stay within the button */
 .summary-btn :deep(.v-btn__content) {
 	white-space: normal !important;
+}
+
+.action-btn-row {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.action-btn-col {
+	flex: 1 1 calc(50% - 4px);
+	min-width: 140px;
+}
+
+.pay-btn-col {
+	flex-basis: 100%;
+}
+
+@media (max-width: 600px) {
+	.action-btn-col {
+		flex-basis: 100%;
+	}
 }
 
 .total-field-bold :deep(.v-field__input) {

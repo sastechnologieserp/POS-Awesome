@@ -70,17 +70,10 @@
 					:pos_profile="pos_profile"
 					:posting_date_display="posting_date_display"
 					:customer_balance="customer_balance"
-					:price-list="selected_price_list"
-					:price-lists="price_lists"
 					:formatCurrency="formatCurrency"
 					@update:posting_date_display="
 						(val) => {
 							posting_date_display = val;
-						}
-					"
-					@update:priceList="
-						(val) => {
-							selected_price_list = val;
 						}
 					"
 				/>
@@ -116,75 +109,15 @@
 
 				<!-- Items Table Section (Main items list for invoice) -->
 				<div class="items-table-wrapper">
-					<!-- Column selector button moved outside the table -->
-					<div class="column-selector-container">
-						<v-btn
-							density="compact"
-							variant="text"
-							color="primary"
-							prepend-icon="mdi-cog-outline"
-							@click="toggleColumnSelection"
-							class="column-selector-btn"
-						>
-							{{ __("Columns") }}
-						</v-btn>
-
-						<v-dialog v-model="show_column_selector" max-width="500px">
-							<v-card>
-								<v-card-title class="text-h6 pa-4 d-flex align-center">
-									<span>{{ __("Select Columns to Display") }}</span>
-									<v-spacer></v-spacer>
-									<v-btn
-										icon="mdi-close"
-										variant="text"
-										density="compact"
-										@click="show_column_selector = false"
-									></v-btn>
-								</v-card-title>
-								<v-divider></v-divider>
-								<v-card-text class="pa-4">
-									<v-row dense>
-										<v-col
-											cols="12"
-											v-for="column in available_columns.filter((col) => !col.required)"
-											:key="column.key"
-										>
-											<v-switch
-												v-model="temp_selected_columns"
-												:label="column.title"
-												:value="column.key"
-												hide-details
-												density="compact"
-												color="primary"
-												class="column-switch mb-1"
-												:disabled="column.required"
-											></v-switch>
-										</v-col>
-									</v-row>
-									<div class="text-caption mt-2">
-										{{ __("Required columns cannot be hidden") }}
-									</div>
-								</v-card-text>
-								<v-card-actions class="pa-4 pt-0">
-									<v-btn color="error" variant="text" @click="cancelColumnSelection">{{
-										__("Cancel")
-									}}</v-btn>
-									<v-spacer></v-spacer>
-									<v-btn color="primary" variant="tonal" @click="updateSelectedColumns">{{
-										__("Apply")
-									}}</v-btn>
-								</v-card-actions>
-							</v-card>
-						</v-dialog>
-					</div>
-
 					<!-- ItemsTable component with reorder event handler -->
 					<ItemsTable
 						:headers="items_headers"
+						:selectedColumns="selected_columns"
 						:items="items"
 						:expanded="expanded"
 						:itemsPerPage="itemsPerPage"
 						:itemSearch="itemSearch"
+						:customer="customer"
 						:pos_profile="pos_profile"
 						:invoice_doc="invoice_doc"
 						:invoiceType="invoiceType"
@@ -221,6 +154,7 @@
 			:total_qty="total_qty"
 			:additional_discount="additional_discount"
 			:additional_discount_percentage="additional_discount_percentage"
+			:additional_notes="additional_notes"
 			:total_items_discount_amount="total_items_discount_amount"
 			:subtotal="subtotal"
 			:displayCurrency="displayCurrency"
@@ -231,6 +165,7 @@
 			:isNumber="isNumber"
 			@update:additional_discount="(val) => (additional_discount = val)"
 			@update:additional_discount_percentage="(val) => (additional_discount_percentage = val)"
+			@update:additional_notes="(val) => (additional_notes = val)"
 			@update_discount_umount="update_discount_umount"
 			@save-and-clear="save_and_clear_invoice"
 			@load-drafts="get_draft_invoices"
@@ -273,7 +208,7 @@ export default {
 			pos_profile: "",
 			pos_opening_shift: "",
 			stock_settings: "",
-			invoice_doc: "",
+			invoice_doc: {},
 			return_doc: "",
 			customer: "",
 			customer_info: "",
@@ -281,6 +216,7 @@ export default {
 			discount_amount: 0,
 			additional_discount: 0,
 			additional_discount_percentage: 0,
+			additional_notes: "",
 			total_tax: 0,
 			items: [], // List of invoice items
 			posOffers: [], // All available offers
@@ -315,9 +251,8 @@ export default {
 			customer_price_list: null, // Customer's price list (if any)
 			price_list_currency: "", // Currency of the selected price list
 			selected_columns: [], // Selected columns for items table
-			temp_selected_columns: [], // Temporary array for column selection
 			available_columns: [], // All available columns
-			show_column_selector: false, // Column selector dialog visibility
+			shortcutKeyHandlers: [],
 			invoiceHeight: null,
 		};
 	},
@@ -346,33 +281,141 @@ export default {
 		...stockUtils,
 		...offerMethods,
 		...invoiceItemMethods,
+		isProfileFlagEnabled(fieldname, defaultValue = false) {
+			if (!this.pos_profile || typeof this.pos_profile !== "object") {
+				return defaultValue;
+			}
+
+			const value = this.pos_profile[fieldname];
+			if (value === undefined || value === null || value === "") {
+				return defaultValue;
+			}
+
+			if (typeof value === "string") {
+				if (value === "1") {
+					return true;
+				}
+				if (value === "0") {
+					return false;
+				}
+			}
+
+			return !!value;
+		},
+		isColumnEnabledByProfile(key) {
+			switch (key) {
+				case "uom":
+					return this.isProfileFlagEnabled("posa_display_uom", true);
+				case "discount_value":
+					return this.isProfileFlagEnabled("posa_display_discount_percentage", true);
+				case "discount_amount":
+					return this.isProfileFlagEnabled("posa_display_discount_amount", false);
+				case "posa_is_offer":
+					return this.isProfileFlagEnabled("posa_display_offer_column", true);
+				case "exp_item_code":
+					return true;
+				case "exp_price_list_rate":
+					return this.isProfileFlagEnabled("posa_display_price_list_rate", true);
+				case "exp_available_qty":
+					return this.isProfileFlagEnabled("posa_display_available_qty", true);
+				case "exp_group":
+					return this.isProfileFlagEnabled("posa_display_item_group", true);
+				case "exp_stock_qty":
+					return this.isProfileFlagEnabled("posa_display_stock_qty", true);
+				case "exp_stock_uom":
+					return this.isProfileFlagEnabled("posa_display_stock_uom", true);
+				case "exp_warehouse":
+					return this.isProfileFlagEnabled("posa_display_warehouse", true);
+				case "exp_price_list_rate_bottom":
+					return this.isProfileFlagEnabled("posa_display_price_list_rate_bottom", true);
+				default:
+					return false;
+			}
+		},
 		initializeItemsHeaders() {
 			// Define all available columns
 			this.available_columns = [
-				{ title: __("Name"), align: "start", sortable: true, key: "item_name", required: true },
-				{ title: __("QTY"), key: "qty", align: "start", required: true },
-				{ title: __("UOM"), key: "uom", align: "start", required: false },
-				{ title: __("Rate"), key: "rate", align: "start", required: true },
-				{ title: __("Discount %"), key: "discount_value", align: "start", required: false },
-				{ title: __("Discount Amount"), key: "discount_amount", align: "start", required: false },
-				{ title: __("Amount"), key: "amount", align: "start", required: true },
-				{ title: __("Offer?"), key: "posa_is_offer", align: "center", required: false },
+				{
+					title: __("Name"),
+					align: "start",
+					sortable: true,
+					key: "item_name",
+					required: true,
+					in_table: true,
+				},
+				{ title: __("QTY"), key: "qty", align: "start", required: true, in_table: true },
+				{ title: __("UOM"), key: "uom", align: "start", required: false, in_table: true },
+				{ title: __("Rate"), key: "rate", align: "start", required: true, in_table: true },
+				{
+					title: __("Discount %"),
+					key: "discount_value",
+					align: "start",
+					required: false,
+					in_table: true,
+				},
+				{
+					title: __("Discount Amount"),
+					key: "discount_amount",
+					align: "start",
+					required: false,
+					in_table: true,
+				},
+				{ title: __("Amount"), key: "amount", align: "start", required: true, in_table: true },
+				{
+					title: __("Offer?"),
+					key: "posa_is_offer",
+					align: "center",
+					required: false,
+					in_table: true,
+				},
+				{
+					title: __("Item Code"),
+					key: "exp_item_code",
+					required: false,
+					in_table: false,
+				},
+				{
+					title: __("Price List Rate"),
+					key: "exp_price_list_rate",
+					required: false,
+					in_table: false,
+				},
+				{
+					title: __("Available QTY"),
+					key: "exp_available_qty",
+					required: false,
+					in_table: false,
+				},
+				{ title: __("Group"), key: "exp_group", required: false, in_table: false },
+				{
+					title: __("Stock QTY"),
+					key: "exp_stock_qty",
+					required: false,
+					in_table: false,
+				},
+				{
+					title: __("Stock UOM"),
+					key: "exp_stock_uom",
+					required: false,
+					in_table: false,
+				},
+				{
+					title: __("Warehouse"),
+					key: "exp_warehouse",
+					required: false,
+					in_table: false,
+				},
+				{
+					title: __("Price List Rate (Bottom)"),
+					key: "exp_price_list_rate_bottom",
+					required: false,
+					in_table: false,
+				},
 			];
 
-			// Initialize selected columns if empty
-			if (!this.selected_columns || this.selected_columns.length === 0) {
-				// By default, select all required columns and those enabled in POS profile
-				this.selected_columns = this.available_columns
-					.filter((col) => {
-						if (col.required) return true;
-						if (col.key === "discount_value" && this.pos_profile.posa_display_discount_percentage)
-							return true;
-						if (col.key === "discount_amount" && this.pos_profile.posa_display_discount_amount)
-							return true;
-						return false;
-					})
-					.map((col) => col.key);
-			}
+			this.selected_columns = this.available_columns
+				.filter((col) => col.required || this.isColumnEnabledByProfile(col.key))
+				.map((col) => col.key);
 
 			// Generate headers based on selected columns
 			this.updateHeadersFromSelection();
@@ -403,64 +446,15 @@ export default {
 				}
 			}
 		},
-		toggleColumnSelection() {
-			// Create a copy of selected columns for temporary editing
-			this.temp_selected_columns = [...this.selected_columns];
-			this.show_column_selector = true;
-		},
-
-		cancelColumnSelection() {
-			// Discard changes
-			this.show_column_selector = false;
-		},
-
 		updateHeadersFromSelection() {
-			// Generate headers based on selected columns (without closing dialog)
-			this.items_headers = this.available_columns.filter(
-				(col) => this.selected_columns.includes(col.key) || col.required,
-			);
-		},
-
-		updateSelectedColumns() {
-			// Apply the temporary selection
-			this.selected_columns = [...this.temp_selected_columns];
-
-			// Add required columns if they're not already included
-			const requiredKeys = this.available_columns.filter((col) => col.required).map((col) => col.key);
-
-			requiredKeys.forEach((key) => {
-				if (!this.selected_columns.includes(key)) {
-					this.selected_columns.push(key);
-				}
-			});
-
-			// Update headers
-			this.updateHeadersFromSelection();
-
-			// Save preferences
-			this.saveColumnPreferences();
-
-			// Close dialog
-			this.show_column_selector = false;
-		},
-
-		saveColumnPreferences() {
-			try {
-				localStorage.setItem("posawesome_selected_columns", JSON.stringify(this.selected_columns));
-			} catch (e) {
-				console.error("Failed to save column preferences:", e);
-			}
-		},
-
-		loadColumnPreferences() {
-			try {
-				const saved = localStorage.getItem("posawesome_selected_columns");
-				if (saved) {
-					this.selected_columns = JSON.parse(saved);
-				}
-			} catch (e) {
-				console.error("Failed to load column preferences:", e);
-			}
+			// Generate table headers based on profile-driven column visibility.
+			this.items_headers = this.available_columns
+				.filter(
+					(col) =>
+						col.in_table !== false &&
+						(this.selected_columns.includes(col.key) || col.required),
+				)
+				.map((col) => ({ ...col, sortable: false }));
 		},
 
 		saveInvoiceHeight() {
@@ -1049,8 +1043,6 @@ export default {
 	},
 
 	mounted() {
-		// Load saved column preferences
-		this.loadColumnPreferences();
 		// Restore saved invoice height
 		this.loadInvoiceHeight();
 		this.eventBus.on("item-drag-start", (item) => {
@@ -1209,6 +1201,9 @@ export default {
 		this.eventBus.on("show_shortcuts_help", () => {
 			this.showShortcutsHelp();
 		});
+		this.eventBus.on("recall_todays_invoices", () => {
+			this.recallTodaysInvoices();
+		});
 	},
 	// Cleanup event listeners before component is destroyed
 	beforeUnmount() {
@@ -1221,40 +1216,37 @@ export default {
 		this.eventBus.off("submit_invoice_with_print");
 		// Cleanup reset_posting_date listener
 		this.eventBus.off("reset_posting_date");
+		this.eventBus.off("show_shortcuts_help");
+		this.eventBus.off("recall_todays_invoices");
 	},
 	// Register global keyboard shortcuts when component is created
 	created() {
-		document.addEventListener("keydown", this.shortOpenPayment.bind(this));
-		document.addEventListener("keydown", this.shortDeleteFirstItem.bind(this));
-		document.addEventListener("keydown", this.shortOpenFirstItem.bind(this));
-		document.addEventListener("keydown", this.shortSelectDiscount.bind(this));
+		this.shortcutKeyHandlers = [
+			this.shortOpenPayment,
+			this.shortDeleteFirstItem,
+			this.shortOpenFirstItem,
+			this.shortSelectDiscount,
+			this.shortRecallTodaysInvoices,
+			this.shortCashPaymentAndPrint,
+			this.shortEditPrice,
+			this.shortEditQuantity,
+			this.shortShowShortcutsHelp,
+			this.shortOpenCashDrawer,
+			this.shortEditQuantityF7,
+			this.shortOpenPaymentF4,
+			this.shortSubmitAndPrintFromPayment,
+		];
 
-		document.addEventListener("keydown", this.shortRecallTodaysInvoices.bind(this));
-		document.addEventListener("keydown", this.shortCashPaymentAndPrint.bind(this));
-		document.addEventListener("keydown", this.shortEditPrice.bind(this));
-		document.addEventListener("keydown", this.shortEditQuantity.bind(this));
-		document.addEventListener("keydown", this.shortShowShortcutsHelp.bind(this));
-		document.addEventListener("keydown", this.shortOpenCashDrawer.bind(this));
-		document.addEventListener("keydown", this.shortEditQuantityF7.bind(this));
-		document.addEventListener("keydown", this.shortOpenPaymentF4.bind(this));
-		document.addEventListener("keydown", this.shortSubmitAndPrintFromPayment.bind(this));
+		this.shortcutKeyHandlers.forEach((handler) => {
+			document.addEventListener("keydown", handler);
+		});
 	},
 	// Remove global keyboard shortcuts when component is unmounted
 	unmounted() {
-		document.removeEventListener("keydown", this.shortOpenPayment);
-		document.removeEventListener("keydown", this.shortDeleteFirstItem);
-		document.removeEventListener("keydown", this.shortOpenFirstItem);
-		document.removeEventListener("keydown", this.shortSelectDiscount);
-
-		document.removeEventListener("keydown", this.shortRecallTodaysInvoices);
-		document.removeEventListener("keydown", this.shortCashPaymentAndPrint);
-		document.removeEventListener("keydown", this.shortEditPrice);
-		document.removeEventListener("keydown", this.shortEditQuantity);
-		document.removeEventListener("keydown", this.shortShowShortcutsHelp);
-		document.removeEventListener("keydown", this.shortOpenCashDrawer);
-		document.removeEventListener("keydown", this.shortEditQuantityF7);
-		document.removeEventListener("keydown", this.shortOpenPaymentF4);
-		document.removeEventListener("keydown", this.shortSubmitAndPrintFromPayment);
+		this.shortcutKeyHandlers.forEach((handler) => {
+			document.removeEventListener("keydown", handler);
+		});
+		this.shortcutKeyHandlers = [];
 	},
 	watch: invoiceWatchers,
 };
@@ -1357,48 +1349,7 @@ export default {
 	}
 }
 
-.column-selector-container {
-	display: flex;
-	justify-content: flex-end;
-	padding: 8px 16px;
-	background-color: var(--surface-secondary);
-	border-radius: 8px 8px 0 0;
-	position: absolute;
-	top: 0;
-	right: 0;
-	transform: translateY(-100%);
-}
-
-:deep(.dark-theme) .column-selector-container,
-:deep(.v-theme--dark) .column-selector-container {
-	background-color: #1e1e1e;
-}
-
-.column-selector-btn {
-	font-size: 0.875rem;
-}
-
 .items-table-wrapper {
-	position: relative;
-	margin-top: var(--dynamic-xl);
-}
-
-/* New styles for improved column switches */
-:deep(.column-switch) {
-	margin: 0;
-	padding: 0;
-}
-
-:deep(.column-switch .v-switch__track) {
-	opacity: 0.7;
-}
-
-:deep(.column-switch .v-switch__thumb) {
-	transform: scale(0.8);
-}
-
-:deep(.column-switch .v-label) {
-	opacity: 0.9;
-	font-size: 0.95rem;
+	margin-top: var(--dynamic-sm);
 }
 </style>

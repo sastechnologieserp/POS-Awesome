@@ -99,6 +99,7 @@ def update_invoice(data):
 			frappe.throw(validation.get("message"))
 	selected_currency = data.get("currency")
 	price_list_currency = data.get("price_list_currency")
+	exchange_rate_date = invoice_doc.posting_date
 	if not price_list_currency and invoice_doc.get("selling_price_list"):
 		price_list_currency = frappe.db.get_value("Price List", invoice_doc.selling_price_list, "currency")
 
@@ -132,7 +133,6 @@ def update_invoice(data):
 		price_list_currency = price_list_currency or company_currency
 
 		conversion_rate = 1
-		exchange_rate_date = invoice_doc.posting_date
 		if invoice_doc.currency != company_currency:
 			conversion_rate, exchange_rate_date = get_latest_rate(
 				invoice_doc.currency,
@@ -164,6 +164,10 @@ def update_invoice(data):
 
 		# Update rates and amounts for all items using multiplication
 		for item in invoice_doc.items:
+			item.price_list_rate = flt(item.price_list_rate)
+			item.rate = flt(item.rate)
+			item.amount = flt(item.amount)
+
 			if item.price_list_rate:
 				item.base_price_list_rate = flt(
 					item.price_list_rate * (conversion_rate / plc_conversion_rate),
@@ -176,9 +180,15 @@ def update_invoice(data):
 
 		# Update payment amounts
 		for payment in invoice_doc.payments:
+			payment.amount = flt(payment.amount)
 			payment.base_amount = flt(payment.amount * conversion_rate, payment.precision("base_amount"))
 
 		# Update invoice level amounts
+		invoice_doc.total = flt(invoice_doc.total)
+		invoice_doc.net_total = flt(invoice_doc.net_total)
+		invoice_doc.grand_total = flt(invoice_doc.grand_total)
+		invoice_doc.rounded_total = flt(invoice_doc.rounded_total)
+
 		invoice_doc.base_total = flt(invoice_doc.total * conversion_rate, invoice_doc.precision("base_total"))
 		invoice_doc.base_net_total = flt(
 			invoice_doc.net_total * conversion_rate,

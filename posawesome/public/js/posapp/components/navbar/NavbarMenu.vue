@@ -109,6 +109,27 @@
 					</div>
 				</v-list-item>
 
+				<v-list-item @click="$emit('recall-invoices')" class="menu-item-compact info-action">
+					<template v-slot:prepend>
+						<div class="menu-icon-wrapper-compact info-icon">
+							<v-icon color="white" size="16">mdi-file-search-outline</v-icon>
+						</div>
+					</template>
+					<div class="menu-content-compact">
+						<v-list-item-title class="menu-item-title-compact">{{
+							__("Recall Invoices")
+						}}</v-list-item-title>
+						<v-list-item-subtitle class="menu-item-subtitle-compact">{{
+							__("Find and reopen today's invoices")
+						}}</v-list-item-subtitle>
+					</div>
+					<template v-slot:append>
+						<v-chip size="small" color="primary" variant="outlined" class="shortcut-chip">
+							End
+						</v-chip>
+					</template>
+				</v-list-item>
+
 				<v-divider class="menu-section-divider-compact"></v-divider>
 
 				<v-list-item @click="$emit('show-about')" class="menu-item-compact neutral-action">
@@ -212,6 +233,7 @@ export default {
 		"toggle-theme",
 		"logout",
 		"show-shortcuts",
+		"recall-invoices",
 	],
 };
 </script>

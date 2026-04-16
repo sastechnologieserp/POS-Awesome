@@ -1,5 +1,5 @@
 	<template>
-	<div class="pos-main-container dynamic-container" :style="responsiveStyles">
+	<div ref="posRoot" class="pos-main-container dynamic-container" :style="responsiveStyles">
 		<ClosingDialog></ClosingDialog>
 		<Drafts></Drafts>
 		<SalesOrders></SalesOrders>
@@ -75,6 +75,9 @@ export default {
 			payment: false,
 			offers: false,
 			coupons: false,
+			tableFocusObserver: null,
+			tableFocusObserverRaf: null,
+			globalEscapeHandler: null,
 		};
 	},
 
@@ -347,6 +350,160 @@ export default {
 				this.eventBus.emit("set_pos_settings", doc);
 			});
 		},
+		sanitizeGlobalTableTabStops() {
+			this.$nextTick(() => {
+				const root = this.$refs.posRoot || this.$el;
+				if (!root) {
+					return;
+				}
+
+				const nonInteractiveTableSelectors = [
+					"table",
+					"thead",
+					"tbody",
+					"tr",
+					"th",
+					"td",
+					".v-table",
+					".v-table__wrapper",
+					".v-data-table",
+					".v-data-table-virtual",
+					"[role='table']",
+					"[role='grid']",
+					"[role='row']",
+					"[role='cell']",
+					"[role='gridcell']",
+					"[role='columnheader']",
+					"[role='rowheader']",
+				].join(",");
+
+				root.querySelectorAll(nonInteractiveTableSelectors).forEach((el) => {
+					el.setAttribute("tabindex", "-1");
+				});
+
+				// Keep header controls out of tab flow.
+				root.querySelectorAll("thead button, th button, [role='columnheader'] button").forEach((el) => {
+					el.setAttribute("tabindex", "-1");
+				});
+
+				const interactiveSelectors = [
+					"table input",
+					"table select",
+					"table textarea",
+					"table button",
+					".v-table input",
+					".v-table select",
+					".v-table textarea",
+					".v-table button",
+					".v-data-table input",
+					".v-data-table select",
+					".v-data-table textarea",
+					".v-data-table button",
+					".v-data-table-virtual input",
+					".v-data-table-virtual select",
+					".v-data-table-virtual textarea",
+					".v-data-table-virtual button",
+				].join(",");
+
+				root.querySelectorAll(interactiveSelectors).forEach((el) => {
+					if (el.closest("thead, th, [role='columnheader']")) {
+						el.setAttribute("tabindex", "-1");
+						return;
+					}
+
+					const isDisabled =
+						el.hasAttribute("disabled") || el.getAttribute("aria-disabled") === "true";
+					el.setAttribute("tabindex", isDisabled ? "-1" : "0");
+				});
+			});
+		},
+		startTableFocusObserver() {
+			if (this.tableFocusObserver) {
+				return;
+			}
+
+			const root = this.$refs.posRoot || this.$el;
+			if (!root || typeof MutationObserver === "undefined") {
+				return;
+			}
+
+			this.tableFocusObserver = new MutationObserver(() => {
+				if (this.tableFocusObserverRaf) {
+					cancelAnimationFrame(this.tableFocusObserverRaf);
+				}
+
+				this.tableFocusObserverRaf = requestAnimationFrame(() => {
+					this.sanitizeGlobalTableTabStops();
+					this.tableFocusObserverRaf = null;
+				});
+			});
+
+			this.tableFocusObserver.observe(root, {
+				childList: true,
+				subtree: true,
+				attributes: true,
+				attributeFilter: ["tabindex", "role", "class"],
+			});
+		},
+		stopTableFocusObserver() {
+			if (this.tableFocusObserver) {
+				this.tableFocusObserver.disconnect();
+				this.tableFocusObserver = null;
+			}
+
+			if (this.tableFocusObserverRaf) {
+				cancelAnimationFrame(this.tableFocusObserverRaf);
+				this.tableFocusObserverRaf = null;
+			}
+		},
+		hasActiveModalOverlay() {
+			return !!document.querySelector(
+				".v-overlay-container .v-overlay--active, .v-dialog.v-dialog--active, .modal.show",
+			);
+		},
+		releaseStaleScrollLock() {
+			if (this.hasActiveModalOverlay()) {
+				return;
+			}
+
+			const body = document.body;
+			if (!body) {
+				return;
+			}
+
+			body.classList.remove("v-overlay-scroll-blocked");
+			if (body.style.overflow === "hidden") {
+				body.style.overflow = "";
+			}
+			if (body.style.paddingRight) {
+				body.style.paddingRight = "";
+			}
+		},
+		handleGlobalEscape(event) {
+			if (!event || event.key !== "Escape") {
+				return;
+			}
+
+			// Let dialogs consume Escape first, then recover from stale scroll lock if needed.
+			setTimeout(() => {
+				this.releaseStaleScrollLock();
+			}, 0);
+
+			if (this.hasActiveModalOverlay()) {
+				return;
+			}
+
+			if (event.ctrlKey || event.metaKey || event.altKey) {
+				return;
+			}
+
+			// Only toggle search focus from the sales screen.
+			if (this.dialog || this.payment || this.offers || this.coupons) {
+				return;
+			}
+
+			this.eventBus.emit("toggle_item_search_focus");
+		},
 	},
 
 	mounted: function () {
@@ -387,12 +544,23 @@ export default {
 				this.eventBus.on("print_last_closing_shift", (pos_profile) => {
 					this.print_last_closing_shift(pos_profile);
 				});
+			this.sanitizeGlobalTableTabStops();
+			this.startTableFocusObserver();
+				this.globalEscapeHandler = this.handleGlobalEscape.bind(this);
+				window.addEventListener("keydown", this.globalEscapeHandler);
 		});
 	},
 	beforeUnmount() {
+			if (this.globalEscapeHandler) {
+				window.removeEventListener("keydown", this.globalEscapeHandler);
+				this.globalEscapeHandler = null;
+			}
+
+		this.stopTableFocusObserver();
 		this.eventBus.off("close_opening_dialog");
 		this.eventBus.off("register_pos_data");
 		this.eventBus.off("LoadPosProfile");
+		this.eventBus.off("show_payment");
 		this.eventBus.off("show_offers");
 		this.eventBus.off("show_coupons");
 		this.eventBus.off("open_closing_dialog");
@@ -410,7 +578,7 @@ export default {
 <style scoped>
 .dynamic-container {
 	/* add space for the navbar with better spacing */
-	padding-top: calc(25px + var(--dynamic-lg));
+	padding-top: var(--dynamic-lg);
 	/* Navbar height (25px) + larger spacing */
 	transition: all 0.3s ease;
 }

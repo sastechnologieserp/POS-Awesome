@@ -87,7 +87,11 @@
 				<v-divider></v-divider>
 
 				<div v-if="is_cashback">
-					<v-row class="payments pa-1" v-for="payment in invoice_doc.payments" :key="payment.name">
+					<v-row
+						class="payments pa-1"
+						v-for="payment in invoice_doc.payments"
+						:key="payment.name || `${payment.mode_of_payment}-${payment.idx || ''}`"
+					>
 						<v-col cols="6" v-if="!is_mpesa_c2b_payment(payment)">
 							<v-text-field
 								density="compact"
@@ -116,7 +120,7 @@
 							></v-text-field>
 						</v-col>
 						<v-col cols="6" v-if="!is_mpesa_c2b_payment(payment)">
-							<v-btn block color="primary" theme="dark" @click="set_full_amount(payment.idx)">
+							<v-btn block color="primary" theme="dark" @click="set_full_amount(payment)">
 								{{ payment.mode_of_payment }}
 							</v-btn>
 						</v-col>
@@ -355,21 +359,6 @@
 								</v-list-item>
 							</template>
 						</v-autocomplete>
-					</v-col>
-
-					<v-col cols="12" v-if="pos_profile.posa_display_additional_notes">
-						<v-textarea
-							class="pa-0 dark-field sleek-field"
-							variant="solo"
-							density="compact"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							clearable
-							color="primary"
-							auto-grow
-							rows="2"
-							:label="frappe._('Additional Notes')"
-							v-model="invoice_doc.posa_notes"
-						></v-textarea>
 					</v-col>
 				</v-row>
 
@@ -709,6 +698,7 @@ export default {
 			sales_person: "", // Selected sales person
 			addresses: [], // List of customer addresses
 			is_user_editing_paid_change: false, // User interaction flag
+			shortPayHandler: null,
 		};
 	},
 	computed: {
@@ -1296,11 +1286,15 @@ export default {
 			});
 		},
 		// Set full amount for a payment method (or negative for returns)
-		set_full_amount(idx) {
+		set_full_amount(selectedPayment) {
+			if (!selectedPayment || !this.invoice_doc?.payments?.length) {
+				return;
+			}
+
 			const isReturn = this.invoice_doc.is_return || this.invoiceType === "Return";
 			let totalAmount = this.invoice_doc.rounded_total || this.invoice_doc.grand_total;
 
-			console.log("Setting full amount for payment method idx:", idx);
+			console.log("Setting full amount for payment method:", selectedPayment.mode_of_payment);
 			console.log("Current payments:", JSON.stringify(this.invoice_doc.payments));
 
 			// Reset all payment amounts first
@@ -1311,14 +1305,23 @@ export default {
 				}
 			});
 
-			// Get the clicked payment method's name from the button text
-			const clickedButton = event?.target?.textContent?.trim();
-			console.log("Clicked button text:", clickedButton);
+			// Set amount only for the clicked payment method
+			const clickedPayment = this.invoice_doc.payments.find((payment) => {
+				if (selectedPayment.name && payment.name) {
+					return payment.name === selectedPayment.name;
+				}
 
-			// Set amount only for clicked payment method
-			const clickedPayment = this.invoice_doc.payments.find(
-				(payment) => payment.mode_of_payment === clickedButton,
-			);
+				if (
+					selectedPayment.idx !== undefined &&
+					selectedPayment.idx !== null &&
+					payment.idx !== undefined &&
+					payment.idx !== null
+				) {
+					return String(payment.idx) === String(selectedPayment.idx);
+				}
+
+				return payment.mode_of_payment === selectedPayment.mode_of_payment;
+			});
 
 			if (clickedPayment) {
 				console.log("Found clicked payment:", clickedPayment.mode_of_payment);
@@ -1329,26 +1332,62 @@ export default {
 				}
 				console.log("Set amount for payment:", clickedPayment.mode_of_payment, "amount:", amount);
 			} else {
-				console.log("No payment found for button text:", clickedButton);
+				console.log("No payment found for selected payment:", selectedPayment);
 			}
 
 			// Force Vue to update the view
 			this.$forceUpdate();
 		},
 		// Set remaining amount for a payment method when focused
-		set_rest_amount(idx) {
+		set_rest_amount(selectedPayment) {
+			if (!selectedPayment || !this.invoice_doc?.payments?.length) {
+				return;
+			}
+
 			const isReturn = this.invoice_doc.is_return || this.invoiceType === "Return";
-			this.invoice_doc.payments.forEach((payment) => {
-				if (payment.idx === idx && payment.amount === 0 && this.diff_payment > 0) {
-					let amount = this.diff_payment;
-					if (isReturn) {
-						amount = -Math.abs(amount);
-					}
-					payment.amount = amount;
-					if (payment.base_amount !== undefined) {
-						payment.base_amount = isReturn ? -Math.abs(amount) : amount;
-					}
+
+			const targetPayment = this.invoice_doc.payments.find((payment) => {
+				if (selectedPayment.name && payment.name) {
+					return payment.name === selectedPayment.name;
 				}
+
+				if (
+					selectedPayment.idx !== undefined &&
+					selectedPayment.idx !== null &&
+					payment.idx !== undefined &&
+					payment.idx !== null
+				) {
+					return String(payment.idx) === String(selectedPayment.idx);
+				}
+
+				return payment.mode_of_payment === selectedPayment.mode_of_payment;
+			});
+
+			if (!targetPayment) {
+				return;
+			}
+
+			// Defer to let blur/change updates on previous field settle first.
+			this.$nextTick(() => {
+				if (this.flt(targetPayment.amount) !== 0) {
+					return;
+				}
+
+				if (this.diff_payment <= 0) {
+					return;
+				}
+
+				let amount = this.flt(this.diff_payment, this.currency_precision);
+				if (isReturn) {
+					amount = -Math.abs(amount);
+				}
+
+				targetPayment.amount = amount;
+				if (targetPayment.base_amount !== undefined) {
+					targetPayment.base_amount = isReturn ? -Math.abs(amount) : amount;
+				}
+
+				this.$forceUpdate();
 			});
 		},
 		// Clear all payment amounts
@@ -1826,7 +1865,8 @@ export default {
 	},
 	// Lifecycle hook: created
 	created() {
-		document.addEventListener("keydown", this.shortPay.bind(this));
+		this.shortPayHandler = this.shortPay;
+		document.addEventListener("keydown", this.shortPayHandler);
 		this.syncPendingInvoices();
 		this.eventBus.on("network-online", this.syncPendingInvoices);
 		this.eventBus.on("server-online", this.syncPendingInvoices);
@@ -2024,7 +2064,10 @@ export default {
 	// Lifecycle hook: unmounted
 	unmounted() {
 		// Remove keyboard shortcut listener
-		document.removeEventListener("keydown", this.shortPay);
+		if (this.shortPayHandler) {
+			document.removeEventListener("keydown", this.shortPayHandler);
+			this.shortPayHandler = null;
+		}
 	},
 };
 </script>

@@ -36,9 +36,9 @@
 							:label="frappe._('Search Items')"
 							hint="Search by item code, serial number, batch no or barcode"
 							hide-details
-							v-model="debounce_search"
-							@keydown.esc="esc_event"
-							@keydown.enter="search_onchange"
+							v-model="search_input"
+							@keydown.esc.stop.prevent="esc_event"
+							@keydown.enter.prevent="handleSearchEnter"
 							@click:clear="clearSearch"
 							prepend-inner-icon="mdi-magnify"
 							@focus="handleItemSearchFocus"
@@ -68,7 +68,7 @@
 							v-model="debounce_qty"
 							type="text"
 							@keydown.enter="enter_event"
-							@keydown.esc="esc_event"
+							@keydown.esc.stop.prevent="esc_event"
 							@focus="clearQty"
 						></v-text-field>
 					</v-col>
@@ -270,8 +270,15 @@
 			</div>
 		</v-card>
 		<v-card class="cards mb-0 mt-3 dynamic-padding resizable" style="resize: vertical; overflow: auto">
-			<v-row no-gutters align="center" justify="center" class="dynamic-spacing-sm">
-				<v-col cols="6" class="mb-2">
+			<v-row no-gutters align="center" justify="center" class="dynamic-spacing-sm selector-controls-row">
+				<v-col
+					:class="[
+						'mb-2',
+						pos_profile.posa_enable_price_list_dropdown
+							? 'selector-control-col-half'
+							: 'selector-control-col-full',
+					]"
+				>
 					<v-select
 						:items="items_group"
 						:label="frappe._('Items Group')"
@@ -281,7 +288,7 @@
 						v-model="item_group"
 					></v-select>
 				</v-col>
-				<v-col cols="6" class="mb-2" v-if="pos_profile.posa_enable_price_list_dropdown">
+				<v-col class="mb-2 selector-control-col-half" v-if="pos_profile.posa_enable_price_list_dropdown">
 					<v-select
 						:items="price_lists"
 						:label="frappe._('Price List')"
@@ -289,9 +296,6 @@
 						variant="solo"
 						hide-details
 						v-model="selected_price_list"
-						item-text="name"
-						item-value="name"
-						return-object
 						@update:modelValue="on_price_list_change"
 					>
 					</v-select>
@@ -378,6 +382,7 @@ export default {
 		items_group: ["ALL"],
 		items: [],
 		search: "",
+		search_input: "",
 		first_search: "",
 		search_backup: "",
 		// Limit the displayed items to avoid overly large lists
@@ -460,11 +465,10 @@ export default {
 				this.update_items_details(new_value);
 			}
 		},
-		// Automatically search and add item whenever the query changes
-		first_search: _.debounce(function (val) {
-			// Call without arguments so search_onchange treats it like an Enter key
-			this.search_onchange();
-		}, 300),
+		search_input(val) {
+			this.first_search = val || "";
+			this.queueSearchOnChange(this.first_search);
+		},
 
 		// Refresh item prices whenever the user changes currency
 		selected_currency() {
@@ -933,9 +937,11 @@ export default {
 
 			return this.price_lists;
 		},
-		on_price_list_change() {
-				this.get_items(true);
-				this.eventBus.emit("price_list_changed", this.selected_price_list);
+		on_price_list_change(val) {
+			const normalized = typeof val === "object" && val !== null ? val.name || val.value : val;
+			this.selected_price_list = normalized || this.pos_profile.selling_price_list;
+			this.get_items(true);
+			this.eventBus.emit("price_list_changed", this.selected_price_list);
 		},
 		
 		getItemsHeaders() {
@@ -1029,6 +1035,9 @@ export default {
 					item.base_price_list_rate = base_rate;
 				}
 
+				// Customer last selling rate is resolved centrally via get_item_detail
+				// in Invoice update_item_detail() to avoid race/overwrite issues.
+
 				if (!item.qty || item.qty === 1) {
 					let qtyVal = this.qty != null ? this.qty : 1;
 					qtyVal = Math.abs(qtyVal);
@@ -1092,11 +1101,24 @@ export default {
 				this.$refs.debounce_search.focus();
 			}
 		},
-		search_onchange: _.debounce(function (newSearchTerm) {
+		queueSearchOnChange: _.debounce(function (newSearchTerm) {
+			this.search_onchange(newSearchTerm);
+		}, 300),
+		handleSearchEnter(event) {
+			if (event) {
+				event.preventDefault();
+			}
+			if (this.queueSearchOnChange && this.queueSearchOnChange.cancel) {
+				this.queueSearchOnChange.cancel();
+			}
+			this.search_onchange(this.search_input);
+		},
+		search_onchange(newSearchTerm) {
 			const vm = this;
 
 			// Determine the actual query string and trim whitespace
 			const query = typeof newSearchTerm === "string" ? newSearchTerm : vm.first_search;
+			vm.first_search = query || "";
 
 			vm.search = (query || "").trim();
 
@@ -1137,8 +1159,6 @@ export default {
 					vm.fetch_price_lists();
 				}
 			} else {
-				// Save the current filtered items before search to maintain quantity data
-				const current_items = [...vm.filtered_items];
 				if (vm.search && vm.search.length >= 3) {
 					vm.enter_event();
 				}
@@ -1157,7 +1177,7 @@ export default {
 				vm.$refs.debounce_search && vm.$refs.debounce_search.focus();
 				vm.search_from_scanner = false;
 			}
-		}, 300),
+		},
 	get_item_qty(first_search) {
 		const qtyVal = this.qty != null ? this.qty : 1;
 		let scal_qty = Math.abs(qtyVal);
@@ -1193,12 +1213,44 @@ export default {
 		}
 		return search_term;
 	},
-		esc_event() {
-			this.search = null;
-			this.first_search = null;
-			this.search_backup = null;
-			this.qty = 1;
-			this.$refs.debounce_search.focus();
+		toggleItemSearchFocus() {
+			this.$nextTick(() => {
+				const searchField = this.$refs.debounce_search;
+				if (!searchField) {
+					return;
+				}
+
+				const searchInput = searchField.$el?.querySelector?.("input") || null;
+				if (searchInput && document.activeElement === searchInput) {
+					searchInput.blur();
+					return;
+				}
+
+				if (typeof searchField.focus === "function") {
+					searchField.focus();
+				} else if (searchInput) {
+					searchInput.focus();
+				}
+
+				if (searchInput && typeof searchInput.select === "function") {
+					searchInput.select();
+				}
+			});
+		},
+		esc_event(event) {
+			const hasActiveDialog = !!document.querySelector(
+				".v-overlay-container .v-overlay--active, .v-dialog.v-dialog--active, .modal.show",
+			);
+			if (hasActiveDialog) {
+				return;
+			}
+
+			if (event) {
+				event.preventDefault();
+				event.stopPropagation();
+			}
+
+			this.toggleItemSearchFocus();
 		},
 		async update_items_details(items) {
 			const vm = this;
@@ -1496,6 +1548,7 @@ export default {
 			// indicate this search came from a scanner
 			this.search_from_scanner = true;
 			// apply scanned code as search term
+			this.search_input = sCode;
 			this.first_search = sCode;
 			this.search = sCode;
 
@@ -1540,6 +1593,22 @@ export default {
 		getSearchResultType() {
 			return (this.pos_profile?.posa_search_result_type || "Contains").toLowerCase();
 		},
+		parseSearchTermGroups(term) {
+			const normalized = String(term || "").toLowerCase().trim();
+			if (!normalized) {
+				return [];
+			}
+
+			return normalized
+				.split(/\s+or\s+/)
+				.map((group) =>
+					group
+						.split(/\s+/)
+						.map((token) => token.trim())
+						.filter(Boolean),
+				)
+				.filter((group) => group.length > 0);
+		},
 		matchSearchValue(value, term) {
 			if (!value && value !== 0) return false;
 			const haystack = String(value).toLowerCase();
@@ -1553,24 +1622,43 @@ export default {
 			if (searchType === "exact") {
 				return haystack === needle;
 			}
+			if (searchType === "any word") {
+				const groups = this.parseSearchTermGroups(needle);
+				if (!groups.length) {
+					return true;
+				}
+
+				// Group logic: tokens in a group are AND, groups are OR.
+				return groups.some((group) => group.every((token) => haystack.includes(token)));
+			}
 
 			return haystack.includes(needle);
 		},
 		clearSearch() {
-			this.search_backup = this.first_search;
+			this.search_backup = this.search_input;
+			if (this.queueSearchOnChange && this.queueSearchOnChange.cancel) {
+				this.queueSearchOnChange.cancel();
+			}
+			this.search_input = "";
 			this.first_search = "";
 			this.search = "";
 			// No need to call get_items() again
 		},
 
 		restoreSearch() {
-			if (this.first_search === "") {
+			if (this.search_input === "") {
+				this.search_input = this.search_backup;
 				this.first_search = this.search_backup;
 				this.search = this.search_backup;
+				this.queueSearchOnChange(this.search_backup);
 				// No need to reload items when focus is lost
 			}
 		},
 		handleItemSearchFocus() {
+			if (this.queueSearchOnChange && this.queueSearchOnChange.cancel) {
+				this.queueSearchOnChange.cancel();
+			}
+			this.search_input = "";
 			this.first_search = "";
 			this.search = "";
 			// Optionally, you might want to also clear search_backup if the behaviour should be a full reset on focus
@@ -1593,10 +1681,12 @@ export default {
 			this.search_from_scanner = true;
 
 			// Clear any previous search
+			this.search_input = "";
 			this.search = "";
 			this.first_search = "";
 
 			// Set the scanned code as search term
+			this.search_input = scannedCode;
 			this.first_search = scannedCode;
 			this.search = scannedCode;
 
@@ -1992,14 +2082,6 @@ export default {
 				return items_list;
 			}
 		},
-		debounce_search: {
-			get() {
-				return this.first_search;
-			},
-			set: _.debounce(function (newValue) {
-				this.first_search = (newValue || "").trim();
-			}, 200),
-		},
 		debounce_qty: {
 			get() {
 				// Display the raw quantity while typing to avoid forced decimal format
@@ -2052,6 +2134,7 @@ export default {
 			await initPromise;
 			await checkDbHealth();
 			this.pos_profile = data.pos_profile;
+			this.customer = (data.pos_profile && data.pos_profile.customer) || this.customer || null;
 			if (this.pos_profile.posa_force_reload_items && !this.pos_profile.posa_smart_reload_mode) {
 				await this.get_items(true);
 			} else {
@@ -2079,7 +2162,13 @@ export default {
 			this.selected_price_list = data;
 		});
 		this.eventBus.on("update_customer", (data) => {
-			this.customer = data;
+			if (typeof data === "string") {
+				this.customer = data || null;
+			} else if (data && typeof data === "object") {
+				this.customer = data.name || data.customer || null;
+			} else {
+				this.customer = null;
+			}
 		});
 
 		// Manually trigger a full item reload when requested
@@ -2132,6 +2221,7 @@ export default {
 				}
 			});
 		});
+		this.eventBus.on("toggle_item_search_focus", this.toggleItemSearchFocus);
 	},
 
 	beforeUnmount() {
@@ -2144,6 +2234,9 @@ export default {
 			clearTimeout(this.itemDetailsRetryTimeout);
 		}
 		this.itemDetailsRetryCount = 0;
+		if (this.queueSearchOnChange && this.queueSearchOnChange.cancel) {
+			this.queueSearchOnChange.cancel();
+		}
 
 		// Call cleanup function for abort controller
 		if (this.cleanupBeforeDestroy) {
@@ -2174,6 +2267,7 @@ export default {
 		this.eventBus.off("update_customer");
 		this.eventBus.off("force_reload_items");
 		this.eventBus.off("refocus_item_search");
+		this.eventBus.off("toggle_item_search_focus");
 	},
 };
 </script>
@@ -2256,6 +2350,19 @@ export default {
 	padding: var(--dynamic-sm) !important;
 }
 
+.selector-controls-row {
+	row-gap: var(--dynamic-xs);
+}
+
+.selector-control-col-half {
+	flex: 1 1 calc(50% - var(--dynamic-xs));
+	min-width: 220px;
+}
+
+.selector-control-col-full {
+	flex: 1 1 100%;
+}
+
 .action-btn-consistent {
 	margin-top: var(--dynamic-xs) !important;
 	padding: var(--dynamic-xs) var(--dynamic-sm) !important;
@@ -2282,6 +2389,11 @@ export default {
 
 	.dynamic-spacing-sm {
 		padding: var(--dynamic-xs) !important;
+	}
+
+	.selector-control-col-half {
+		flex-basis: 100%;
+		min-width: 0;
 	}
 
 	.action-btn-consistent {

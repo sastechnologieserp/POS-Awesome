@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import json
+import re
 import frappe
 from frappe import _
 from frappe.utils import nowdate, flt, cstr
@@ -14,6 +15,123 @@ from erpnext.stock.doctype.batch.batch import (
 )
 from frappe.utils.caching import redis_cache
 from typing import List, Dict
+
+
+_WORD_SPLIT_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _tokenize_search_value(search_value):
+	"""Split a free-text search value into tokens, ignoring 'or'."""
+	if not search_value:
+		return []
+
+	tokens = [token.strip() for token in cstr(search_value).lower().split()]
+	return [token for token in tokens if token and token != "or"]
+
+
+def _parse_search_groups(search_value):
+	"""Parse search text into OR groups; each group contains AND tokens."""
+	normalized = cstr(search_value or "").strip().lower()
+	if not normalized:
+		return []
+
+	groups = []
+	for group_text in normalized.split(" or "):
+		tokens = [token.strip() for token in group_text.split() if token.strip()]
+		if tokens:
+			groups.append(tokens)
+
+	return groups
+
+
+def _matches_any_word_expression(item_code, item_name, search_value):
+	"""True when text matches at least one OR-group where all tokens are present."""
+	groups = _parse_search_groups(search_value)
+	if not groups:
+		return True
+
+	haystack = f"{cstr(item_code)} {cstr(item_name)}".lower()
+	return any(all(token in haystack for token in group) for group in groups)
+
+
+def _extract_words(value):
+	"""Split text into normalized words for prefix scoring."""
+	return [word for word in _WORD_SPLIT_RE.split(cstr(value).lower()) if word]
+
+
+def _has_sequential_prefix_match(words, tokens):
+	"""Return True when tokens match word-prefixes in order."""
+	if not tokens:
+		return False
+
+	last_index = -1
+	for token in tokens:
+		matched = False
+		for index in range(last_index + 1, len(words)):
+			if words[index].startswith(token):
+				last_index = index
+				matched = True
+				break
+
+		if not matched:
+			return False
+
+	return True
+
+
+def _score_any_word_group(item_code, item_name, tokens):
+	"""Score one OR group; higher score means better relevance."""
+	if not tokens:
+		return 0
+
+	item_code_lower = cstr(item_code).lower()
+	item_name_lower = cstr(item_name).lower()
+	words = _extract_words(f"{item_code_lower} {item_name_lower}")
+	haystack = " ".join(words)
+
+	if not all(token in haystack for token in tokens):
+		return -1
+
+	score = 0
+	first_token = tokens[0]
+
+	# Strong preference for items that start with the first query token.
+	if item_name_lower.startswith(first_token):
+		score += 450
+	if item_code_lower.startswith(first_token):
+		score += 430
+
+	for token in tokens:
+		token_score = 0
+		prefix_positions = [idx for idx, word in enumerate(words) if word.startswith(token)]
+		if prefix_positions:
+			best_position = min(prefix_positions)
+			token_score = 340 if best_position == 0 else max(220 - (best_position * 10), 130)
+		elif token in haystack:
+			token_score = 30
+
+		score += token_score
+
+	# Bonus when tokens map to word-starts in order (e.g. "hot m" -> "hotoil ... mixed ...").
+	if _has_sequential_prefix_match(words, tokens):
+		score += 180
+
+	return score
+
+
+def _score_any_word_match(item_code, item_name, search_value):
+	"""Score any-word match across OR groups and return the best score."""
+	groups = _parse_search_groups(search_value)
+	if not groups:
+		return 0
+
+	best_score = -1
+	for group in groups:
+		group_score = _score_any_word_group(item_code, item_name, group)
+		if group_score > best_score:
+			best_score = group_score
+
+	return max(best_score, 0)
 
 
 def get_seearch_items_conditions(item_code, serial_no, batch_no, barcode, search_result_type="Contains"):
@@ -32,6 +150,21 @@ def get_seearch_items_conditions(item_code, serial_no, batch_no, barcode, search
 		return """ and (name = {item_code} or item_name = {item_code})""".format(
 			item_code=frappe.db.escape(search_pattern)
 		)
+	elif search_result_type == "any word":
+		groups = _parse_search_groups(item_code)
+		if not groups:
+			return ""
+
+		group_parts = []
+		for group in groups:
+			token_parts = []
+			for token in group:
+				escaped = frappe.db.escape(f"%{token}%")
+				token_parts.append(f"(name like {escaped} or item_name like {escaped})")
+
+			group_parts.append("(" + " and ".join(token_parts) + ")")
+
+		return " and (" + " or ".join(group_parts) + ")"
 	else:
 		search_pattern = "%" + item_code + "%"
 
@@ -238,9 +371,12 @@ def get_items(
 
 		# Add search conditions
 		or_filters = []
+		strict_any_word_filter = False
+		barcode_match = False
 		if use_limit_search and search_value:
 			data = search_serial_or_batch_or_barcode_number(search_value, search_serial_no)
 			item_code = data.get("item_code") if data.get("item_code") else search_value
+			barcode_match = bool(data.get("barcode") or data.get("serial_no") or data.get("batch_no"))
 
 			if search_result_type.lower() == "prefix":
 				search_pattern = f"{item_code}%"
@@ -248,19 +384,35 @@ def get_items(
 			elif search_result_type.lower() == "exact":
 				search_pattern = item_code
 				operator = "="
+			elif search_result_type.lower() == "any word":
+				tokens = _tokenize_search_value(item_code)
+				or_filters = []
+				for token in tokens:
+					pattern = f"%{token}%"
+					or_filters.append(["name", "like", pattern])
+					or_filters.append(["item_name", "like", pattern])
+
+				if not tokens:
+					or_filters = []
+
+				# Apply strict (AND within group / OR between groups) after fetch.
+				strict_any_word_filter = True
 			else:
 				search_pattern = f"%{item_code}%"
 				operator = "like"
 
-			or_filters = [
-				["name", operator, search_pattern],
-				["item_name", operator, search_pattern],
-			]
+			if search_result_type.lower() != "any word":
+				or_filters = [
+					["name", operator, search_pattern],
+					["item_name", operator, search_pattern],
+				]
 
 			# Check for exact barcode match
 			if data.get("item_code"):
 				filters["name"] = data.get("item_code")
 				or_filters = []
+				# Do not apply any-word post-filtering for exact barcode/serial/batch matches.
+				strict_any_word_filter = False
 
 		if item_group:
 			filters["item_group"] = ["like", f"%{item_group}%"]
@@ -280,6 +432,14 @@ def get_items(
 			limit_page_length = search_limit
 			if pos_profile.get("posa_force_reload_items") and search_value:
 				limit_page_length = None
+
+		# For "Any Word", fetch a wider candidate set then re-rank by prefix relevance.
+		if (
+			search_result_type.lower() == "any word"
+			and search_value
+			and limit_page_length is not None
+		):
+			limit_page_length = max(limit_page_length, 2000)
 
 		items_data = frappe.get_all(
 			"Item",
@@ -305,6 +465,28 @@ def get_items(
 			limit_page_length=limit_page_length,
 			order_by="item_name asc",
 		)
+
+		if strict_any_word_filter and search_value and items_data and not barcode_match:
+			items_data = [
+				item
+				for item in items_data
+				if _matches_any_word_expression(item.get("item_code"), item.get("item_name"), search_value)
+			]
+
+			items_data.sort(
+				key=lambda item: (
+					-_score_any_word_match(
+						item.get("item_code"),
+						item.get("item_name"),
+						search_value,
+					),
+					cstr(item.get("item_name")).lower(),
+					cstr(item.get("item_code")).lower(),
+				)
+			)
+
+			if limit_page_length is not None:
+				items_data = items_data[:limit_page_length]
 
 		if items_data:
 			items = [d.item_code for d in items_data]
@@ -540,6 +722,7 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 	item = json.loads(item)
 	today = nowdate()
 	item_code = item.get("item_code")
+	customer = item.get("customer")
 	batch_no_data = []
 	serial_no_data = []
 	if warehouse and item.get("has_batch_no"):
@@ -627,6 +810,39 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None, company=Non
 		doc,
 		overwrite_warehouse=False,
 	)
+
+	# Apply customer last selling rate in the same detail pipeline used by cart updates.
+	# This avoids frontend race conditions where a later detail fetch overrides custom rate.
+	use_customer_last_rate = False
+	if customer and item.get("pos_profile"):
+		use_customer_last_rate = (
+			frappe.db.get_value(
+				"POS Profile",
+				item.get("pos_profile"),
+				"posa_use_customer_last_selling_rate",
+			)
+			or 0
+		)
+
+	if use_customer_last_rate:
+		last_rate = get_customer_last_selling_rate(
+			customer=customer,
+			item_code=item_code,
+			company=company,
+			uom=item.get("uom"),
+		)
+		if last_rate:
+			base_rate = flt(last_rate.get("base_rate") or last_rate.get("rate") or 0)
+			base_price_list_rate = flt(
+				last_rate.get("base_price_list_rate")
+				or last_rate.get("price_list_rate")
+				or base_rate
+			)
+			if base_rate:
+				res["rate"] = base_rate
+				res["price_list_rate"] = base_price_list_rate
+				res["customer_last_rate_applied"] = 1
+				res["customer_last_rate_customer"] = customer
 	if item.get("is_stock_item") and warehouse:
 		res["actual_qty"] = get_stock_availability(item_code, warehouse)
 	res["max_discount"] = max_discount
@@ -693,6 +909,66 @@ def get_items_from_barcode(selling_price_list, currency, barcode):
 			"currency": currency,
 		}
 	return None
+
+
+@frappe.whitelist()
+def get_customer_last_selling_rate(customer, item_code, company=None, uom=None):
+	if not customer or not item_code:
+		return None
+
+	conditions = [
+		"si.docstatus = 1",
+		"ifnull(si.is_return, 0) = 0",
+		"ifnull(sii.is_free_item, 0) = 0",
+		"si.customer = %(customer)s",
+		"sii.item_code = %(item_code)s",
+	]
+
+	params = {
+		"customer": customer,
+		"item_code": item_code,
+	}
+
+	if company:
+		conditions.append("si.company = %(company)s")
+		params["company"] = company
+
+	if uom:
+		conditions.append("sii.uom = %(uom)s")
+		params["uom"] = uom
+
+	result = frappe.db.sql(
+		f"""
+			SELECT
+				sii.rate,
+				sii.base_rate,
+				sii.price_list_rate,
+				sii.base_price_list_rate,
+				sii.uom,
+				si.currency,
+				si.name AS sales_invoice
+			FROM `tabSales Invoice Item` sii
+			INNER JOIN `tabSales Invoice` si ON si.name = sii.parent
+			WHERE {' AND '.join(conditions)}
+			ORDER BY si.posting_date DESC, si.posting_time DESC, si.creation DESC, sii.idx DESC
+			LIMIT 1
+		""",
+		params,
+		as_dict=True,
+	)
+
+	if not result:
+		return None
+
+	last_row = result[0]
+	last_row["rate"] = flt(last_row.get("rate") or 0)
+	last_row["base_rate"] = flt(last_row.get("base_rate") or last_row.get("rate") or 0)
+	last_row["price_list_rate"] = flt(last_row.get("price_list_rate") or last_row.get("rate") or 0)
+	last_row["base_price_list_rate"] = flt(
+		last_row.get("base_price_list_rate") or last_row.get("base_rate") or 0
+	)
+
+	return last_row
 
 
 def build_item_cache(item_code):

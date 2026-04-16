@@ -341,6 +341,7 @@ export default {
 				category: "🎯 Quick Actions",
 				shortcuts: [
 					{ key: "F1", description: "Show this shortcuts help dialog" },
+					{ key: "Esc", description: "Toggle item search focus in sales screen" },
 					{ key: "F4", description: "Open payment dialog" },
 					{ key: "F6", description: "Quick cash payment → submit → print" },
 					{ key: "F7", description: "Edit quantity of first item" },
@@ -446,6 +447,7 @@ export default {
 	printShortcutsHelp() {
 		const shortcuts = [
 			{ key: "F1", description: "Show shortcuts help" },
+			{ key: "Esc", description: "Toggle item search focus in sales screen" },
 			{ key: "F4", description: "Open payment dialog" },
 			{ key: "F6", description: "Quick cash payment → submit → print" },
 			{ key: "F7", description: "Edit quantity of first item" },
@@ -548,46 +550,147 @@ export default {
 	},
 
 	showInvoiceSelectionDialog(invoices) {
+		const escapeHtml = (value) =>
+			String(value ?? "")
+				.replace(/&/g, "&amp;")
+				.replace(/</g, "&lt;")
+				.replace(/>/g, "&gt;")
+				.replace(/\"/g, "&quot;")
+				.replace(/'/g, "&#39;");
+
+		const buildSearchIndex = (invoice) => {
+			const customer = invoice.customer_name || invoice.customer || "";
+			const total = this.formatCurrency(invoice.grand_total || 0);
+			return [invoice.name, customer, invoice.posting_date, invoice.grand_total, total]
+				.filter(Boolean)
+				.join(" ")
+				.toLowerCase();
+		};
+
+		const applyRecallInvoiceFilter = (term, wrapper) => {
+			if (!wrapper) {
+				return;
+			}
+
+			const normalizedTerm = String(term || "").trim().toLowerCase();
+			const entries = wrapper.querySelectorAll(".posa-recall-entry");
+			let visibleCount = 0;
+
+			entries.forEach((entry) => {
+				const haystack = (entry.getAttribute("data-search") || "").toLowerCase();
+				const isVisible = !normalizedTerm || haystack.includes(normalizedTerm);
+				entry.style.display = isVisible ? "" : "none";
+				if (isVisible) {
+					visibleCount += 1;
+				}
+			});
+
+			const noResults = wrapper.querySelector(".posa-recall-no-results");
+			if (noResults) {
+				noResults.style.display = visibleCount ? "none" : "block";
+			}
+		};
+
+		const openInvoicesListInNewTab = () => {
+			window.open("/app/sales-invoice", "_blank", "noopener,noreferrer");
+		};
+
 		const dialog = frappe.msgprint({
 			title: __("Select Invoice to Recall"),
 			message: `
+				<div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+					<input
+						type="text"
+						class="form-control"
+						id="posa-recall-invoice-search"
+						placeholder="${escapeHtml(__("Search by invoice, customer, date, or amount"))}"
+						style="flex: 1; min-width: 180px;"
+					/>
+				</div>
 				<div style="max-height: 400px; overflow-y: auto;">
-					${invoices.map((invoice, index) => `
-						<div style="padding: 12px; border: 1px solid #ddd; margin-bottom: 12px; border-radius: 6px; background: #f9f9f9;">
-							<div style="font-weight: bold; font-size: 14px; margin-bottom: 4px;">${invoice.name}</div>
-							<div style="font-size: 12px; color: #666; margin-bottom: 4px;">Customer: ${invoice.customer_name || invoice.customer}</div>
-							<div style="font-size: 12px; color: #666; margin-bottom: 8px;">Date: ${invoice.posting_date} - Total: ${this.formatCurrency(invoice.grand_total)}</div>
-							<div style="margin-bottom: 8px;">
-								<strong style="font-size: 12px;">Items:</strong>
-								<div style="margin-left: 10px; font-size: 11px; color: #555;">
-									${invoice.items ? invoice.items.slice(0, 5).map(item =>
-				`<div>• ${item.item_name || item.item_code} (Qty: ${item.qty}) - ${this.formatCurrency(item.amount)}</div>`
-			).join('') : '<div>No items found</div>'}
-									${invoice.items && invoice.items.length > 5 ? `<div style="color: #999;">... and ${invoice.items.length - 5} more items</div>` : ''}
+					${invoices
+						.map((invoice) => {
+							const customer = invoice.customer_name || invoice.customer || "";
+							const total = this.formatCurrency(invoice.grand_total || 0);
+							const invoiceName = escapeHtml(invoice.name);
+							const searchData = escapeHtml(buildSearchIndex(invoice));
+
+							return `
+								<div class="posa-recall-entry" data-search="${searchData}" style="padding: 12px; border: 1px solid #ddd; margin-bottom: 12px; border-radius: 6px; background: #f9f9f9;">
+									<div style="font-weight: 600; font-size: 14px; margin-bottom: 2px;">${invoiceName}</div>
+									<div style="font-size: 13px; color: #666; margin-bottom: 2px;">${escapeHtml(__("Customer"))}: <span style="font-weight: bolder;">${escapeHtml(customer)}</span></div>
+									<div style="font-size: 13px; color: #666; margin-bottom: 6px;">${escapeHtml(__("Date"))}: ${escapeHtml(invoice.posting_date || "")} - ${escapeHtml(__("Total"))}: <span style="font-weight: bolder;">${escapeHtml(total)}</span></div>
+									<div style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap;">
+										<button type="button" data-action="recall" data-invoice="${invoiceName}" style="background: #4CAF50; color: white; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px;">${escapeHtml(__("Return"))}</button>
+										<button type="button" data-action="print" data-invoice="${invoiceName}" style="background: #2196F3; color: white; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px;">${escapeHtml(__("Print"))}</button>
+										<button type="button" data-action="open" data-invoice="${invoiceName}" style="background: #6C757D; color: white; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px;">${escapeHtml(__("Open"))}</button>
+									</div>
 								</div>
-							</div>
-							<div style="margin-top: 8px;">
-								<button onclick="window.recallInvoice('${invoice.name}')" style="background: #4CAF50; color: white; border: none; padding: 6px 12px; margin-right: 6px; cursor: pointer; border-radius: 4px;">Return</button>
-								<button onclick="window.printInvoice('${invoice.name}')" style="background: #2196F3; color: white; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px;">Print</button>
-							</div>
-						</div>
-					`).join('')}
+							`;
+						})
+						.join("")}
+					<div class="posa-recall-no-results" style="display: none; padding: 10px; text-align: center; color: #777;">
+						${escapeHtml(__("No matching invoices found"))}
+					</div>
 				</div>
 			`,
 			primary_action: {
 				label: __("Close"),
 				action: () => dialog.hide(),
 			},
+			secondary_action: {
+				label: __("Go to Invoices"),
+				action: () => openInvoicesListInNewTab(),
+			},
 		});
 
-		window.recallInvoice = (invoiceName) => {
-			this.loadInvoiceByName(invoiceName);
-			dialog.hide();
-		};
+		const wrapper = dialog?.$wrapper?.get ? dialog.$wrapper.get(0) : dialog?.$wrapper?.[0];
+		if (!wrapper) {
+			return;
+		}
 
-		window.printInvoice = (invoiceName) => {
-			this.printInvoiceByName(invoiceName);
-		};
+		const searchInput = wrapper.querySelector("#posa-recall-invoice-search");
+		if (searchInput) {
+			searchInput.addEventListener("input", (event) => {
+				applyRecallInvoiceFilter(event.target.value, wrapper);
+			});
+			searchInput.focus();
+		}
+
+		wrapper.querySelectorAll("[data-action][data-invoice]").forEach((button) => {
+			button.onclick = (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+
+				const action = button.getAttribute("data-action");
+				const invoiceName = button.getAttribute("data-invoice");
+
+				if (!invoiceName) {
+					return;
+				}
+
+				if (action === "recall") {
+					this.loadInvoiceByName(invoiceName);
+					dialog.hide();
+					return;
+				}
+
+				if (action === "print") {
+					this.printInvoiceByName(invoiceName);
+					return;
+				}
+
+				if (action === "open") {
+					window.open(
+						`/app/sales-invoice/${encodeURIComponent(invoiceName)}`,
+						"_blank",
+						"noopener,noreferrer",
+					);
+				}
+			};
+		});
+
+		applyRecallInvoiceFilter("", wrapper);
 	},
 
 	async loadInvoiceByName(invoiceName) {
