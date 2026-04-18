@@ -161,7 +161,6 @@ fixtures = [
 				"in",
 				(
 					"Sales Invoice-posa_pos_opening_shift",
-					"Item Barcode-uom",
 					"POS Profile-posa_pos_awesome_settings",
 					"POS Profile-posa_allow_delete",
 					"POS Profile-posa_allow_user_to_edit_rate",

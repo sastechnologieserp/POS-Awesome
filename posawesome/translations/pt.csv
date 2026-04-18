@@ -138,7 +138,6 @@ apps/posawesome/posawesome/posawesome/api/posapp.py,Invoice {0} Deleted,Factura 
 DocType: POS Offer,Title,Titulo
 DocType: POS Closing Shift,Total Quantity,Quantidade Total
 DocType: POS Offer,Transaction,Transação
-Custom Field - label: Item Barcode-uom,UOM,UDM
 Custom Field - label: POS Profile-posa_local_storage,Use Browser Local Storage,Use o armazenamento local do navegador
 Custom Field - label: POS Profile-use_cashback,Use Cashback,Use Cashback
 Custom Field - label: POS Profile-use_customer_credit,Use Customer Credit,Usar Credito de Cliente
