@@ -139,32 +139,19 @@ export default {
 		}
 
 		const isNewItemRow = index === -1 || this.new_line;
+		const shouldFocusQtyAfterAdd = !!this.pos_profile?.custom_open_qty_focus_before_adding_item;
 
-		// Open quantity popup automatically if custom setting is enabled
-		if (this.pos_profile.custom_open_qty_popup_before_adding_item) {
-			this.$nextTick(() => {
-				const targetItem = isNewItemRow ? this.items[0] : this.items[index];
-				if (targetItem && this.editQuantity) {
-					this.editQuantity(targetItem);
-				}
-			});
-		} else {
-			// Focus quantity input for a newly added row when qty input mode is enabled.
-			// Otherwise keep the current search-refocus behavior.
-			this.$nextTick(() => {
-				const targetItem = isNewItemRow ? this.items[0] : this.items[index];
-				if (
-					isNewItemRow &&
-					this.pos_profile?.posa_input_qty &&
-					targetItem?.posa_row_id
-				) {
-					this.eventBus.emit("focus_item_qty", { row_id: targetItem.posa_row_id });
-					return;
-				}
+		// Repurpose the custom setting to focus qty input for newly added rows.
+		// If disabled (or the row already existed), keep search field focused.
+		this.$nextTick(() => {
+			const targetItem = isNewItemRow ? this.items[0] : this.items[index];
+			if (shouldFocusQtyAfterAdd && isNewItemRow && targetItem?.posa_row_id) {
+				this.eventBus.emit("focus_item_qty", { row_id: targetItem.posa_row_id });
+				return;
+			}
 
-				this.eventBus.emit("refocus_item_search");
-			});
-		}
+			this.eventBus.emit("refocus_item_search");
+		});
 	},
 
 	// Create a new item object with default and calculated fields
