@@ -1,12 +1,7 @@
 [project]
 name = "posawesome"
 authors = [
-    { name = "Youssef Restom", email = "youssef@totrox.com"},
-    { name = "Abdul Manan", email="defendicon@github.com"},
-    { name = "ASA Technologies", email = "dev@asaerp.com"},
-    { name = "Ateeq-Raheman", email = "ateeqraheman001195@gmail.com"},
-    { name = "Ahmed Osama", email = "eng.ahmed.osama.1190@gmail.com"},
-    { name = "Samarth Upare", email = "samarth.upare@redtra.com"},
+    { name = "SAS Technologies", email = "contact@example.com"},
 ]
 description = "POS project that's simply awesome"
 requires-python = ">=3.10"
@@ -64,6 +59,6 @@ docstring-code-format = true
 
 
 [project.urls]
-Homepage = "https://github.com/defendicon/POS-Awesome-V15"
-Repository = "https://github.com/defendicon/POS-Awesome-V15.git"
-"Bug Reports" = "https://github.com/defendicon/POS-Awesome-V15/issues"
+Homepage = "https://github.com/sastechnologieserp/POS-Awesome"
+Repository = "https://github.com/sastechnologieserp/POS-Awesome.git"
+"Bug Reports" = "https://github.com/sastechnologieserp/POS-Awesome/issues"

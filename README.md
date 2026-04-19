@@ -74,7 +74,7 @@ For switching branches or pulling latest changes:
 
 #### Self Hosting:
 
-1. `bench get-app --branch Version-15 https://github.com/defendicon/POS-Awesome-V15`
+1. `bench get-app --branch Version-15 https://github.com/sastechnologieserp/POS-Awesome-V15`
 2. `bench setup requirements`
 3. `bench build --app posawesome`
 4. `bench restart`
