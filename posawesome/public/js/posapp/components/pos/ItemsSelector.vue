@@ -33,11 +33,18 @@
 							autofocus
 							variant="solo"
 							color="primary"
+							autocomplete="off"
+							autocorrect="off"
+							autocapitalize="off"
+							spellcheck="false"
+							name="posa_item_search_no_autofill"
 							:label="frappe._('Search Items')"
 							hint="Search by item code, serial number, batch no or barcode"
 							hide-details
 							v-model="search_input"
 							@keydown.esc.stop.prevent="esc_event"
+							@keydown.down.stop.prevent="handleSearchArrowDown"
+							@keydown.up.stop.prevent="handleSearchArrowUp"
 							@keydown.enter.prevent="handleSearchEnter"
 							@click:clear="clearSearch"
 							prepend-inner-icon="mdi-magnify"
@@ -158,10 +165,14 @@
 							:style="{ maxHeight: 'calc(100% - 80px)' }"
 						>
 							<v-card
-								v-for="item in filtered_items"
+								v-for="(item, index) in filtered_items"
 								:key="item.item_code"
 								hover
-								class="dynamic-item-card"
+								:class="[
+									'dynamic-item-card',
+									isItemSelected(index) ? 'dynamic-item-card--active' : '',
+								]"
+								:data-item-index="index"
 								:draggable="true"
 								@dragstart="onDragStart($event, item)"
 								@dragend="onDragEnd"
@@ -224,6 +235,7 @@
 								class="sleek-data-table overflow-y-auto"
 								:style="{ maxHeight: 'calc(100% - 80px)' }"
 								item-key="item_code"
+								:row-props="getListRowProps"
 								@click:row="click_item_row"
 							>
 								<template v-slot:item.rate="{ item }">
@@ -413,6 +425,7 @@ export default {
 		temp_hide_qty_decimals: false,
 		hide_zero_rate_items: false,
 		temp_hide_zero_rate_items: false,
+		selected_item_index: -1,
 		isDragging: false,
 		// Track if the current search was triggered by a scanner
 		search_from_scanner: false,
@@ -464,9 +477,19 @@ export default {
 			if (!this.pos_profile.pose_use_limit_search && new_value.length !== old_value.length) {
 				this.update_items_details(new_value);
 			}
+
+			if (!new_value.length) {
+				this.selected_item_index = -1;
+				return;
+			}
+
+			if (this.selected_item_index >= new_value.length) {
+				this.selected_item_index = 0;
+			}
 		},
 		search_input(val) {
 			this.first_search = val || "";
+			this.selected_item_index = -1;
 			this.queueSearchOnChange(this.first_search);
 		},
 
@@ -969,7 +992,73 @@ export default {
 			return items_headers;
 		},
 		async click_item_row(event, { item }) {
-			await this.add_item(item);
+			const rowItem = item?.raw || item;
+			const idx = this.filtered_items.findIndex((it) => it.item_code === rowItem?.item_code);
+			if (idx >= 0) {
+				this.selected_item_index = idx;
+			}
+			await this.add_item(rowItem);
+		},
+		handleSearchArrowDown() {
+			this.moveItemSelection(1);
+		},
+		handleSearchArrowUp() {
+			this.moveItemSelection(-1);
+		},
+		moveItemSelection(step) {
+			const items = this.filtered_items || [];
+			if (!items.length) {
+				this.selected_item_index = -1;
+				return;
+			}
+
+			if (this.selected_item_index === -1) {
+				this.selected_item_index = step > 0 ? 0 : items.length - 1;
+			} else {
+				const length = items.length;
+				this.selected_item_index = (this.selected_item_index + step + length) % length;
+			}
+
+			this.scrollSelectedItemIntoView();
+		},
+		isItemSelected(index) {
+			return index === this.selected_item_index;
+		},
+		getListRowProps({ item }) {
+			const rowItem = item?.raw || item;
+			const idx = this.filtered_items.findIndex((it) => it.item_code === rowItem?.item_code);
+			return idx === this.selected_item_index ? { class: "item-row-active" } : {};
+		},
+		scrollSelectedItemIntoView() {
+			if (this.selected_item_index < 0) {
+				return;
+			}
+
+			this.$nextTick(() => {
+				if (this.items_view === "card") {
+					const container = this.$refs.itemsContainer;
+					const itemEl = container?.querySelector?.(
+						`[data-item-index=\"${this.selected_item_index}\"]`,
+					);
+					if (itemEl?.scrollIntoView) {
+						itemEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+					}
+					return;
+				}
+
+				const tableRoot = this.$el?.querySelector?.(".sleek-data-table");
+				const activeRow = tableRoot?.querySelector?.(".item-row-active");
+				if (activeRow?.scrollIntoView) {
+					activeRow.scrollIntoView({ block: "nearest", behavior: "smooth" });
+					return;
+				}
+
+				const tableWrapper = tableRoot?.querySelector?.(".v-table__wrapper");
+				if (tableWrapper) {
+					const rowHeight = 48;
+					tableWrapper.scrollTop = this.selected_item_index * rowHeight;
+				}
+			});
 		},
 		async add_item(item) {
 			item = { ...item };
@@ -1104,10 +1193,18 @@ export default {
 		queueSearchOnChange: _.debounce(function (newSearchTerm) {
 			this.search_onchange(newSearchTerm);
 		}, 300),
-		handleSearchEnter(event) {
+		async handleSearchEnter(event) {
 			if (event) {
 				event.preventDefault();
 			}
+
+			const selectedItem =
+				this.selected_item_index >= 0 ? this.filtered_items[this.selected_item_index] : null;
+			if (selectedItem) {
+				await this.add_item({ ...selectedItem });
+				return;
+			}
+
 			if (this.queueSearchOnChange && this.queueSearchOnChange.cancel) {
 				this.queueSearchOnChange.cancel();
 			}
@@ -1642,6 +1739,7 @@ export default {
 			this.search_input = "";
 			this.first_search = "";
 			this.search = "";
+			this.selected_item_index = -1;
 			// No need to call get_items() again
 		},
 
@@ -1661,6 +1759,7 @@ export default {
 			this.search_input = "";
 			this.first_search = "";
 			this.search = "";
+			this.selected_item_index = -1;
 			// Optionally, you might want to also clear search_backup if the behaviour should be a full reset on focus
 			// this.search_backup = "";
 		},
@@ -2313,6 +2412,16 @@ export default {
 
 .dynamic-item-card:hover {
 	transform: scale(calc(1 + 0.02 * var(--font-scale)));
+}
+
+.dynamic-item-card--active {
+	outline: 2px solid rgb(var(--v-theme-primary));
+	outline-offset: 0;
+	box-shadow: var(--shadow-md) !important;
+}
+
+:deep(.item-row-active td) {
+	background-color: rgba(var(--v-theme-primary), 0.12) !important;
 }
 
 .text-success {
