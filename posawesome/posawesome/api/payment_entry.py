@@ -15,6 +15,7 @@ from posawesome.posawesome.api.m_pesa import submit_mpesa_payment
 from erpnext.accounts.utils import (
 	QueryPaymentLedger,
 	get_outstanding_invoices as _get_outstanding_invoices,
+	reconcile_against_document,
 )
 from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 
@@ -29,6 +30,8 @@ def create_payment_entry(
 	reference_no=None,
 	posting_date=None,
 	cost_center=None,
+	remarks=None,
+	custom_remarks=0,
 	submit=0,
 ):
 	date = nowdate() if not posting_date else posting_date
@@ -82,6 +85,12 @@ def create_payment_entry(
 	pe.letter_head = letter_head
 	pe.reference_date = reference_date
 	pe.reference_no = reference_no
+
+	if custom_remarks and remarks:
+		pe.remarks = remarks
+
+	if pe.meta.has_field("custom_remarks"):
+		pe.custom_remarks = 1 if (custom_remarks and remarks) else 0
 
 	# Set bank account if available
 	if pe.party_type in ["Customer", "Supplier"]:
@@ -237,6 +246,34 @@ def get_unallocated_payments(customer, company, currency, mode_of_payment=None):
 
 
 @frappe.whitelist()
+def get_mode_of_payment_types(mode_of_payments=None):
+	if not mode_of_payments:
+		return {}
+
+	if isinstance(mode_of_payments, str):
+		try:
+			mode_of_payments = json.loads(mode_of_payments)
+		except Exception:
+			mode_of_payments = [mode_of_payments]
+
+	if not isinstance(mode_of_payments, list):
+		return {}
+
+	mode_of_payments = [m for m in mode_of_payments if m]
+	if not mode_of_payments:
+		return {}
+
+	rows = frappe.get_all(
+		"Mode of Payment",
+		filters={"name": ["in", mode_of_payments]},
+		fields=["name", "type"],
+		limit_page_length=len(mode_of_payments),
+	)
+
+	return {row.name: row.type for row in rows}
+
+
+@frappe.whitelist()
 def process_pos_payment(payload):
 	data = json.loads(payload)
 	data = frappe._dict(data)
@@ -264,326 +301,271 @@ def process_pos_payment(payload):
 	company = data.company
 	currency = data.currency
 	customer = data.customer
+	remarks = (data.get("remarks") or "").strip()
+	custom_remarks = 1 if data.get("custom_remarks") and remarks else 0
 	pos_opening_shift_name = data.pos_opening_shift_name
 	allow_make_new_payments = data.pos_profile.get("posa_allow_make_new_payments")
 	allow_reconcile_payments = data.pos_profile.get("posa_allow_reconcile_payments")
 	allow_mpesa_reconcile_payments = data.pos_profile.get("posa_allow_mpesa_reconcile_payments")
 	today = nowdate()
+	payment_entry_has_custom_remarks_field = frappe.get_meta("Payment Entry").has_field(
+		"custom_remarks"
+	)
 
 	new_payments_entry = []
 	all_payments_entry = []
 	created_journal_entries = []
 	errors = []
-	reconcile_doc = None
+	all_payment_names = set()
+	new_payment_names = set()
+	payment_sources = []
 
-	# first process mpesa payments
+	def add_all_payment(payment_entry):
+		if not payment_entry:
+			return
+		if payment_entry.name not in all_payment_names:
+			all_payment_names.add(payment_entry.name)
+			all_payments_entry.append(payment_entry)
+
+	def add_new_payment(payment_entry):
+		if not payment_entry:
+			return
+		if payment_entry.name not in new_payment_names:
+			new_payment_names.add(payment_entry.name)
+			new_payments_entry.append(payment_entry)
+		add_all_payment(payment_entry)
+
+	def add_payment_source(payment_entry, amount=None):
+		if not payment_entry:
+			return
+
+		remaining_amount = flt(amount) if amount is not None else flt(payment_entry.unallocated_amount)
+		if remaining_amount <= 0:
+			return
+
+		payment_sources.append(
+			frappe._dict(
+				{
+					"payment_entry": payment_entry.name,
+					"account": payment_entry.paid_from,
+					"remaining_amount": remaining_amount,
+					"unreconciled_amount": remaining_amount,
+					"allocated_invoices": [],
+				}
+			)
+		)
+
+	def apply_custom_remarks(payment_entry_name):
+		if not (custom_remarks and remarks and payment_entry_name):
+			return
+
+		values = {"remarks": remarks}
+		if payment_entry_has_custom_remarks_field:
+			values["custom_remarks"] = 1
+
+		frappe.db.set_value("Payment Entry", payment_entry_name, values, update_modified=False)
+
+	def get_payment_method_type(payment_method):
+		payment_type = (payment_method.get("type") or "").strip()
+		if payment_type:
+			return payment_type
+
+		mode_of_payment = payment_method.get("mode_of_payment")
+		if not mode_of_payment:
+			return ""
+		return (frappe.db.get_value("Mode of Payment", mode_of_payment, "type") or "").strip()
+
+	def is_bank_payment_method(payment_method):
+		return get_payment_method_type(payment_method).lower() == "bank"
+
+	selected_invoices = data.selected_invoices or []
+	if len(selected_invoices) == 0:
+		frappe.throw(_("Please select an invoice"))
+
+	invoices_to_allocate = []
+	for invoice in selected_invoices:
+		invoice_name = invoice.get("voucher_no") or invoice.get("name")
+		if not invoice_name:
+			continue
+
+		outstanding_amount = flt(invoice.get("outstanding_amount"))
+		if outstanding_amount <= 0:
+			outstanding_amount = flt(
+				frappe.db.get_value("Sales Invoice", invoice_name, "outstanding_amount")
+			)
+
+		if outstanding_amount <= 0:
+			continue
+
+		invoices_to_allocate.append(
+			frappe._dict(
+				{
+					"voucher_no": invoice_name,
+					"remaining_outstanding": outstanding_amount,
+				}
+			)
+		)
+
+	if len(invoices_to_allocate) == 0:
+		frappe.throw(_("No outstanding amount found for selected invoices"))
+
+	# process mpesa payments first so they can be reconciled with the same allocation flow
 	if (
 		allow_mpesa_reconcile_payments
 		and len(data.selected_mpesa_payments) > 0
-		and data.total_selected_mpesa_payments > 0
+		and flt(data.total_selected_mpesa_payments) > 0
 	):
 		for mpesa_payment in data.selected_mpesa_payments:
 			try:
 				new_mpesa_payment = submit_mpesa_payment(mpesa_payment.get("name"), customer)
-				new_payments_entry.append(new_mpesa_payment)
-				all_payments_entry.append(new_mpesa_payment)
+				apply_custom_remarks(new_mpesa_payment.name)
+				new_mpesa_payment.reload()
+				add_new_payment(new_mpesa_payment)
+				add_payment_source(
+					new_mpesa_payment,
+					amount=flt(new_mpesa_payment.unallocated_amount or new_mpesa_payment.paid_amount),
+				)
 			except Exception as e:
 				errors.append(str(e))
 
-	# then process the new payments
-	new_payment_entry = None
-	created_payment = False
-	bank_account = None
-	mode_of_payment = None
+	# selected existing unallocated payments
+	if (
+		allow_reconcile_payments
+		and len(data.selected_payments) > 0
+		and flt(data.total_selected_payments) > 0
+	):
+		for payment in data.selected_payments:
+			payment_name = payment.get("name")
+			if not payment_name:
+				continue
 
-	if allow_make_new_payments and len(data.payment_methods) > 0 and data.total_payment_methods > 0:
-		for payment_method in data.payment_methods:
 			try:
-				if not payment_method.get("amount"):
-					continue
+				payment_entry_doc = frappe.get_doc("Payment Entry", payment_name)
+				add_all_payment(payment_entry_doc)
+				add_payment_source(payment_entry_doc, amount=flt(payment_entry_doc.unallocated_amount))
+			except Exception as e:
+				errors.append(str(e))
 
-				# Save mode_of_payment for direct journal entry
-				mode_of_payment = payment_method.get("mode_of_payment")
+	# process new payments and submit each one so it can be reconciled like other payment entries
+	if allow_make_new_payments and len(data.payment_methods) > 0 and flt(data.total_payment_methods) > 0:
+		for payment_method in data.payment_methods:
+			amount = flt(payment_method.get("amount"))
+			mode_of_payment = payment_method.get("mode_of_payment")
+			reference_no = (payment_method.get("reference_no") or "").strip()
+			reference_date = payment_method.get("reference_date")
 
-				# Try to find bank account for this mode of payment to pass to JE
-				try:
-					# First try direct Mode of Payment Account
-					payment_account = frappe.get_value(
-						"Mode of Payment Account",
-						{"parent": mode_of_payment, "company": company},
-						"default_account",
+			if is_bank_payment_method(payment_method):
+				if not reference_no:
+					frappe.throw(
+						_("Reference No is required for Bank payment method {0}").format(mode_of_payment)
 					)
-
-					if payment_account:
-						bank_account = payment_account
-						frappe.log_error(
-							f"Using payment account from mode_of_payment: {bank_account}",
-							"POS Payment Debug",
-						)
-				except Exception as e:
-					frappe.log_error(
-						f"Error getting Mode of Payment Account: {str(e)}",
-						"POS Payment Error",
+				if not reference_date:
+					frappe.throw(
+						_("Reference Date is required for Bank payment method {0}").format(mode_of_payment)
 					)
+			else:
+				reference_no = pos_opening_shift_name
+				reference_date = today
 
-				# Create payment entry but don't try to reconcile yet
+			if amount <= 0 or not mode_of_payment:
+				continue
+
+			try:
 				new_payment_entry = create_payment_entry(
 					company=company,
 					customer=customer,
 					currency=currency,
-					amount=flt(payment_method.get("amount")),
+					amount=amount,
 					mode_of_payment=mode_of_payment,
 					posting_date=today,
-					reference_no=pos_opening_shift_name,
-					reference_date=today,
+					reference_no=reference_no,
+					reference_date=reference_date,
 					cost_center=data.pos_profile.get("cost_center"),
-					submit=0,  # Changed to 0 (don't submit yet)
+					remarks=remarks,
+					custom_remarks=custom_remarks,
+					submit=1,
 				)
 
-				# If we have a payment entry, use its account as primary account for JE
-				if new_payment_entry:
-					if not bank_account:
-						bank_account = new_payment_entry.paid_to
-						frappe.log_error(
-							f"Using bank account from payment entry: {bank_account}",
-							"POS Payment Debug",
-						)
-
-				new_payments_entry.append(new_payment_entry)
-				all_payments_entry.append(new_payment_entry)
-				created_payment = True
+				add_new_payment(new_payment_entry)
+				add_payment_source(new_payment_entry, amount=flt(new_payment_entry.unallocated_amount or amount))
 			except Exception as e:
 				errors.append(str(e))
-				frappe.log_error(f"Error creating payment entry: {str(e)}", "POS Payment Error")
 
-	# Use direct Journal Entry for invoice allocation instead of Payment Reconciliation
-	if len(data.selected_invoices) > 0 and data.total_selected_invoices > 0:
-		# Ensure all invoices have the necessary fields
-		for invoice in data.selected_invoices:
-			# Make sure we have voucher_no field (when coming from frontend it might be using name instead)
-			if not invoice.get("voucher_no") and invoice.get("name"):
-				invoice["voucher_no"] = invoice.get("name")
+	total_available_payments = sum(flt(source.remaining_amount) for source in payment_sources)
+	if total_available_payments <= 0:
+		frappe.throw(_("Please make a payment or select an payment"))
 
-			# Ensure outstanding_amount is properly set
-			if "outstanding_amount" not in invoice or not invoice.get("outstanding_amount"):
-				frappe.log_error(
-					f"Missing outstanding_amount in invoice: {invoice}",
-					"POS Payment Error",
+	dr_or_cr = "credit_in_account_currency"
+	entry_list = []
+
+	for source in payment_sources:
+		payment_remaining = flt(source.remaining_amount)
+		if payment_remaining <= 0:
+			continue
+
+		for invoice in invoices_to_allocate:
+			invoice_remaining = flt(invoice.remaining_outstanding)
+			if invoice_remaining <= 0:
+				continue
+
+			allocation = min(payment_remaining, invoice_remaining)
+			if allocation <= 0:
+				continue
+
+			entry_list.append(
+				frappe._dict(
+					{
+						"voucher_type": "Payment Entry",
+						"voucher_no": source.payment_entry,
+						"voucher_detail_no": None,
+						"against_voucher_type": "Sales Invoice",
+						"against_voucher": invoice.voucher_no,
+						"account": source.account,
+						"party_type": "Customer",
+						"party": customer,
+						"dr_or_cr": dr_or_cr,
+						"unreconciled_amount": flt(source.unreconciled_amount),
+						"unadjusted_amount": flt(source.unreconciled_amount),
+						"allocated_amount": flt(allocation),
+						"difference_amount": 0,
+					}
 				)
-				# Try to fetch the value
-				try:
-					si = frappe.get_doc(
-						"Sales Invoice",
-						invoice.get("voucher_no") or invoice.get("name"),
-					)
-					invoice["outstanding_amount"] = si.outstanding_amount
-				except Exception as e:
-					frappe.log_error(f"Error fetching invoice details: {str(e)}", "POS Payment Error")
-					errors.append(
-						f"Could not process invoice {invoice.get('voucher_no') or invoice.get('name')}: missing data"
-					)
-
-		# Calculate total payment amount from all sources
-		total_payment_amount = (
-			flt(data.total_payment_methods)
-			+ flt(data.total_selected_payments)
-			+ flt(data.total_selected_mpesa_payments)
-		)
-
-		if total_payment_amount > 0:
-			# Log key information about payments
-			frappe.log_error(
-				f"Creating payment allocation with total: {total_payment_amount}",
-				"POS Payment Details",
 			)
 
-			# If we have created a new payment entry, use it for allocation
-			if created_payment and new_payment_entry:
-				# Check if the payment entry is already submitted
-				if new_payment_entry.docstatus == 1:
-					frappe.log_error(
-						f"Payment entry {new_payment_entry.name} already submitted, creating new one for allocation",
-						"POS Payment Debug",
-					)
-					# Create a new payment entry for allocation
-					try:
-						payment_entry = create_payment_entry(
-							company=company,
-							customer=customer,
-							currency=currency,
-							amount=total_payment_amount,
-							mode_of_payment=mode_of_payment,
-							posting_date=today,
-							reference_no=pos_opening_shift_name,
-							reference_date=today,
-							cost_center=data.pos_profile.get("cost_center"),
-							submit=0,  # Don't submit yet
-						)
-						frappe.log_error(
-							f"Created new payment entry for allocation: {payment_entry.name}",
-							"POS Payment Debug",
-						)
-					except Exception as e:
-						frappe.log_error(
-							f"Error creating payment entry for allocation: {str(e)}",
-							"POS Payment Error",
-						)
-						errors.append(f"Error creating payment entry for allocation: {str(e)}")
-						payment_entry = None
-				else:
-					payment_entry = new_payment_entry
-					frappe.log_error(
-						f"Using existing payment entry: {payment_entry.name}",
-						"POS Payment Debug",
-					)
-			else:
-				# Create a new payment entry for allocation
-				try:
-					# Try additional payment information from POS Profile
-					if not mode_of_payment:
-						# Try to get default cash mode of payment from POS Profile
-						default_cash_mop = data.pos_profile.get("posa_cash_mode_of_payment")
-						if default_cash_mop:
-							mode_of_payment = default_cash_mop
-							frappe.log_error(
-								f"Using default cash mode of payment from POS Profile: {mode_of_payment}",
-								"POS Payment Debug",
-							)
+			source.allocated_invoices.append({"name": invoice.voucher_no, "amount": allocation})
 
-					if not mode_of_payment:
-						mode_of_payment = "Cash"  # Default to Cash if nothing else available
+			payment_remaining -= allocation
+			invoice.remaining_outstanding = invoice_remaining - allocation
 
-					# Create payment entry
-					payment_entry = create_payment_entry(
-						company=company,
-						customer=customer,
-						currency=currency,
-						amount=total_payment_amount,
-						mode_of_payment=mode_of_payment,
-						posting_date=today,
-						reference_no=pos_opening_shift_name,
-						reference_date=today,
-						cost_center=data.pos_profile.get("cost_center"),
-						submit=0,  # Don't submit yet
-					)
-					frappe.log_error(
-						f"Created new payment entry: {payment_entry.name}",
-						"POS Payment Debug",
-					)
-				except Exception as e:
-					frappe.log_error(f"Error creating payment entry: {str(e)}", "POS Payment Error")
-					errors.append(f"Error creating payment entry: {str(e)}")
-					payment_entry = None
+			if payment_remaining <= 0:
+				break
 
-			# Allocate payments to invoices if we have a payment entry
-			if payment_entry:
-				try:
-					# Clear any existing references
-					payment_entry.references = []
+		source.remaining_amount = payment_remaining
 
-					# Add references to each invoice
-					remaining_amount = total_payment_amount
-					allocated_invoices = []
+	if len(entry_list) == 0:
+		frappe.throw(_("No allocation could be created for selected invoices and payments"))
 
-					for invoice in data.selected_invoices:
-						invoice_name = invoice.get("voucher_no") or invoice.get("name")
-						outstanding_amount = flt(invoice.get("outstanding_amount"))
+	try:
+		reconcile_against_document(entry_list)
+	except Exception as e:
+		frappe.db.rollback()
+		frappe.log_error(f"Error allocating payment: {str(e)}", "POS Payment Error")
+		errors.append(str(e))
+		frappe.throw(_("Unable to allocate payments. Please check payment amounts and try again."))
 
-						# Skip invalid invoices
-						if not invoice_name or outstanding_amount <= 0:
-							frappe.log_error(
-								f"Skipping invoice {invoice_name or 'Unknown'} with outstanding {outstanding_amount}",
-								"POS Payment Debug",
-							)
-							continue
+	for source in payment_sources:
+		allocated_amount = sum(flt(invoice.get("amount")) for invoice in source.allocated_invoices)
+		if allocated_amount <= 0:
+			continue
 
-						# Calculate allocation for this invoice (limited by remaining amount)
-						allocation = min(remaining_amount, outstanding_amount)
-						if allocation <= 0:
-							frappe.log_error(
-								f"Zero allocation for invoice {invoice_name}",
-								"POS Payment Debug",
-							)
-							continue
-
-						# Subtract from remaining amount
-						remaining_amount -= allocation
-
-						# Add invoice reference
-						payment_entry.append(
-							"references",
-							{
-								"reference_doctype": "Sales Invoice",
-								"reference_name": invoice_name,
-								"total_amount": outstanding_amount,
-								"outstanding_amount": outstanding_amount,
-								"allocated_amount": allocation,
-							},
-						)
-
-						# Track what invoices were allocated
-						allocated_invoices.append({"name": invoice_name, "amount": allocation})
-
-						frappe.log_error(
-							f"Allocated {allocation} to invoice {invoice_name}",
-							"POS Payment Allocation",
-						)
-
-						if remaining_amount <= 0:
-							break
-
-					# Save and submit the payment entry
-					payment_entry.save()
-					payment_entry.submit()
-					frappe.db.commit()
-
-					# If this is a new payment entry for allocation (separate from the original payment method entries)
-					if not created_payment or payment_entry.name != new_payment_entry.name:
-						frappe.log_error(
-							f"Adding new payment entry to results: {payment_entry.name}",
-							"POS Payment Debug",
-						)
-						new_payments_entry.append(payment_entry)
-						all_payments_entry.append(payment_entry)
-
-					# Submit the original payment entry if it hasn't been submitted yet
-					if created_payment and new_payment_entry and new_payment_entry.docstatus == 0:
-						try:
-							new_payment_entry.submit()
-							frappe.log_error(
-								f"Submitted original payment entry: {new_payment_entry.name}",
-								"POS Payment Debug",
-							)
-						except Exception as e:
-							frappe.log_error(
-								f"Error submitting original payment entry: {str(e)}",
-								"POS Payment Error",
-							)
-							errors.append(f"Error submitting original payment entry: {str(e)}")
-
-					frappe.log_error(
-						f"Successfully submitted payment entry {payment_entry.name} with {len(payment_entry.references)} invoices",
-						"POS Payment Success",
-					)
-
-					# Create result for display
-					created_journal_entries.append(
-						{
-							"name": payment_entry.name,
-							"amount": total_payment_amount - remaining_amount,
-							"allocated_invoices": allocated_invoices,
-							"type": "Payment Entry",
-						}
-					)
-
-					frappe.msgprint(
-						f"Created Payment Entry {payment_entry.name} to allocate payment",
-						title="Payment Allocated",
-					)
-
-				except Exception as e:
-					frappe.log_error(f"Error allocating payment: {str(e)}", "POS Payment Error")
-					errors.append(f"Error allocating payment: {str(e)}")
+		created_journal_entries.append(
+			{
+				"name": source.payment_entry,
+				"amount": allocated_amount,
+				"allocated_invoices": source.allocated_invoices,
+				"type": "Payment Entry",
+			}
+		)
 
 	# then show the results
 	msg = ""
