@@ -444,7 +444,7 @@ import {
 	getCustomerStorage,
 	getOfflineCustomers,
 } from "../../../offline/index.js";
-import { silentPrint } from "../../plugins/print.js";
+import { multiSilentPrint, silentPrint } from "../../plugins/print.js";
 
 export default {
 	mixins: [format],
@@ -1207,10 +1207,26 @@ export default {
 				return;
 			}
 
-			payment_names.forEach((payment_name, index) => {
-				setTimeout(() => {
-					this.load_print_page(payment_name);
-				}, index * 250);
+			if (payment_names.length === 1) {
+				this.load_print_page(payment_names[0]);
+				return;
+			}
+
+			this.load_multi_print_page(payment_names);
+		},
+
+		load_multi_print_page(payment_names) {
+			const print_format = this.get_payment_entry_print_format();
+			const no_letterhead = this.pos_profile?.letter_head ? 0 : 1;
+			const letterhead = this.pos_profile?.letter_head || "No Letterhead";
+
+			multiSilentPrint({
+				doctype: "Payment Entry",
+				names: payment_names,
+				print_format,
+				no_letterhead,
+				letterhead,
+				pdf_options: { "page-size": "A4" },
 			});
 		},
 
