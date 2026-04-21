@@ -326,6 +326,49 @@
 										></v-text-field>
 									</div>
 								</v-col>
+								<v-col md="6" cols="12">
+									<v-text-field
+										class="p-0 m-0 dark-field"
+										density="compact"
+										color="primary"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										hide-details
+										v-model="method.reference_no"
+										v-if="is_bank_payment_method(method) && has_payment_amount(method)"
+										:label="__('Reference No')"
+										variant="outlined"
+									></v-text-field>
+								</v-col>
+								<v-col md="6" cols="12">
+									<v-text-field
+										class="p-0 m-0 dark-field"
+										density="compact"
+										color="primary"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										hide-details
+										v-model="method.reference_date"
+										v-if="is_bank_payment_method(method) && has_payment_amount(method)"
+										:label="__('Reference Date')"
+										type="date"
+										variant="outlined"
+									></v-text-field>
+								</v-col>
+							</v-row>
+							<v-row>
+								<v-col cols="12">
+									<v-textarea
+										class="mt-2 dark-field"
+										density="compact"
+										color="primary"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										v-model="remarks"
+										:label="__('Notes')"
+										variant="outlined"
+										rows="2"
+										auto-grow
+										hide-details
+									></v-textarea>
+								</v-col>
 							</v-row>
 						</div>
 
@@ -358,7 +401,7 @@
 									color="primary"
 									theme="dark"
 									@click="submit"
-									:disabled="vaildatPayment || isSubmitting"
+									:disabled="isSubmitting"
 									:loading="isSubmitting"
 								>
 									{{ __("Submit") }}
@@ -371,7 +414,7 @@
 									color="success"
 									theme="dark"
 									@click="submit_and_print()"
-									:disabled="vaildatPayment || isSubmitting"
+									:disabled="isSubmitting"
 									:loading="isSubmitting"
 								>
 									{{ __("Submit & Print") }}
@@ -429,6 +472,7 @@ export default {
 			payment_methods_list: [],
 			mpesa_search_name: "",
 			mpesa_search_mobile: "",
+			remarks: "",
 			invoices_headers: [
 				{
 					title: "",
@@ -817,10 +861,50 @@ export default {
 			this.pos_profile.payments.forEach((method) => {
 				this.payment_methods.push({
 					mode_of_payment: method.mode_of_payment,
+					type: method.type || "",
 					amount: 0,
+					reference_no: "",
+					reference_date: "",
 					row_id: method.name,
 				});
 			});
+			this.hydrate_payment_method_types();
+		},
+		async hydrate_payment_method_types() {
+			const methodsNeedingType = (this.payment_methods || []).filter(
+				(method) => method.mode_of_payment && !method.type,
+			);
+
+			if (!methodsNeedingType.length) {
+				return;
+			}
+
+			const modeOfPayments = [...new Set(methodsNeedingType.map((method) => method.mode_of_payment))];
+
+			try {
+				const response = await frappe.call(
+					"posawesome.posawesome.api.payment_entry.get_mode_of_payment_types",
+					{
+						mode_of_payments: modeOfPayments,
+					},
+				);
+
+				const typeMap = response?.message || {};
+				this.payment_methods.forEach((method) => {
+					if (!method.type && method.mode_of_payment && typeMap[method.mode_of_payment]) {
+						method.type = typeMap[method.mode_of_payment];
+					}
+				});
+			} catch (error) {
+				console.error("Failed to load mode of payment types", error);
+			}
+		},
+		has_payment_amount(method) {
+			return flt(method?.amount) > 0;
+		},
+		is_bank_payment_method(method) {
+			const paymentType = (method?.type || "").toString().trim().toLowerCase();
+			return paymentType === "bank";
 		},
 		clear_all(with_customer_info = true) {
 			this.customer_name = "";
@@ -836,58 +920,112 @@ export default {
 			this.selected_invoices = [];
 			this.selected_payments = [];
 			this.selected_mpesa_payments = [];
+			this.remarks = "";
 			this.set_payment_methods();
 		},
-		submit() {
-			if (this.isSubmitting) return;
-			this.isSubmitting = true;
+		get_normalized_payment_methods() {
+			if (!this.payment_methods || !this.payment_methods.length) {
+				return [];
+			}
+
+			return this.payment_methods
+				.map((payment) => ({
+					...payment,
+					amount: flt(payment.amount),
+					reference_no: (payment.reference_no || "").toString().trim(),
+					reference_date: payment.reference_date || "",
+				}))
+				.filter((payment) => flt(payment.amount) > 0);
+		},
+		async validate_before_submit() {
 			const customer = this.customer_name;
-			const vm = this;
-
 			if (!customer) {
-				this.isSubmitting = false;
 				frappe.throw(__("Please select a customer"));
-				return;
+				return null;
 			}
 
-			// Check if we have selected invoices
-			if (this.selected_invoices.length == 0) {
-				this.isSubmitting = false;
+			if (!this.selected_invoices || this.selected_invoices.length === 0) {
 				frappe.throw(__("Please select an invoice"));
-				return;
+				return null;
 			}
 
-			// Calculate payment values
-			let total_payments =
-				this.total_selected_payments +
-				this.total_selected_mpesa_payments +
-				this.total_payment_methods;
+			const totalPayments =
+				flt(this.total_selected_payments) +
+				flt(this.total_selected_mpesa_payments) +
+				flt(this.total_payment_methods);
 
-			if (total_payments <= 0) {
-				this.isSubmitting = false;
+			if (totalPayments <= 0) {
 				frappe.throw(__("Please make a payment or select an payment"));
+				return null;
+			}
+
+			await this.hydrate_payment_method_types();
+
+			const bankPayments = this.get_normalized_payment_methods().filter((payment) =>
+				this.is_bank_payment_method(payment),
+			);
+
+			for (const bankPayment of bankPayments) {
+				if (!bankPayment.reference_no) {
+					frappe.throw(
+						__("Reference No is required for Bank payment method {0}").format(
+							bankPayment.mode_of_payment,
+						),
+					);
+					return null;
+				}
+
+				if (!bankPayment.reference_date) {
+					frappe.throw(
+						__("Reference Date is required for Bank payment method {0}").format(
+							bankPayment.mode_of_payment,
+						),
+					);
+					return null;
+				}
+			}
+
+			return customer;
+		},
+		build_submit_payload(customer, paymentMethods) {
+			const total_payment_methods = paymentMethods.reduce(
+				(total, payment) => total + flt(payment.amount),
+				0,
+			);
+			const remarks = (this.remarks || "").toString().trim();
+
+			return {
+				customer,
+				company: this.company,
+				currency: this.pos_profile.currency,
+				pos_opening_shift_name: this.pos_opening_shift.name,
+				pos_profile_name: this.pos_profile.name,
+				pos_profile: this.pos_profile,
+				payment_methods: paymentMethods,
+				selected_invoices: this.selected_invoices,
+				selected_payments: this.selected_payments,
+				total_selected_invoices: flt(this.total_selected_invoices),
+				selected_mpesa_payments: this.selected_mpesa_payments,
+				total_selected_payments: flt(this.total_selected_payments),
+				total_payment_methods: flt(total_payment_methods),
+				total_selected_mpesa_payments: flt(this.total_selected_mpesa_payments),
+				remarks,
+				custom_remarks: remarks ? 1 : 0,
+			};
+		},
+		async submit() {
+			if (this.isSubmitting) return;
+
+			const customer = await this.validate_before_submit();
+			if (!customer) {
 				return;
 			}
 
-			this.payment_methods.forEach((payment) => {
-				payment.amount = flt(payment.amount);
-			});
+			const paymentMethods = this.get_normalized_payment_methods();
+			const payload = this.build_submit_payload(customer, paymentMethods);
 
-			const payload = {};
-			payload.customer = customer;
-			payload.company = this.company;
-			payload.currency = this.pos_profile.currency;
-			payload.pos_opening_shift_name = this.pos_opening_shift.name;
-			payload.pos_profile_name = this.pos_profile.name;
-			payload.pos_profile = this.pos_profile;
-			payload.payment_methods = this.payment_methods;
-			payload.selected_invoices = this.selected_invoices;
-			payload.selected_payments = this.selected_payments;
-			payload.total_selected_invoices = flt(this.total_selected_invoices);
-			payload.selected_mpesa_payments = this.selected_mpesa_payments;
-			payload.total_selected_payments = flt(this.total_selected_payments);
-			payload.total_payment_methods = flt(this.total_payment_methods);
-			payload.total_selected_mpesa_payments = flt(this.total_selected_mpesa_payments);
+			this.isSubmitting = true;
+			const vm = this;
 
 			if (isOffline()) {
 				try {
@@ -933,55 +1071,19 @@ export default {
 				},
 			});
 		},
-		submit_and_print() {
+		async submit_and_print() {
 			if (this.isSubmitting) return;
-			this.isSubmitting = true;
-			const customer = this.customer_name;
-			const vm = this;
+
+			const customer = await this.validate_before_submit();
 			if (!customer) {
-				this.isSubmitting = false;
-				frappe.throw(__("Please select a customer"));
 				return;
 			}
 
-			// Check if we have selected invoices
-			if (this.selected_invoices.length == 0) {
-				this.isSubmitting = false;
-				frappe.throw(__("Please select an invoice"));
-				return;
-			}
+			const paymentMethods = this.get_normalized_payment_methods();
+			const payload = this.build_submit_payload(customer, paymentMethods);
 
-			// Calculate payment values
-			let total_payments =
-				this.total_selected_payments +
-				this.total_selected_mpesa_payments +
-				this.total_payment_methods;
-
-			if (total_payments <= 0) {
-				this.isSubmitting = false;
-				frappe.throw(__("Please make a payment or select an payment"));
-				return;
-			}
-
-			this.payment_methods.forEach((payment) => {
-				payment.amount = flt(payment.amount);
-			});
-
-			const payload = {};
-			payload.customer = customer;
-			payload.company = this.company;
-			payload.currency = this.pos_profile.currency;
-			payload.pos_opening_shift_name = this.pos_opening_shift.name;
-			payload.pos_profile_name = this.pos_profile.name;
-			payload.pos_profile = this.pos_profile;
-			payload.payment_methods = this.payment_methods;
-			payload.selected_invoices = this.selected_invoices;
-			payload.selected_payments = this.selected_payments;
-			payload.total_selected_invoices = flt(this.total_selected_invoices);
-			payload.selected_mpesa_payments = this.selected_mpesa_payments;
-			payload.total_selected_payments = flt(this.total_selected_payments);
-			payload.total_payment_methods = flt(this.total_payment_methods);
-			payload.total_selected_mpesa_payments = flt(this.total_selected_mpesa_payments);
+			this.isSubmitting = true;
+			const vm = this;
 
 			if (isOffline()) {
 				try {
@@ -1016,17 +1118,17 @@ export default {
 						console.log("Server response:", JSON.stringify(r.message));
 						frappe.utils.play_sound("submit");
 
-						// Extract payment name from server response
-						const payment_name = vm.get_payment_entry_name(r.message);
+						// Extract all newly created payment entry names from server response
+						const payment_names = vm.get_new_payment_entry_names(r.message);
 
-						if (payment_name) {
-							console.log("Opening print view with payment name:", payment_name);
-							vm.load_print_page(payment_name);
+						if (payment_names.length) {
+							console.log("Opening print view with payment names:", payment_names);
+							vm.load_print_pages(payment_names);
 						} else {
-							console.log("No payment_name found in response");
+							console.log("No new payment entry found in response");
 							frappe.msgprint(
 								__(
-									"Payment submitted but print function could not be executed. Payment name not found.",
+									"Payment submitted but print function could not be executed. No new payment entry found.",
 								),
 							);
 						}
@@ -1077,30 +1179,39 @@ export default {
 		isSelected(item) {
 			return this.isInvoiceSelected(item) ? "selected-row bg-primary bg-lighten-4" : "";
 		},
-		get_payment_entry_name(response) {
+		get_new_payment_entry_names(response) {
 			if (!response) {
-				return null;
+				return [];
 			}
 
-			const createdEntries = []
-				.concat(Array.isArray(response.new_payments_entry) ? response.new_payments_entry : [])
-				.concat(Array.isArray(response.all_payments_entry) ? response.all_payments_entry : []);
+			const createdEntries = Array.isArray(response.new_payments_entry)
+				? response.new_payments_entry
+				: [];
+			const names = [];
+			const seen = new Set();
 
-			const firstEntryWithName = createdEntries.find((entry) => entry && entry.name);
-			if (firstEntryWithName && firstEntryWithName.name) {
-				return firstEntryWithName.name;
-			}
+			createdEntries.forEach((entry) => {
+				if (!entry || !entry.name || seen.has(entry.name)) return;
+				seen.add(entry.name);
+				names.push(entry.name);
+			});
 
-			const paymentAllocationEntry = (
-				Array.isArray(response.created_journal_entries)
-					? response.created_journal_entries
-					: []
-			).find((entry) => entry && entry.type === "Payment Entry" && entry.name);
-
-			return paymentAllocationEntry ? paymentAllocationEntry.name : null;
+			return names;
 		},
 		get_payment_entry_print_format() {
 			return this.pos_profile?.posa_payment_entry_print_format || "Standard";
+		},
+		load_print_pages(payment_names) {
+			if (!Array.isArray(payment_names) || payment_names.length === 0) {
+				frappe.msgprint(__("Payment submitted but no new payment entries found for print."));
+				return;
+			}
+
+			payment_names.forEach((payment_name, index) => {
+				setTimeout(() => {
+					this.load_print_page(payment_name);
+				}, index * 250);
+			});
 		},
 
 		load_print_page(payment_name) {
