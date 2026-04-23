@@ -78,6 +78,7 @@ export default {
 			tableFocusObserver: null,
 			tableFocusObserverRaf: null,
 			globalEscapeHandler: null,
+			is_closing_shift_submitting: false,
 		};
 	},
 
@@ -96,10 +97,31 @@ export default {
 		Variants,
 		MpesaPayments,
 		SalesOrders,
-			is_closing_shift_submitting: false,
 	},
 
 	methods: {
+		normalize_opening_shift(openingShift) {
+			if (!openingShift) {
+				return null;
+			}
+
+			if (typeof openingShift === "object") {
+				return openingShift;
+			}
+
+			if (typeof openingShift === "string") {
+				try {
+					const parsed = JSON.parse(openingShift);
+					if (parsed && typeof parsed === "object") {
+						return parsed;
+					}
+				} catch (e) {
+					return { name: openingShift };
+				}
+			}
+
+			return null;
+		},
 		async check_opening_entry() {
 			await initPromise;
 			await checkDbHealth();
@@ -199,11 +221,20 @@ export default {
 			this.dialog = true;
 		},
 		get_closing_data() {
+			const openingShift = this.normalize_opening_shift(this.pos_opening_shift);
+			if (!openingShift || !openingShift.name) {
+				this.eventBus.emit("show_message", {
+					title: "Please open a shift first",
+					color: "warning",
+				});
+				return Promise.resolve();
+			}
+
 			return frappe
 				.call(
 					"posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.make_closing_shift_from_opening",
 					{
-						opening_shift: this.pos_opening_shift,
+						opening_shift: openingShift,
 					},
 				)
 				.then((r) => {
@@ -216,7 +247,8 @@ export default {
 		},
 		submit_closing_pos(data) {
 			if (this.is_closing_shift_submitting) {
-				return;
+				// Recover from stale state so a new close-shift submit is never blocked.
+				this.is_closing_shift_submitting = false;
 			}
 
 			this.is_closing_shift_submitting = true;
@@ -229,6 +261,10 @@ export default {
 				)
 				.then((r) => {
 					if (r.message) {
+						this.eventBus.emit("closing_shift_submit_success", {
+							closing_shift: r.message,
+						});
+
 						// Clear the cached opening shift data
 						this.pos_opening_shift = null;
 						this.pos_profile = null;
@@ -246,11 +282,16 @@ export default {
 						
 						this.check_opening_entry();
 					} else {
-						// No action needed
+						this.eventBus.emit("closing_shift_submit_error");
+						this.eventBus.emit("show_message", {
+							title: "Failed to close POS shift",
+							color: "error",
+						});
 					}
 				})
 				.catch((e) => {
 					console.error("Failed to close POS shift", e);
+					this.eventBus.emit("closing_shift_submit_error");
 					this.eventBus.emit("show_message", {
 						title: "Failed to close POS shift",
 						color: "error",
@@ -514,6 +555,7 @@ export default {
 				this.dialog = false;
 			});
 			this.eventBus.on("register_pos_data", (data) => {
+				this.is_closing_shift_submitting = false;
 				this.pos_profile = data.pos_profile;
 				this.get_offers(this.pos_profile.name);
 				this.pos_opening_shift = data.pos_opening_shift;
@@ -535,7 +577,11 @@ export default {
 				this.offers = false;
 				this.payment = false;
 			});
-			this.eventBus.on("open_closing_dialog", () => {
+			this.eventBus.on("open_closing_dialog", async () => {
+				const openingShift = this.normalize_opening_shift(this.pos_opening_shift);
+				if (!openingShift || !openingShift.name) {
+					await this.check_opening_entry();
+				}
 				this.get_closing_data();
 			});
 			this.eventBus.on("submit_closing_pos", (data) => {

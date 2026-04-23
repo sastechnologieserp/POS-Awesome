@@ -339,15 +339,42 @@ def process_pos_payment(payload):
 		if not payment_entry:
 			return
 
-		remaining_amount = flt(amount) if amount is not None else flt(payment_entry.unallocated_amount)
+		payment_name = (
+			payment_entry.get("name")
+			if isinstance(payment_entry, dict)
+			else getattr(payment_entry, "name", None)
+		)
+		if not payment_name:
+			return
+
+		paid_from_account = (
+			payment_entry.get("paid_from")
+			if isinstance(payment_entry, dict)
+			else getattr(payment_entry, "paid_from", None)
+		)
+		mode_of_payment = (
+			payment_entry.get("mode_of_payment")
+			if isinstance(payment_entry, dict)
+			else getattr(payment_entry, "mode_of_payment", None)
+		)
+
+		default_unallocated_amount = (
+			payment_entry.get("unallocated_amount")
+			if isinstance(payment_entry, dict)
+			else getattr(payment_entry, "unallocated_amount", 0)
+		)
+		remaining_amount = (
+			flt(amount) if amount is not None else flt(default_unallocated_amount)
+		)
 		if remaining_amount <= 0:
 			return
 
 		payment_sources.append(
 			frappe._dict(
 				{
-					"payment_entry": payment_entry.name,
-					"account": payment_entry.paid_from,
+					"payment_entry": payment_name,
+					"mode_of_payment": mode_of_payment,
+					"account": paid_from_account,
 					"remaining_amount": remaining_amount,
 					"unreconciled_amount": remaining_amount,
 					"allocated_invoices": [],
@@ -561,6 +588,7 @@ def process_pos_payment(payload):
 		created_journal_entries.append(
 			{
 				"name": source.payment_entry,
+				"mode_of_payment": source.mode_of_payment,
 				"amount": allocated_amount,
 				"allocated_invoices": source.allocated_invoices,
 				"type": "Payment Entry",
@@ -572,11 +600,12 @@ def process_pos_payment(payload):
 	if len(new_payments_entry) > 0:
 		msg += "<h4>New Payments</h4>"
 		msg += "<table class='table table-bordered'>"
-		msg += "<thead><tr><th>Payment Entry</th><th>Amount</th></tr></thead>"
+		msg += "<thead><tr><th>Payment Entry</th><th>Mode of Payment</th><th>Amount</th></tr></thead>"
 		msg += "<tbody>"
 		for payment_entry in new_payments_entry:
-			msg += "<tr><td>{0}</td><td>{1}</td></tr>".format(
+			msg += "<tr><td>{0}</td><td>{1}</td><td>{2}</td></tr>".format(
 				payment_entry.get("name"),
+				payment_entry.get("mode_of_payment") or "-",
 				payment_entry.get("paid_amount") or payment_entry.get("amount"),
 			)
 		msg += "</tbody>"
@@ -584,30 +613,45 @@ def process_pos_payment(payload):
 	if len(created_journal_entries) > 0:
 		msg += "<h4>Payment Allocations</h4>"
 		msg += "<table class='table table-bordered'>"
-		msg += "<thead><tr><th>Document</th><th>Amount</th><th>Type</th></tr></thead>"
+		msg += "<thead><tr><th>Document</th><th>Mode of Payment</th><th>Amount</th><th>Type</th></tr></thead>"
 		msg += "<tbody>"
 		for entry in created_journal_entries:
-			msg += "<tr><td>{0}</td><td>{1}</td><td>{2}</td></tr>".format(
+			msg += "<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td></tr>".format(
 				entry.get("name"),
+				entry.get("mode_of_payment") or "-",
 				entry.get("amount"),
 				entry.get("type", "Journal Entry"),
 			)
 		msg += "</tbody>"
 		msg += "</table>"
 
-		# Show allocated invoices too
+		# Show all allocated invoices in one consolidated table.
+		allocated_rows = []
 		for entry in created_journal_entries:
-			if entry.get("allocated_invoices"):
-				msg += "<h4>Allocated Invoices</h4>"
-				msg += "<table class='table table-bordered'>"
-				msg += "<thead><tr><th>Invoice</th><th>Amount</th></tr></thead>"
-				msg += "<tbody>"
-				for invoice in entry.get("allocated_invoices"):
-					msg += "<tr><td>{0}</td><td>{1}</td></tr>".format(
-						invoice.get("name"), invoice.get("amount")
-					)
-				msg += "</tbody>"
-				msg += "</table>"
+			for invoice in entry.get("allocated_invoices") or []:
+				allocated_rows.append(
+					{
+						"payment_entry": entry.get("name"),
+						"mode_of_payment": entry.get("mode_of_payment") or "-",
+						"invoice": invoice.get("name"),
+						"amount": invoice.get("amount"),
+					}
+				)
+
+		if allocated_rows:
+			msg += "<h4>Allocated Invoices</h4>"
+			msg += "<table class='table table-bordered'>"
+			msg += "<thead><tr><th>Payment Entry</th><th>Mode of Payment</th><th>Invoice</th><th>Amount</th></tr></thead>"
+			msg += "<tbody>"
+			for row in allocated_rows:
+				msg += "<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td></tr>".format(
+					row.get("payment_entry"),
+					row.get("mode_of_payment"),
+					row.get("invoice"),
+					row.get("amount"),
+				)
+			msg += "</tbody>"
+			msg += "</table>"
 	if len(errors) > 0:
 		msg += "<h4>Errors</h4>"
 		msg += "<table class='table table-bordered'>"
