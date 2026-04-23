@@ -433,6 +433,10 @@ export default {
 
 	watch: {
 		customer: _.debounce(function () {
+			if (this.loading && !this.items_loaded) {
+				return;
+			}
+
 			if (this.pos_profile.posa_force_reload_items) {
 				if (this.pos_profile.posa_smart_reload_mode) {
 					// When limit search is enabled there may be no items yet.
@@ -459,12 +463,21 @@ export default {
 				this.get_items();
 			}
 		}, 300),
-		customer_price_list: _.debounce(function () {
+		customer_price_list: _.debounce(function (newValue, oldValue) {
+			if (newValue === oldValue || (this.loading && !this.items_loaded)) {
+				return;
+			}
+
 			// Always reload items when customer price list changes
 			this.items_loaded = false;
 			this.get_items(true);
 		}, 300),
-		selected_price_list: _.debounce(function () {
+		selected_price_list: _.debounce(function (newValue, oldValue) {
+			// Skip first initialization assignment to avoid duplicate startup loading.
+			if (!oldValue || newValue === oldValue || (this.loading && !this.items_loaded)) {
+				return;
+			}
+
 			// Force reload items with the new price list
 			this.items_loaded = false;
 			this.get_items(true);
@@ -737,6 +750,11 @@ export default {
 
 			if (this.itemWorker) {
 				try {
+					const fetchController = new AbortController();
+					const fetchTimeout = setTimeout(() => {
+						fetchController.abort();
+					}, 45000);
+
 					const res = await fetch("/api/method/posawesome.posawesome.api.items.get_items", {
 						method: "POST",
 						headers: {
@@ -744,6 +762,7 @@ export default {
 							"X-Frappe-CSRF-Token": frappe.csrf_token,
 						},
 						credentials: "same-origin",
+						signal: fetchController.signal,
 						body: JSON.stringify({
 							pos_profile: JSON.stringify(vm.pos_profile),
 							price_list: vm.active_price_list,
@@ -752,6 +771,12 @@ export default {
 							customer: vm.customer,
 						}),
 					});
+
+					clearTimeout(fetchTimeout);
+
+					if (!res.ok) {
+						throw new Error(`Failed to fetch items: ${res.status}`);
+					}
 
 					const text = await res.text();
 					// console.log(text)
@@ -892,7 +917,14 @@ export default {
 							if (vm.pos_profile.pose_use_limit_search) {
 								vm.enter_event();
 							}
+						} else {
+							vm.loading = false;
 						}
+					},
+					error: function (err) {
+						if (vm.items_request_token !== request_token) return;
+						console.error("Failed to fetch items", err);
+						vm.loading = false;
 					},
 				});
 			}

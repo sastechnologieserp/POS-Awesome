@@ -125,6 +125,7 @@ export default {
 	data: () => ({
 		closingDialog: false,
 		is_submitting: false,
+		submit_timeout_handle: null,
 		itemsPerPage: 20,
 		dialog_data: {},
 		pos_profile: "",
@@ -148,13 +149,21 @@ export default {
 				sortable: true,
 			},
 		],
-		max25chars: (v) => v.length <= 20 || "Input too long!", // TODO : should validate as number
+		max25chars: (v) => v == null || String(v).length <= 20 || "Input too long!",
 		pagination: {},
 	}),
 	watch: {},
 
 	methods: {
+		clear_submit_timeout() {
+			if (this.submit_timeout_handle) {
+				clearTimeout(this.submit_timeout_handle);
+				this.submit_timeout_handle = null;
+			}
+		},
 		close_dialog() {
+			this.clear_submit_timeout();
+			this.is_submitting = false;
 			this.closingDialog = false;
 		},
 		submit_dialog() {
@@ -163,11 +172,23 @@ export default {
 			}
 
 			this.is_submitting = true;
-			this.eventBus.emit("submit_closing_pos", this.dialog_data);
-			this.closingDialog = false;
-			setTimeout(() => {
+			this.clear_submit_timeout();
+			this.submit_timeout_handle = setTimeout(() => {
 				this.is_submitting = false;
-			}, 1500);
+				this.submit_timeout_handle = null;
+				this.eventBus.emit("show_message", {
+					title: "Shift close request timed out. Please try again.",
+					color: "error",
+				});
+			}, 25000);
+
+			try {
+				this.eventBus.emit("submit_closing_pos", this.dialog_data);
+			} catch (e) {
+				console.error("Failed to submit closing shift", e);
+				this.clear_submit_timeout();
+				this.is_submitting = false;
+			}
 		},
 		updateDifference(item) {
 			// Calculate difference: closing_amount - expected_amount
@@ -203,6 +224,7 @@ export default {
 	created: function () {
 		this.eventBus.on("open_ClosingDialog", (data) => {
 			this.closingDialog = true;
+			this.clear_submit_timeout();
 			this.is_submitting = false;
 			this.dialog_data = data;
 			// Initialize differences for all payment methods
@@ -211,6 +233,15 @@ export default {
 					this.updateDifference(item);
 				});
 			}
+		});
+		this.eventBus.on("closing_shift_submit_success", () => {
+			this.clear_submit_timeout();
+			this.is_submitting = false;
+			this.closingDialog = false;
+		});
+		this.eventBus.on("closing_shift_submit_error", () => {
+			this.clear_submit_timeout();
+			this.is_submitting = false;
 		});
 		this.eventBus.on("register_pos_profile", (data) => {
 			this.pos_profile = data.pos_profile;
@@ -240,7 +271,10 @@ export default {
 		});
 	},
 	beforeUnmount() {
+		this.clear_submit_timeout();
 		this.eventBus.off("open_ClosingDialog");
+		this.eventBus.off("closing_shift_submit_success");
+		this.eventBus.off("closing_shift_submit_error");
 		this.eventBus.off("register_pos_profile");
 	},
 };
