@@ -379,7 +379,7 @@ def get_items(
 				item_barcode = frappe.get_all(
 					"Item Barcode",
 					filters={"parent": item_code},
-					fields=["barcode", "posa_uom"],
+					fields=["barcode", "uom"],
 				)
 				batch_no_data = []
 				if search_batch_no or item.has_batch_no:
@@ -1561,7 +1561,7 @@ def get_items_from_barcode(selling_price_list, currency, barcode):
 	search_item = frappe.get_all(
 		"Item Barcode",
 		filters={"barcode": barcode},
-		fields=["parent", "barcode", "posa_uom"],
+		fields=["parent", "barcode", "uom"],
 	)
 	if len(search_item) == 0:
 		return ""

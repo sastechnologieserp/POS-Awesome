@@ -526,7 +526,7 @@ def get_items(
 				item_barcode = frappe.get_all(
 					"Item Barcode",
 					filters={"parent": item_code},
-					fields=["barcode", "posa_uom"],
+					fields=["barcode", "uom"],
 				)
 				batch_no_data = []
 				if search_batch_no or item.has_batch_no:
@@ -679,7 +679,7 @@ def get_item_variants(pos_profile, parent_item_code, price_list=None, customer=N
 		item_barcode = frappe.get_all(
 			"Item Barcode",
 			filters={"parent": item["item_code"]},
-			fields=["barcode", "posa_uom"],
+			fields=["barcode", "uom"],
 		)
 		item["item_barcode"] = item_barcode or []
 		if detail_map.get(item["item_code"]):
@@ -885,7 +885,7 @@ def get_items_from_barcode(selling_price_list, currency, barcode):
 	search_item = frappe.db.get_value(
 		"Item Barcode",
 		{"barcode": barcode},
-		["parent as item_code", "posa_uom"],
+		["parent as item_code", "uom"],
 		as_dict=1,
 	)
 	if search_item:
@@ -905,7 +905,7 @@ def get_items_from_barcode(selling_price_list, currency, barcode):
 			"item_name": item_doc.item_name,
 			"barcode": barcode,
 			"rate": item_price or 0,
-			"uom": search_item.posa_uom or item_doc.stock_uom,
+			"uom": search_item.uom or item_doc.stock_uom,
 			"currency": currency,
 		}
 	return None

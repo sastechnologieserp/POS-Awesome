@@ -1181,7 +1181,7 @@ export default {
 			new_item.qty = flt(qty);
 			new_item.item_barcode.forEach((element) => {
 				if (this.search == element.barcode) {
-					new_item.uom = element.posa_uom;
+					new_item.uom = element.uom;
 					match = true;
 				}
 			});
