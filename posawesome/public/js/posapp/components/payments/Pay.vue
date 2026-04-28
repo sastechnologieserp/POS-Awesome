@@ -470,6 +470,9 @@ export default {
 			pos_profiles_list: [],
 			pos_profile_search: "",
 			payment_methods_list: [],
+			selected_payment_entry_print_format: "",
+			payment_entry_print_formats: [],
+			payment_entry_print_formats_loading: false,
 			mpesa_search_name: "",
 			mpesa_search_mobile: "",
 			remarks: "",
@@ -621,6 +624,8 @@ export default {
 						vm.eventBus.emit("payments_register_pos_profile", r.message);
 						vm.eventBus.emit("set_company", r.message.company);
 						this.set_payment_methods();
+						this.set_payment_entry_print_format();
+						this.load_payment_entry_print_formats();
 						try {
 							setOpeningStorage(r.message);
 						} catch (e) {
@@ -653,6 +658,8 @@ export default {
 							vm.eventBus.emit("payments_register_pos_profile", data);
 							vm.eventBus.emit("set_company", data.company);
 							this.set_payment_methods();
+							this.set_payment_entry_print_format();
+							this.load_payment_entry_print_formats();
 							this.payment_methods_list = [];
 							this.pos_profile.payments.forEach((element) => {
 								this.payment_methods_list.push(element.mode_of_payment);
@@ -674,6 +681,8 @@ export default {
 						vm.eventBus.emit("payments_register_pos_profile", data);
 						vm.eventBus.emit("set_company", data.company);
 						this.set_payment_methods();
+						this.set_payment_entry_print_format();
+						this.load_payment_entry_print_formats();
 						this.payment_methods_list = [];
 						this.pos_profile.payments.forEach((element) => {
 							this.payment_methods_list.push(element.mode_of_payment);
@@ -869,6 +878,59 @@ export default {
 				});
 			});
 			this.hydrate_payment_method_types();
+		},
+		set_payment_entry_print_format() {
+			const defaultFormat = this.pos_profile?.posa_payment_entry_print_format || "Standard";
+			if (!this.selected_payment_entry_print_format) {
+				this.selected_payment_entry_print_format = defaultFormat;
+			}
+			if (!this.payment_entry_print_formats.includes(defaultFormat)) {
+				this.payment_entry_print_formats = [
+					defaultFormat,
+					...this.payment_entry_print_formats,
+				].filter(Boolean);
+			}
+		},
+		async load_payment_entry_print_formats() {
+			if (isOffline()) {
+				this.set_payment_entry_print_format();
+				return;
+			}
+
+			this.payment_entry_print_formats_loading = true;
+			const defaultFormat = this.pos_profile?.posa_payment_entry_print_format || "Standard";
+
+			try {
+				const response = await frappe.call({
+					method: "frappe.client.get_list",
+					args: {
+						doctype: "Print Format",
+						filters: {
+							doc_type: "Payment Entry",
+							disabled: 0,
+						},
+						fields: ["name"],
+						limit_page_length: 100,
+						order_by: "name asc",
+					},
+				});
+				const formats = (response.message || []).map((format) => format.name).filter(Boolean);
+				const formatSet = new Set([defaultFormat, "Standard", ...formats].filter(Boolean));
+				this.payment_entry_print_formats = Array.from(formatSet);
+
+				if (
+					!this.selected_payment_entry_print_format ||
+					!formatSet.has(this.selected_payment_entry_print_format)
+				) {
+					this.selected_payment_entry_print_format = defaultFormat;
+				}
+			} catch (error) {
+				console.error("Failed to load Payment Entry print formats", error);
+				this.payment_entry_print_formats = [defaultFormat].filter(Boolean);
+				this.selected_payment_entry_print_format = defaultFormat;
+			} finally {
+				this.payment_entry_print_formats_loading = false;
+			}
 		},
 		async hydrate_payment_method_types() {
 			const methodsNeedingType = (this.payment_methods || []).filter(
@@ -1199,7 +1261,11 @@ export default {
 			return names;
 		},
 		get_payment_entry_print_format() {
-			return this.pos_profile?.posa_payment_entry_print_format || "Standard";
+			return (
+				this.selected_payment_entry_print_format ||
+				this.pos_profile?.posa_payment_entry_print_format ||
+				"Standard"
+			);
 		},
 		load_print_pages(payment_names) {
 			if (!Array.isArray(payment_names) || payment_names.length === 0) {
@@ -1224,9 +1290,14 @@ export default {
 				doctype: "Payment Entry",
 				names: payment_names,
 				print_format,
+				print_formats: this.payment_entry_print_formats,
 				no_letterhead,
 				letterhead,
 				pdf_options: { "page-size": "A4" },
+				use_print_preview_overlay: !!this.pos_profile?.posa_enable_print_preview_overlay,
+				on_print_format_change: (selectedFormat) => {
+					this.selected_payment_entry_print_format = selectedFormat;
+				},
 			});
 		},
 
@@ -1238,29 +1309,17 @@ export default {
 
 			const print_format = this.get_payment_entry_print_format();
 			const no_letterhead = this.pos_profile?.letter_head ? 0 : 1;
-			const params = new URLSearchParams({
+			silentPrint({
 				doctype: "Payment Entry",
 				name: payment_name,
-				trigger_print: "1",
-				format: print_format,
-				no_letterhead: String(no_letterhead),
-				_: String(Date.now()),
+				print_format,
+				print_formats: this.payment_entry_print_formats,
+				no_letterhead,
+				use_print_preview_overlay: !!this.pos_profile?.posa_enable_print_preview_overlay,
+				on_print_format_change: (selectedFormat) => {
+					this.selected_payment_entry_print_format = selectedFormat;
+				},
 			});
-
-			const url = `${frappe.urllib.get_base_url()}/printview?${params.toString()}`;
-
-			console.log("Opening printing URL:", url);
-
-			if (this.pos_profile?.posa_silent_print) {
-				silentPrint({
-					doctype: "Payment Entry",
-					name: payment_name,
-					print_format,
-					no_letterhead,
-				});
-			} else {
-				window.open(url, "_blank");
-			}
 		},
 
 		async syncPendingPayments() {
