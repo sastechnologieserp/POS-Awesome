@@ -230,7 +230,20 @@ async function showPrintPreview(
 	footer.style.borderTop = "1px solid #d1d8dd";
 	footer.style.background = "#f7fafc";
 	footer.style.display = "flex";
+	footer.style.gap = "8px";
 	footer.style.justifyContent = "flex-end";
+
+	const closeButton = document.createElement("button");
+	closeButton.type = "button";
+	closeButton.textContent = __("Close");
+	closeButton.style.height = "36px";
+	closeButton.style.padding = "0 16px";
+	closeButton.style.border = "1px solid #d1d8dd";
+	closeButton.style.borderRadius = "4px";
+	closeButton.style.background = "#ffffff";
+	closeButton.style.color = "#1f272e";
+	closeButton.style.fontWeight = "600";
+	closeButton.style.cursor = "pointer";
 
 	const printButton = document.createElement("button");
 	printButton.type = "button";
@@ -328,6 +341,10 @@ async function showPrintPreview(
 		}
 	});
 
+	closeButton.addEventListener("click", () => {
+		cleanup();
+	});
+
 	printButton.addEventListener("click", () => {
 		try {
 			const win = iframe.contentWindow;
@@ -336,6 +353,7 @@ async function showPrintPreview(
 			}
 			win.focus();
 			win.print();
+			cleanup();
 		} catch (error) {
 			console.error("Unable to open print dialog", error);
 			frappe.msgprint(__("Unable to open print dialog."));
@@ -347,6 +365,7 @@ async function showPrintPreview(
 	toolbar.appendChild(select);
 	panel.appendChild(toolbar);
 	panel.appendChild(previewContainer);
+	footer.appendChild(closeButton);
 	footer.appendChild(printButton);
 	panel.appendChild(footer);
 	overlay.appendChild(panel);
