@@ -1419,6 +1419,7 @@ export default {
 					name: targetInvoiceName,
 					print_format,
 					no_letterhead,
+					use_print_preview_overlay: !!this.pos_profile?.posa_enable_print_preview_overlay,
 				},
 				printOptions,
 			);

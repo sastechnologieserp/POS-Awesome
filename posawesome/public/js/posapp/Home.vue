@@ -505,7 +505,18 @@ export default {
 				letter_head;
 
 			if (this.posProfile.posa_silent_print) {
-				silentPrint(url);
+				silentPrint(
+					{
+						doctype: "Sales Invoice",
+						name: this.lastInvoiceId,
+						print_format,
+						no_letterhead: this.posProfile?.letter_head ? 0 : 1,
+						use_print_preview_overlay: !!this.posProfile?.posa_enable_print_preview_overlay,
+					},
+					{
+						use_print_preview_overlay: !!this.posProfile?.posa_enable_print_preview_overlay,
+					},
+				);
 			} else {
 				const printWindow = window.open(url, "Print");
 				printWindow.addEventListener(
