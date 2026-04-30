@@ -370,6 +370,25 @@
 									></v-textarea>
 								</v-col>
 							</v-row>
+							<v-row>
+								<v-col md="7" class="mt-1">
+									<span>{{ __("Discount:") }}</span>
+								</v-col>
+								<v-col md="5">
+									<v-text-field
+										class="p-0 m-0 dark-field"
+										density="compact"
+										color="primary"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										hide-details
+										v-model="discount_amount"
+										type="number"
+										flat
+										:prefix="currencySymbol(pos_profile.currency)"
+										@input="$forceUpdate()"
+									></v-text-field>
+								</v-col>
+							</v-row>
 						</div>
 
 						<v-divider></v-divider>
@@ -476,6 +495,7 @@ export default {
 			mpesa_search_name: "",
 			mpesa_search_mobile: "",
 			remarks: "",
+			discount_amount: 0,
 			invoices_headers: [
 				{
 					title: "",
@@ -983,6 +1003,7 @@ export default {
 			this.selected_payments = [];
 			this.selected_mpesa_payments = [];
 			this.remarks = "";
+			this.discount_amount = 0;
 			this.set_payment_methods();
 		},
 		get_normalized_payment_methods() {
@@ -1015,15 +1036,27 @@ export default {
 				flt(this.total_selected_payments) +
 				flt(this.total_selected_mpesa_payments) +
 				flt(this.total_payment_methods);
+			const discountAmount = flt(this.discount_amount);
+			const paymentMethods = this.get_normalized_payment_methods();
 
-			if (totalPayments <= 0) {
+			if (discountAmount < 0) {
+				frappe.throw(__("Discount cannot be negative"));
+				return null;
+			}
+
+			if (totalPayments + discountAmount <= 0) {
 				frappe.throw(__("Please make a payment or select an payment"));
+				return null;
+			}
+
+			if (discountAmount > 0 && !paymentMethods.length) {
+				frappe.throw(__("Discount requires at least one new payment method"));
 				return null;
 			}
 
 			await this.hydrate_payment_method_types();
 
-			const bankPayments = this.get_normalized_payment_methods().filter((payment) =>
+			const bankPayments = paymentMethods.filter((payment) =>
 				this.is_bank_payment_method(payment),
 			);
 
@@ -1071,6 +1104,7 @@ export default {
 				total_selected_payments: flt(this.total_selected_payments),
 				total_payment_methods: flt(total_payment_methods),
 				total_selected_mpesa_payments: flt(this.total_selected_mpesa_payments),
+				discount_amount: flt(this.discount_amount),
 				remarks,
 				custom_remarks: remarks ? 1 : 0,
 			};
@@ -1387,6 +1421,7 @@ export default {
 		total_of_diff() {
 			// Calculate difference between invoice total and payment total
 			const invoiceTotal = this.total_selected_invoices || 0;
+			const discountTotal = flt(this.discount_amount || 0);
 			const paymentTotal =
 				(this.total_selected_payments || 0) +
 				(this.total_selected_mpesa_payments || 0) +
@@ -1400,7 +1435,7 @@ export default {
 				methodPayments: this.total_payment_methods,
 			});
 
-			return flt(invoiceTotal - paymentTotal);
+			return flt(invoiceTotal - paymentTotal - discountTotal);
 		},
 		isDarkTheme() {
 			return this.$theme.current === "dark";
