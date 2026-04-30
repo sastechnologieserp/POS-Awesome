@@ -32,6 +32,9 @@ def create_payment_entry(
 	cost_center=None,
 	remarks=None,
 	custom_remarks=0,
+	discount_amount=0,
+	writeoff_account=None,
+	writeoff_cost_center=None,
 	submit=0,
 ):
 	date = nowdate() if not posting_date else posting_date
@@ -102,6 +105,26 @@ def create_payment_entry(
 	# Set required fields
 	pe.setup_party_account_field()
 	pe.set_missing_values()
+	pe.set_exchange_rate()
+
+	if not pe.source_exchange_rate:
+		pe.source_exchange_rate = conversion_rate or 1
+	if not pe.target_exchange_rate:
+		if pe.paid_from_account_currency == pe.paid_to_account_currency:
+			pe.target_exchange_rate = pe.source_exchange_rate
+		else:
+			pe.target_exchange_rate = conversion_rate or 1
+
+	if flt(discount_amount) > 0 and writeoff_account:
+		pe.append(
+			"deductions",
+			{
+				"account": writeoff_account,
+				"cost_center": writeoff_cost_center or pe.cost_center,
+				"amount": flt(discount_amount),
+			},
+		)
+		pe.write_off_amount = flt(discount_amount)
 
 	if party_account and bank:
 		pe.set_amounts()
@@ -304,6 +327,7 @@ def process_pos_payment(payload):
 	remarks = (data.get("remarks") or "").strip()
 	custom_remarks = 1 if data.get("custom_remarks") and remarks else 0
 	pos_opening_shift_name = data.pos_opening_shift_name
+	discount_amount = flt(data.get("discount_amount"))
 	allow_make_new_payments = data.pos_profile.get("posa_allow_make_new_payments")
 	allow_reconcile_payments = data.pos_profile.get("posa_allow_reconcile_payments")
 	allow_mpesa_reconcile_payments = data.pos_profile.get("posa_allow_mpesa_reconcile_payments")
@@ -311,6 +335,23 @@ def process_pos_payment(payload):
 	payment_entry_has_custom_remarks_field = frappe.get_meta("Payment Entry").has_field(
 		"custom_remarks"
 	)
+	writeoff_account = frappe.get_cached_value("Company", company, "write_off_account") or data.pos_profile.get(
+		"write_off_account"
+	)
+	pos_profile_cost_center = data.pos_profile.get("write_off_cost_center") or data.pos_profile.get(
+		"cost_center"
+	)
+	if not pos_profile_cost_center and data.pos_profile_name:
+		pos_profile_cost_center = frappe.get_cached_value(
+			"POS Profile", data.pos_profile_name, "write_off_cost_center"
+		) or frappe.get_cached_value("POS Profile", data.pos_profile_name, "cost_center")
+	writeoff_cost_center = (
+		pos_profile_cost_center
+		or frappe.get_cached_value("Company", company, "cost_center")
+		or erpnext.get_default_cost_center(company)
+	)
+	if discount_amount > 0 and not writeoff_account:
+		frappe.throw(_("Please set a Write Off Account in Company"))
 
 	new_payments_entry = []
 	all_payments_entry = []
@@ -319,6 +360,7 @@ def process_pos_payment(payload):
 	all_payment_names = set()
 	new_payment_names = set()
 	payment_sources = []
+	discount_applied = False
 
 	def add_all_payment(payment_entry):
 		if not payment_entry:
@@ -475,7 +517,14 @@ def process_pos_payment(payload):
 
 	# process new payments and submit each one so it can be reconciled like other payment entries
 	if allow_make_new_payments and len(data.payment_methods) > 0 and flt(data.total_payment_methods) > 0:
-		for payment_method in data.payment_methods:
+		valid_payment_methods = [
+			payment_method
+			for payment_method in data.payment_methods
+			if flt(payment_method.get("amount")) > 0 and payment_method.get("mode_of_payment")
+		]
+		last_payment_method_index = len(valid_payment_methods) - 1
+
+		for payment_method_index, payment_method in enumerate(valid_payment_methods):
 			amount = flt(payment_method.get("amount"))
 			mode_of_payment = payment_method.get("mode_of_payment")
 			reference_no = (payment_method.get("reference_no") or "").strip()
@@ -494,10 +543,12 @@ def process_pos_payment(payload):
 				reference_no = pos_opening_shift_name
 				reference_date = today
 
-			if amount <= 0 or not mode_of_payment:
-				continue
-
 			try:
+				apply_discount = (
+					discount_amount > 0
+					and not discount_applied
+					and payment_method_index == last_payment_method_index
+				)
 				new_payment_entry = create_payment_entry(
 					company=company,
 					customer=customer,
@@ -507,16 +558,32 @@ def process_pos_payment(payload):
 					posting_date=today,
 					reference_no=reference_no,
 					reference_date=reference_date,
-					cost_center=data.pos_profile.get("cost_center"),
+					cost_center=writeoff_cost_center,
 					remarks=remarks,
 					custom_remarks=custom_remarks,
+					discount_amount=discount_amount if apply_discount else 0,
+					writeoff_account=writeoff_account,
+					writeoff_cost_center=writeoff_cost_center,
 					submit=1,
 				)
 
 				add_new_payment(new_payment_entry)
-				add_payment_source(new_payment_entry, amount=flt(new_payment_entry.unallocated_amount or amount))
+				if apply_discount:
+					discount_applied = True
+
+				add_payment_source(
+					new_payment_entry,
+					amount=flt(new_payment_entry.unallocated_amount or amount),
+				)
 			except Exception as e:
-				errors.append(str(e))
+				error_message = frappe.get_traceback(with_context=False)
+				frappe.log_error(error_message, "POS Awesome Payment Entry Creation")
+				errors.append(str(e) or error_message)
+
+	if discount_amount > 0 and not discount_applied:
+		if errors:
+			frappe.throw(errors[0])
+		frappe.throw(_("Discount requires at least one new payment method"))
 
 	total_available_payments = sum(flt(source.remaining_amount) for source in payment_sources)
 	if total_available_payments <= 0:
