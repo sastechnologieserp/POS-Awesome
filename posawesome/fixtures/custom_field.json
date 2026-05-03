@@ -6023,7 +6023,7 @@
   "name": "POS Profile-posa_doctype_shortcuts",
   "no_copy": 0,
   "non_negative": 0,
-  "options": "DocType Link",
+  "options": "Doctype Shortcut",
   "permlevel": 0,
   "placeholder": null,
   "precision": "",
