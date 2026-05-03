@@ -160,7 +160,7 @@
 							{{ __("Cancel Sale") }}
 						</v-btn>
 					</v-col>
-					<v-col class="action-btn-col" v-if="pos_profile.custom_allow_select_sales_order == 1">
+					<v-col class="action-btn-col" v-if="pos_profile.posa_allow_select_sales_order == 1">
 						<v-btn
 							block
 							color="info"

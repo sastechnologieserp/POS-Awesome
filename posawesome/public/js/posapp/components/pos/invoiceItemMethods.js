@@ -139,7 +139,7 @@ export default {
 		}
 
 		const isNewItemRow = index === -1 || this.new_line;
-		const shouldFocusQtyAfterAdd = !!this.pos_profile?.custom_open_qty_focus_before_adding_item;
+		const shouldFocusQtyAfterAdd = !!this.pos_profile?.posa_open_qty_focus_before_adding_item;
 
 		// Repurpose the custom setting to focus qty input for newly added rows.
 		// If disabled (or the row already existed), keep search field focused.
