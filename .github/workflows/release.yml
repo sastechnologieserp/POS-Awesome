@@ -46,6 +46,7 @@ jobs:
         id: new_version
         run: |
           from packaging.version import Version
+          import os
           import sys
           
           current_version = "${{ steps.current_version.outputs.version }}"
@@ -69,8 +70,6 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               f.write(f"version={new_version}\n")
         shell: python
-        env:
-          GITHUB_OUTPUT: ${{ github.output }}
 
       - name: Update version in __init__.py
         run: |
