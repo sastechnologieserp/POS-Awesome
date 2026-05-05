@@ -112,5 +112,5 @@ jobs:
             - ${{ github.event.inputs.version_type }}
             
             This is an automated release created by the GitHub Actions workflow.
-          draft: false
+          draft: true
           prerelease: false
