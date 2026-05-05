@@ -62,7 +62,7 @@
 			v-model:item="item"
 			:company="company"
 			:company-img="companyImg"
-			:items="items"
+			:items="drawerItems"
 			:is-dark="isDark"
 			@change-page="changePage"
 		/>
@@ -270,6 +270,49 @@ export default {
 		appBarColor() {
 			return this.isDark ? this.$vuetify.theme.themes.dark.colors.surface : "white";
 		},
+		drawerItems() {
+			const items = [...this.items];
+			const shortcuts = this.doctypeShortcuts;
+
+			if (shortcuts.length) {
+				const shortcutItem = {
+					text: this.translate("Doctype shortcuts"),
+					icon: "mdi-file-link-outline",
+					children: shortcuts.map((doctype) => ({
+						text: doctype,
+						icon: "mdi-file-document-outline",
+						url: this.getDoctypeRoute(doctype),
+					})),
+				};
+				const paymentsIndex = items.findIndex((item) => item.text === "Payments");
+				items.splice(paymentsIndex === -1 ? items.length : paymentsIndex + 1, 0, shortcutItem);
+			}
+
+			return items;
+		},
+		doctypeShortcuts() {
+			const shortcuts = this.posProfile?.posa_doctype_shortcuts;
+			if (!Array.isArray(shortcuts)) {
+				return [];
+			}
+
+			return shortcuts
+				.map((row) => {
+					if (typeof row === "string") {
+						return row;
+					}
+
+					return (
+						row?.link_doctype ||
+						row?.doctype_name ||
+						row?.document_type ||
+						row?.dt ||
+						row?.value
+					);
+				})
+				.filter(Boolean)
+				.filter((doctype, index, all) => all.indexOf(doctype) === index);
+		},
 	},
 	mounted() {
 		this.initializeNavbar();
@@ -319,6 +362,12 @@ export default {
 		},
 		changePage(page) {
 			this.$emit("change-page", page);
+		},
+		translate(text) {
+			return typeof __ === "function" ? __(text) : text;
+		},
+		getDoctypeRoute(doctype) {
+			return `/app/List/${encodeURIComponent(String(doctype).trim())}`;
 		},
 		openCloseShift() {
 			this.$emit("close-shift");

@@ -25,24 +25,44 @@
 		<v-divider />
 
 		<v-list dense nav>
-			<v-list-item-group v-model="activeItem" active-class="active-item">
+			<template v-for="(item, index) in items" :key="item.text">
+				<v-list-group
+					v-if="item.children && item.children.length"
+					:value="item.text"
+					class="drawer-group"
+				>
+					<template v-slot:activator="{ props }">
+						<v-list-item v-bind="props" class="drawer-item">
+							<template v-slot:prepend>
+								<v-icon class="drawer-icon">{{ item.icon }}</v-icon>
+							</template>
+							<v-list-item-title class="drawer-item-title">{{ item.text }}</v-list-item-title>
+						</v-list-item>
+					</template>
+
+					<v-list-item
+						v-for="child in item.children"
+						:key="child.text"
+						@click.stop="changePage(child)"
+						class="drawer-item drawer-child-item"
+					>
+						<v-list-item-title class="drawer-child-title">{{ child.text }}</v-list-item-title>
+					</v-list-item>
+				</v-list-group>
+
 				<v-list-item
-					v-for="(item, index) in items"
-					:key="item.text"
-					@click="changePage(item.text)"
+					v-else
+					@click="changePage(item, index)"
 					class="drawer-item"
+					:class="{ 'active-item': activeItem === index }"
 				>
 					<template v-slot:prepend>
 						<v-icon class="drawer-icon">{{ item.icon }}</v-icon>
 					</template>
 					<v-list-item-title class="drawer-item-title">{{ item.text }}</v-list-item-title>
 				</v-list-item>
-			</v-list-item-group>
+			</template>
 		</v-list>
-		<!-- Sport section, hidden by default -->
-		<div v-if="showSport">
-			<!-- Sport content goes here -->
-		</div>
 	</v-navigation-drawer>
 </template>
 
@@ -62,7 +82,6 @@ export default {
 			mini: false,
 			drawerOpen: this.drawer,
 			activeItem: this.item,
-			showSport: false, // Hide sport section by default
 		};
 	},
 	watch: {
@@ -92,8 +111,20 @@ export default {
 				this.mini = true;
 			}, 250);
 		},
-		changePage(key) {
-			this.$emit("change-page", key);
+		changePage(item, index = null) {
+			if (item?.url) {
+				const newPage = window.open(item.url, "_blank", "noopener");
+				if (newPage) {
+					newPage.opener = null;
+				}
+			} else {
+				if (index !== null) {
+					this.activeItem = index;
+					this.$emit("update:item", index);
+				}
+				this.$emit("change-page", item?.text || item);
+			}
+
 			// Close drawer after selection
 			if (window.innerWidth < 1024) {
 				this.closeDrawer();
@@ -160,6 +191,25 @@ export default {
 	font-family: "Roboto", sans-serif;
 }
 
+.drawer-child-item {
+	padding-left: 32px !important;
+	min-height: 40px;
+}
+
+.drawer-child-icon {
+	font-size: 20px;
+	color: var(--primary-start, #1976d2);
+	opacity: 0.85;
+}
+
+.drawer-child-title {
+	margin-left: 8px;
+	font-weight: 400;
+	font-size: 0.9rem;
+	color: #000000 !important;
+	font-family: "Roboto", sans-serif;
+}
+
 /* Hover effect for all list items in the navigation drawer */
 .v-list-item:hover {
 	background-color: rgba(25, 118, 210, 0.08) !important;
@@ -194,6 +244,11 @@ export default {
 	font-family: "Roboto", sans-serif;
 }
 
+:deep(.dark-theme) .drawer-child-title,
+:deep(.v-theme--dark) .drawer-child-title {
+	color: #000000 !important;
+}
+
 :deep(.dark-theme) .drawer-company,
 :deep(.v-theme--dark) .drawer-company {
 	color: var(--text-primary, #ffffff) !important;
@@ -206,6 +261,11 @@ export default {
 :deep(.v-theme--dark) .drawer-icon {
 	color: var(--primary-light, #90caf9) !important;
 	font-size: 24px;
+}
+
+:deep(.dark-theme) .drawer-child-icon,
+:deep(.v-theme--dark) .drawer-child-icon {
+	color: var(--primary-light, #90caf9) !important;
 }
 
 :deep(.dark-theme) .v-list-item:hover,

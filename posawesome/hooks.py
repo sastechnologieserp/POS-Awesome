@@ -206,7 +206,7 @@ fixtures = [
 					"Sales Order-posa_notes",
 					"Sales Order Item-posa_notes",
 					"POS Profile-posa_allow_sales_order",
-					"POS Profile-custom_allow_select_sales_order",
+					"POS Profile-posa_allow_select_sales_order",
 					"POS Profile-posa_create_only_sales_order",
 					"POS Profile-posa_column_break_112",
 					"POS Profile-posa_show_template_items",
@@ -289,9 +289,10 @@ fixtures = [
 					"POS Profile-posa_language",
 					"POS Profile-posa_allow_multi_currency",
 					"POS Profile-posa_decimal_precision",
-				    "POS Profile-custom_open_qty_focus_before_adding_item",
-        			"POS Profile-custom_enable_price_list_dropdown",
-           			"POS Profile-posa_search_limit"
+				    "POS Profile-posa_open_qty_focus_before_adding_item",
+        			"POS Profile-posa_enable_price_list_dropdown",
+           			"POS Profile-posa_search_limit",
+              		"POS Profile-posa_doctype_shortcuts"
 				),
 			]
 		],
