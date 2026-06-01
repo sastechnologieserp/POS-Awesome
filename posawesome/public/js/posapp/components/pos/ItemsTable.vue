@@ -9,7 +9,18 @@
 			<!-- Item name column (explicit expand trigger) -->
 			<template v-slot:item.item_name="{ item }">
 				<div class="item-name-cell" @click.stop="toggleRowExpand(item)">
-					{{ item.item_name }}
+					<div class="item-name-text">{{ item.item_name }}</div>
+					<div
+						v-if="item.has_batch_no && (item.batch_no || item.batch_no_expiry_date)"
+						class="item-meta"
+					>
+						<span v-if="item.batch_no" class="item-meta__entry">
+							{{ __("Batch") }}: {{ item.batch_no }}
+						</span>
+						<span v-if="item.batch_no_expiry_date" class="item-meta__entry">
+							{{ __("Expiry") }}: {{ item.batch_no_expiry_date }}
+						</span>
+					</div>
 				</div>
 			</template>
 
@@ -170,6 +181,51 @@
 								<div class="form-field" v-if="isFieldVisible('exp_price_list_rate_bottom')">
 									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Price List Rate Change')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatCurrency(item.price_list_rate || 0)" :disabled="!pos_profile.posa_allow_price_list_rate_change" prepend-inner-icon="mdi-format-list-numbered" @change="changePriceListRate(item)"></v-text-field>
 									<v-btn v-if="pos_profile.posa_allow_price_list_rate_change" size="x-small" class="ml-1" @click.stop="changePriceListRate(item)">{{ __("Change") }}</v-btn>
+								</div>
+							</div>
+							<div class="form-row" v-if="item.has_batch_no">
+								<div class="form-field" v-if="!pos_profile.posa_auto_set_batch">
+									<v-select
+										density="compact"
+										variant="outlined"
+										color="primary"
+										:label="frappe._('Batch No')"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field"
+										hide-details
+										:items="getBatchOptions(item)"
+										item-title="title"
+										item-value="value"
+										:model-value="item.batch_no"
+										:disabled="!hasBatchOptions(item)"
+										@update:model-value="onBatchSelection(item, $event)"
+									></v-select>
+								</div>
+								<div class="form-field" v-else>
+									<v-text-field
+										density="compact"
+										variant="outlined"
+										color="primary"
+										:label="frappe._('Batch No')"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field"
+										hide-details
+										:model-value="item.batch_no || ''"
+										disabled
+									></v-text-field>
+								</div>
+								<div class="form-field">
+									<v-text-field
+										density="compact"
+										variant="outlined"
+										color="primary"
+										:label="frappe._('Batch No Expiry Date')"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field"
+										hide-details
+										:model-value="item.batch_no_expiry_date || ''"
+										disabled
+									></v-text-field>
 								</div>
 							</div>
 						</div>
@@ -542,6 +598,34 @@ export default {
 				return event.target.value;
 			}
 			return event;
+		},
+		hasBatchOptions(item) {
+			return Array.isArray(item?.batch_no_data) && item.batch_no_data.length > 0;
+		},
+		getBatchOptions(item) {
+			if (!this.hasBatchOptions(item)) {
+				return [];
+			}
+			return item.batch_no_data.map((batch) => {
+				const parts = [batch.batch_no];
+				if (batch.batch_qty !== undefined && batch.batch_qty !== null) {
+					const qty = typeof this.formatFloat === "function" ? this.formatFloat(batch.batch_qty) : batch.batch_qty;
+					parts.push(`${__("QTY")}: ${qty}`);
+				}
+				if (batch.expiry_date) {
+					parts.push(`${__("Expiry")}: ${batch.expiry_date}`);
+				}
+				return {
+					title: parts.join(" | "),
+					value: batch.batch_no,
+				};
+			});
+		},
+		onBatchSelection(item, value) {
+			if (!item) {
+				return;
+			}
+			this.setBatchQty(item, value);
 		},
 		onQtyChange(item, event) {
 			if (!item) {
@@ -1021,6 +1105,28 @@ export default {
 .item-name-cell {
 	cursor: pointer;
 	font-weight: 500;
+}
+
+.item-name-text {
+	line-height: 1.2;
+}
+
+.item-meta {
+	margin-top: 4px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	font-size: 0.75rem;
+	color: rgba(0, 0, 0, 0.6);
+}
+
+.item-meta__entry {
+	white-space: nowrap;
+}
+
+:deep(.dark-theme) .item-meta,
+:deep(.v-theme--dark) .item-meta {
+	color: rgba(255, 255, 255, 0.7);
 }
 
 /* Drag and drop styles */
