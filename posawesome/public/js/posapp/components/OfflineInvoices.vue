@@ -699,4 +699,9 @@ export default {
 .pos-action-btn:disabled span {
 	color: white !important;
 }
+
+.v-overlay.v-dialog {
+    z-index: 1000 !important;
+}
+
 </style>

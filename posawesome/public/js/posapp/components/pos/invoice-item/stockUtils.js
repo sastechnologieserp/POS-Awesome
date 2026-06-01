@@ -26,6 +26,8 @@ export default {
 			return;
 		}
 
+		item.uom = new_uom.uom;
+
 		// Store old conversion factor for ratio calculation
 		const old_conversion_factor = item.conversion_factor || 1;
 

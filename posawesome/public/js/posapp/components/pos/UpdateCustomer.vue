@@ -9,7 +9,7 @@
 				<v-card-text class="pa-0">
 					<v-container>
 						<v-row>
-							<v-col cols="12">
+							<v-col cols="12" sm="6">
 								<v-text-field
 									density="compact"
 									color="primary"
@@ -20,18 +20,7 @@
 									v-model="customer_name"
 								></v-text-field>
 							</v-col>
-							<v-col cols="6">
-								<v-text-field
-									density="compact"
-									color="primary"
-									:label="frappe._('Tax ID')"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-									class="dark-field"
-									hide-details
-									v-model="tax_id"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6">
+							<v-col cols="12" sm="6">
 								<v-text-field
 									density="compact"
 									color="primary"
@@ -53,30 +42,10 @@
 									v-model="address_line1"
 								></v-text-field>
 							</v-col>
-
-							<v-col cols="12" sm="6">
-								<v-text-field
-									v-model="city"
-									variant="outlined"
-									density="compact"
-									:label="__('City')"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-									class="dark-field"
-								></v-text-field>
+							<v-col cols="12">
+								<v-divider class="my-2"></v-divider>
+								<div class="text-subtitle-1 text-primary">{{ __("Other Details") }}</div>
 							</v-col>
-
-							<v-col cols="12" sm="6">
-								<v-select
-									v-model="country"
-									:items="countries"
-									variant="outlined"
-									density="compact"
-									:label="__('Country')"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-									class="dark-field"
-								></v-select>
-							</v-col>
-
 							<v-col cols="6">
 								<v-text-field
 									density="compact"
@@ -98,6 +67,54 @@
 									class="dark-field"
 								></v-select>
 							</v-col>
+							<v-col cols="12" sm="6">
+								<v-text-field
+									v-model="city"
+									variant="outlined"
+									density="compact"
+									:label="__('City')"
+									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+									class="dark-field"
+								></v-text-field>
+							</v-col>
+							<v-col cols="12" sm="6">
+								<v-select
+									v-model="country"
+									:items="countries"
+									variant="outlined"
+									density="compact"
+									:label="__('Country')"
+									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+									class="dark-field"
+								></v-select>
+							</v-col>
+							<v-col cols="6">
+								<v-autocomplete
+									clearable
+									density="compact"
+									auto-select-first
+									color="primary"
+									:label="frappe._('Territory')"
+									v-model="territory"
+									:items="territorys"
+									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+									class="dark-field"
+									:no-data-text="__('Territory not found')"
+									hide-details
+								>
+								</v-autocomplete>
+							</v-col>
+							<v-col cols="6">
+								<v-text-field
+									density="compact"
+									color="primary"
+									:label="frappe._('Tax ID')"
+									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+									class="dark-field"
+									hide-details
+									v-model="tax_id"
+								></v-text-field>
+							</v-col>
 							<v-col cols="6">
 								<v-text-field
 									density="compact"
@@ -110,50 +127,18 @@
 								></v-text-field>
 							</v-col>
 							<v-col cols="6">
-								<v-text-field
-									v-model="birthday"
-									:label="frappe._('Birthday (DD-MM-YYYY)')"
-									density="compact"
-									clearable
-									hide-details
-									color="primary"
-									placeholder="DD-MM-YYYY"
-									@update:model-value="formatBirthdayOnInput"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-									class="dark-field"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6">
 								<v-autocomplete
 									clearable
 									density="compact"
 									auto-select-first
 									color="primary"
-									:label="frappe._('Customer Group') + ' *'"
+									:label="frappe._('Customer Group')"
 									v-model="group"
 									:items="groups"
 									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 									class="dark-field"
 									:no-data-text="__('Group not found')"
 									hide-details
-									required
-								>
-								</v-autocomplete>
-							</v-col>
-							<v-col cols="6">
-								<v-autocomplete
-									clearable
-									density="compact"
-									auto-select-first
-									color="primary"
-									:label="frappe._('Territory') + ' *'"
-									v-model="territory"
-									:items="territorys"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-									class="dark-field"
-									:no-data-text="__('Territory not found')"
-									hide-details
-									required
 								>
 								</v-autocomplete>
 							</v-col>
@@ -227,7 +212,7 @@ export default {
 		mobile_no: "",
 		address_line1: "",
 		city: "",
-		country: "Pakistan",
+		country: "",
 		email_id: "",
 		referral_code: "",
 		birthday: "",
@@ -394,7 +379,7 @@ export default {
 			this.mobile_no = "";
 			this.address_line1 = "";
 			this.city = "";
-			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Pakistan";
+			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "";
 			this.email_id = "";
 			this.referral_code = "";
 			this.birthday = "";
@@ -474,16 +459,6 @@ export default {
 			const vm = this;
 			if (!this.customer_name) {
 				frappe.throw(__("Customer Name is required"));
-				return;
-			}
-
-			if (!this.group) {
-				frappe.throw(__("Customer group is required"));
-				return;
-			}
-
-			if (!this.territory) {
-				frappe.throw(__("Customer territory is required"));
 				return;
 			}
 
@@ -645,7 +620,7 @@ export default {
 				this.address_line1 = data.address_line1 || "";
 				this.city = data.city || "";
 				this.country =
-					data.country || (this.pos_profile && this.pos_profile.posa_default_country) || "Pakistan";
+					data.country || (this.pos_profile && this.pos_profile.posa_default_country) || "";
 				this.tax_id = data.tax_id;
 				this.mobile_no = data.mobile_no;
 				this.email_id = data.email_id;
@@ -657,16 +632,16 @@ export default {
 				this.loyalty_program = data.loyalty_program;
 				this.gender = data.gender;
 			} else {
-				this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Pakistan";
+				this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "";
 			}
 		});
 		this.eventBus.on("register_pos_profile", (data) => {
 			this.pos_profile = data.pos_profile;
-			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Pakistan";
+			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "";
 		});
 		this.eventBus.on("payments_register_pos_profile", (data) => {
 			this.pos_profile = data.pos_profile;
-			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Pakistan";
+			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "";
 		});
 		this.getCustomerGroups();
 		this.getCustomerTerritorys();
