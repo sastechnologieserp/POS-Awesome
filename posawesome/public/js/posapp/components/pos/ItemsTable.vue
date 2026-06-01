@@ -9,7 +9,15 @@
 			<!-- Item name column (explicit expand trigger) -->
 			<template v-slot:item.item_name="{ item }">
 				<div class="item-name-cell" @click.stop="toggleRowExpand(item)">
-					{{ item.item_name }}
+					<div class="item-name-text">{{ item.item_name }}</div>
+					<div
+						v-if="item.has_batch_no && (item.batch_no || item.batch_no_expiry_date)"
+						class="item-meta"
+					>
+						<span v-if="item.batch_no_expiry_date" class="item-meta__entry">
+							{{ __("Expiry") }}: {{ item.batch_no_expiry_date }}
+						</span>
+					</div>
 				</div>
 			</template>
 
@@ -142,6 +150,37 @@
 
 						<!-- Item details form: show only non-row fields -->
 						<div class="item-details-form">
+							<div class="form-row" v-if="item.has_batch_no">
+								<div class="form-field">
+										<v-select
+										density="compact"
+										variant="outlined"
+										color="primary"
+										:label="frappe._('Batch No')"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field"
+										:items="getBatchOptions(item)"
+										item-title="title"
+										item-value="value"
+										:model-value="item.batch_no || ''"
+										:disabled="!hasBatchOptions(item)"
+										@update:model-value="onBatchSelection(item, $event)"
+									></v-select>
+								</div>
+								<div class="form-field">
+									<v-text-field
+										density="compact"
+										variant="outlined"
+										color="primary"
+										:label="frappe._('Batch No Expiry Date')"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field"
+										hide-details
+										:model-value="item.batch_no_expiry_date || ''"
+										disabled
+									></v-text-field>
+								</div>
+							</div>
 							<div class="form-row">
 								<div class="form-field" v-if="isFieldVisible('exp_item_code')">
 									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Item Code')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.item_code" disabled prepend-inner-icon="mdi-barcode"></v-text-field>
@@ -156,7 +195,6 @@
 									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Group')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.item_group" disabled></v-text-field>
 								</div>
 							</div>
-
 							<div class="form-row">
 								<div class="form-field" v-if="isFieldVisible('exp_stock_qty')">
 									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Stock QTY')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatFloat(item.stock_qty)" disabled></v-text-field>
@@ -542,6 +580,34 @@ export default {
 				return event.target.value;
 			}
 			return event;
+		},
+		hasBatchOptions(item) {
+			return Array.isArray(item?.batch_no_data) && item.batch_no_data.length > 0;
+		},
+		getBatchOptions(item) {
+			if (!this.hasBatchOptions(item)) {
+				return [];
+			}
+			return item.batch_no_data.map((batch) => {
+				const parts = [batch.batch_no];
+				if (batch.batch_qty !== undefined && batch.batch_qty !== null) {
+					const qty = typeof this.formatFloat === "function" ? this.formatFloat(batch.batch_qty) : batch.batch_qty;
+					parts.push(`${__("QTY")}: ${qty}`);
+				}
+				if (batch.expiry_date) {
+					parts.push(`${__("Expiry")}: ${batch.expiry_date}`);
+				}
+				return {
+					title: parts.join(" | "),
+					value: batch.batch_no,
+				};
+			});
+		},
+		onBatchSelection(item, value) {
+			if (!item) {
+				return;
+			}
+			this.setBatchQty(item, value);
 		},
 		onQtyChange(item, event) {
 			if (!item) {
@@ -1021,6 +1087,28 @@ export default {
 .item-name-cell {
 	cursor: pointer;
 	font-weight: 500;
+}
+
+.item-name-text {
+	line-height: 1.2;
+}
+
+.item-meta {
+	margin-top: 4px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	font-size: 0.75rem;
+	color: rgba(0, 0, 0, 0.6);
+}
+
+.item-meta__entry {
+	white-space: nowrap;
+}
+
+:deep(.dark-theme) .item-meta,
+:deep(.v-theme--dark) .item-meta {
+	color: rgba(255, 255, 255, 0.7);
 }
 
 /* Drag and drop styles */
