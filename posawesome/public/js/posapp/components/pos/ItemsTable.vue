@@ -14,9 +14,6 @@
 						v-if="item.has_batch_no && (item.batch_no || item.batch_no_expiry_date)"
 						class="item-meta"
 					>
-						<span v-if="item.batch_no" class="item-meta__entry">
-							{{ __("Batch") }}: {{ item.batch_no }}
-						</span>
 						<span v-if="item.batch_no_expiry_date" class="item-meta__entry">
 							{{ __("Expiry") }}: {{ item.batch_no_expiry_date }}
 						</span>
@@ -184,35 +181,21 @@
 								</div>
 							</div>
 							<div class="form-row" v-if="item.has_batch_no">
-								<div class="form-field" v-if="!pos_profile.posa_auto_set_batch">
-									<v-select
+								<div class="form-field">
+										<v-select
 										density="compact"
 										variant="outlined"
 										color="primary"
 										:label="frappe._('Batch No')"
 										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
 										class="dark-field"
-										hide-details
 										:items="getBatchOptions(item)"
 										item-title="title"
 										item-value="value"
-										:model-value="item.batch_no"
+										:model-value="item.batch_no || ''"
 										:disabled="!hasBatchOptions(item)"
 										@update:model-value="onBatchSelection(item, $event)"
 									></v-select>
-								</div>
-								<div class="form-field" v-else>
-									<v-text-field
-										density="compact"
-										variant="outlined"
-										color="primary"
-										:label="frappe._('Batch No')"
-										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-										class="dark-field"
-										hide-details
-										:model-value="item.batch_no || ''"
-										disabled
-									></v-text-field>
 								</div>
 								<div class="form-field">
 									<v-text-field
