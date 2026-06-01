@@ -150,36 +150,6 @@
 
 						<!-- Item details form: show only non-row fields -->
 						<div class="item-details-form">
-							<div class="form-row">
-								<div class="form-field" v-if="isFieldVisible('exp_item_code')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Item Code')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.item_code" disabled prepend-inner-icon="mdi-barcode"></v-text-field>
-								</div>
-								<div class="form-field" v-if="isFieldVisible('exp_price_list_rate')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Price list Rate')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatCurrency(item.price_list_rate)" :disabled="!pos_profile.posa_allow_price_list_rate_change" :prefix="safeCurrencySymbol(pos_profile.currency)" @change="changePriceListRate(item)"></v-text-field>
-								</div>
-								<div class="form-field" v-if="isFieldVisible('exp_available_qty')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Available QTY')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatFloat(item.actual_qty)" disabled></v-text-field>
-								</div>
-								<div class="form-field" v-if="isFieldVisible('exp_group')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Group')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.item_group" disabled></v-text-field>
-								</div>
-							</div>
-
-							<div class="form-row">
-								<div class="form-field" v-if="isFieldVisible('exp_stock_qty')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Stock QTY')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatFloat(item.stock_qty)" disabled></v-text-field>
-								</div>
-								<div class="form-field" v-if="isFieldVisible('exp_stock_uom')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Stock UOM')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.stock_uom" disabled></v-text-field>
-								</div>
-								<div class="form-field" v-if="isFieldVisible('exp_warehouse')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Warehouse')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.warehouse" disabled prepend-inner-icon="mdi-warehouse"></v-text-field>
-								</div>
-								<div class="form-field" v-if="isFieldVisible('exp_price_list_rate_bottom')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Price List Rate Change')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatCurrency(item.price_list_rate || 0)" :disabled="!pos_profile.posa_allow_price_list_rate_change" prepend-inner-icon="mdi-format-list-numbered" @change="changePriceListRate(item)"></v-text-field>
-									<v-btn v-if="pos_profile.posa_allow_price_list_rate_change" size="x-small" class="ml-1" @click.stop="changePriceListRate(item)">{{ __("Change") }}</v-btn>
-								</div>
-							</div>
 							<div class="form-row" v-if="item.has_batch_no">
 								<div class="form-field">
 										<v-select
@@ -209,6 +179,35 @@
 										:model-value="item.batch_no_expiry_date || ''"
 										disabled
 									></v-text-field>
+								</div>
+							</div>
+							<div class="form-row">
+								<div class="form-field" v-if="isFieldVisible('exp_item_code')">
+									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Item Code')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.item_code" disabled prepend-inner-icon="mdi-barcode"></v-text-field>
+								</div>
+								<div class="form-field" v-if="isFieldVisible('exp_price_list_rate')">
+									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Price list Rate')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatCurrency(item.price_list_rate)" :disabled="!pos_profile.posa_allow_price_list_rate_change" :prefix="safeCurrencySymbol(pos_profile.currency)" @change="changePriceListRate(item)"></v-text-field>
+								</div>
+								<div class="form-field" v-if="isFieldVisible('exp_available_qty')">
+									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Available QTY')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatFloat(item.actual_qty)" disabled></v-text-field>
+								</div>
+								<div class="form-field" v-if="isFieldVisible('exp_group')">
+									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Group')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.item_group" disabled></v-text-field>
+								</div>
+							</div>
+							<div class="form-row">
+								<div class="form-field" v-if="isFieldVisible('exp_stock_qty')">
+									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Stock QTY')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatFloat(item.stock_qty)" disabled></v-text-field>
+								</div>
+								<div class="form-field" v-if="isFieldVisible('exp_stock_uom')">
+									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Stock UOM')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.stock_uom" disabled></v-text-field>
+								</div>
+								<div class="form-field" v-if="isFieldVisible('exp_warehouse')">
+									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Warehouse')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.warehouse" disabled prepend-inner-icon="mdi-warehouse"></v-text-field>
+								</div>
+								<div class="form-field" v-if="isFieldVisible('exp_price_list_rate_bottom')">
+									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Price List Rate Change')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatCurrency(item.price_list_rate || 0)" :disabled="!pos_profile.posa_allow_price_list_rate_change" prepend-inner-icon="mdi-format-list-numbered" @change="changePriceListRate(item)"></v-text-field>
+									<v-btn v-if="pos_profile.posa_allow_price_list_rate_change" size="x-small" class="ml-1" @click.stop="changePriceListRate(item)">{{ __("Change") }}</v-btn>
 								</div>
 							</div>
 						</div>
