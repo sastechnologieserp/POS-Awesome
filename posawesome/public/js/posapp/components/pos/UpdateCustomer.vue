@@ -42,31 +42,6 @@
 									v-model="address_line1"
 								></v-text-field>
 							</v-col>
-							<v-col cols="12">
-								<v-divider class="my-2"></v-divider>
-								<div class="text-subtitle-1 text-primary">{{ __("Other Details") }}</div>
-							</v-col>
-							<v-col cols="6">
-								<v-text-field
-									density="compact"
-									color="primary"
-									:label="frappe._('Email Id')"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-									class="dark-field"
-									hide-details
-									v-model="email_id"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6">
-								<v-select
-									density="compact"
-									label="Gender"
-									:items="genders"
-									v-model="gender"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-									class="dark-field"
-								></v-select>
-							</v-col>
 							<v-col cols="12" sm="6">
 								<v-text-field
 									v-model="city"
@@ -88,81 +63,121 @@
 									class="dark-field"
 								></v-select>
 							</v-col>
-							<v-col cols="6">
-								<v-autocomplete
-									clearable
-									density="compact"
-									auto-select-first
-									color="primary"
-									:label="frappe._('Territory')"
-									v-model="territory"
-									:items="territorys"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-									class="dark-field"
-									:no-data-text="__('Territory not found')"
-									hide-details
+							<v-col cols="12">
+								<div 
+									class="d-flex align-center" 
+									@click="show_other_details = !show_other_details"
+									style="cursor: pointer;"
 								>
-								</v-autocomplete>
+									<div class="text-subtitle-1 text-primary">{{ __("Other Details") }}</div>
+									<v-spacer></v-spacer>
+									<v-btn icon variant="text" density="compact" color="primary">
+										<v-icon :icon="show_other_details ? 'mdi-chevron-up' : 'mdi-chevron-down'"></v-icon>
+									</v-btn>
+								</div>
 							</v-col>
-							<v-col cols="6">
-								<v-text-field
-									density="compact"
-									color="primary"
-									:label="frappe._('Tax ID')"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-									class="dark-field"
-									hide-details
-									v-model="tax_id"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6">
-								<v-text-field
-									density="compact"
-									color="primary"
-									:label="frappe._('Referral Code')"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-									class="dark-field"
-									hide-details
-									v-model="referral_code"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6">
-								<v-autocomplete
-									clearable
-									density="compact"
-									auto-select-first
-									color="primary"
-									:label="frappe._('Customer Group')"
-									v-model="group"
-									:items="groups"
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-									class="dark-field"
-									:no-data-text="__('Group not found')"
-									hide-details
-								>
-								</v-autocomplete>
-							</v-col>
-							<v-col cols="6" v-if="loyalty_program">
-								<v-text-field
-									v-model="loyalty_program"
-									:label="frappe._('Loyalty Program')"
-									density="compact"
-									readonly
-									hide-details
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-									class="dark-field"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6" v-if="loyalty_points">
-								<v-text-field
-									v-model="loyalty_points"
-									:label="frappe._('Loyalty Points')"
-									density="compact"
-									readonly
-									hide-details
-									:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-									class="dark-field"
-								></v-text-field>
+							<v-col cols="12" class="pa-0">
+								<v-expand-transition>
+									<v-row v-show="show_other_details" class="ma-0">
+										<v-col cols="6">
+											<v-text-field
+												density="compact"
+												color="primary"
+												:label="frappe._('Email Id')"
+												:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+												class="dark-field"
+												hide-details
+												v-model="email_id"
+											></v-text-field>
+										</v-col>
+										<v-col cols="6">
+											<v-select
+												density="compact"
+												label="Gender"
+												:items="genders"
+												v-model="gender"
+												:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+												class="dark-field"
+											></v-select>
+										</v-col>
+										<v-col cols="6">
+											<v-autocomplete
+												clearable
+												density="compact"
+												auto-select-first
+												color="primary"
+												:label="frappe._('Territory')"
+												v-model="territory"
+												:items="territorys"
+												:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+												class="dark-field"
+												:no-data-text="__('Territory not found')"
+												hide-details
+											>
+											</v-autocomplete>
+										</v-col>
+										<v-col cols="6">
+											<v-text-field
+												density="compact"
+												color="primary"
+												:label="frappe._('Tax ID')"
+												:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+												class="dark-field"
+												hide-details
+												v-model="tax_id"
+											></v-text-field>
+										</v-col>
+										<v-col cols="6">
+											<v-text-field
+												density="compact"
+												color="primary"
+												:label="frappe._('Referral Code')"
+												:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+												class="dark-field"
+												hide-details
+												v-model="referral_code"
+											></v-text-field>
+										</v-col>
+										<v-col cols="6">
+											<v-autocomplete
+												clearable
+												density="compact"
+												auto-select-first
+												color="primary"
+												:label="frappe._('Customer Group')"
+												v-model="group"
+												:items="groups"
+												:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+												class="dark-field"
+												:no-data-text="__('Group not found')"
+												hide-details
+											>
+											</v-autocomplete>
+										</v-col>
+										<v-col cols="6" v-if="loyalty_program">
+											<v-text-field
+												v-model="loyalty_program"
+												:label="frappe._('Loyalty Program')"
+												density="compact"
+												readonly
+												hide-details
+												:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+												class="dark-field"
+											></v-text-field>
+										</v-col>
+										<v-col cols="6" v-if="loyalty_points">
+											<v-text-field
+												v-model="loyalty_points"
+												:label="frappe._('Loyalty Points')"
+												density="compact"
+												readonly
+												hide-details
+												:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+												class="dark-field"
+											></v-text-field>
+										</v-col>
+									</v-row>
+								</v-expand-transition>
 							</v-col>
 						</v-row>
 					</v-container>
@@ -205,6 +220,7 @@ export default {
 	data: () => ({
 		customerDialog: false,
 		confirmDialog: false,
+		show_other_details: false,
 		pos_profile: "",
 		customer_id: "",
 		customer_name: "",
