@@ -8,7 +8,7 @@ export default function generateOfflineInvoiceHTML(invoice, posProfile = null, c
 		}, 0);
 		console.log('Calculated paid_amount from payments:', invoice.paid_amount);
 	}
-	
+
 	// Calculate change_amount if paid_amount > grand_total and not already set
 	if (!invoice.change_amount && invoice.paid_amount && invoice.grand_total) {
 		const paid = parseFloat(invoice.paid_amount) || 0;
@@ -19,7 +19,7 @@ export default function generateOfflineInvoiceHTML(invoice, posProfile = null, c
 		}
 	}
 
-	const companyName = posProfile?.company || invoice.company || "YESH FRESH";
+	const companyName = posProfile?.company || invoice.company;
 	const posNumber = posProfile?.name || invoice.pos_profile || "POS";
 	const letterHead = posProfile?.letter_head;
 	const terms = posProfile?.tc_name || invoice.terms || "";
@@ -29,21 +29,21 @@ export default function generateOfflineInvoiceHTML(invoice, posProfile = null, c
 	}
 
 	const printFormat = posProfile?.print_format;
-	
+
 	// Debug logging
 	console.log('POS Profile:', posProfile);
 	console.log('Print Format from POS Profile:', printFormat);
 	console.log('Invoice:', invoice);
-	
+
 	// TEMPORARY TEST: Force custom format for testing
 	// Remove this after testing
 	const forceCustomFormat = true; // Set to false to disable
-	
+
 	if (forceCustomFormat) {
 		console.log('TEST MODE: Forcing custom POS Print format');
 		return generatePOSPrintFormat(invoice, posProfile);
 	}
-	
+
 	// Check for any print format configuration
 	if (printFormat) {
 		console.log('Using custom POS Print format');
@@ -229,7 +229,7 @@ function generatePOSPrintFormat(invoice, posProfile) {
 		}, 0);
 		console.log('POS Print - Calculated paid_amount from payments:', invoice.paid_amount);
 	}
-	
+
 	// Calculate change_amount if paid_amount > grand_total and not already set
 	if (!invoice.change_amount && invoice.paid_amount && invoice.grand_total) {
 		const paid = parseFloat(invoice.paid_amount) || 0;
@@ -254,7 +254,7 @@ function generatePOSPrintFormat(invoice, posProfile) {
 	const itemsRows = (invoice.items || [])
 		.map((item) => {
 			const barcode = item.barcode || item.item_code || "";
-			
+
 			return `
 				<tr>
 					<td colspan="4" style="font-weight: bold;">${item.item_name || item.item_code}</td>
@@ -397,15 +397,13 @@ function generatePOSPrintFormat(invoice, posProfile) {
 <body>
 	<div class="bill">
 		<div class="brand">
-			<b>YESH FRESH</b><br>
+			<b>${invoice.company}</b><br>
 			<small style="font-size: 10px;">نعم الطازج</small>
 		</div>
 		<div class="address">
-			Salmiya, Block 10, Saba Street<br>
-			Phone No. : 60628166
 		</div>
-		${invoice.status === 'Paid' ? 
-			'<div class="invoice"><b> INVOICE</b></div>' : 
+		${invoice.status === 'Paid' ?
+			'<div class="invoice"><b> INVOICE</b></div>' :
 			'<div class="invoice"><b> INVOICE</b></div>'
 		}
 		<div class="bill-details">
@@ -477,7 +475,7 @@ function generatePOSPrintFormat(invoice, posProfile) {
 	</div>
 </body>
 </html>`;
-	
+
 	return html;
 }
 
