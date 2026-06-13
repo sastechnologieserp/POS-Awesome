@@ -93,6 +93,13 @@ export default {
 				this.refreshTaxInclusiveSetting();
 				this.eventBus.emit("network-online");
 				this.handleSyncInvoices();
+				if (this.posProfile && this.posProfile.name) {
+					import("./plugins/print.js").then(({ prefetchPrintTemplate }) => {
+						prefetchPrintTemplate(this.posProfile).catch((err) => {
+							console.warn("Failed to prefetch print template on network recovery", err);
+						});
+					}).catch(() => {});
+				}
 			}
 		},
 		serverOnline(newVal, oldVal) {
@@ -129,6 +136,14 @@ export default {
 				this.posProfile = openingData.pos_profile;
 				if (navigator.onLine) {
 					await this.refreshTaxInclusiveSetting();
+					try {
+						const { prefetchPrintTemplate } = await import("./plugins/print.js");
+						prefetchPrintTemplate(this.posProfile).catch((err) => {
+							console.warn("Failed to prefetch print template", err);
+						});
+					} catch (e) {
+						console.warn("Failed to import prefetchPrintTemplate", e);
+					}
 				}
 			}
 

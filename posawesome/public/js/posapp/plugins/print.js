@@ -1,4 +1,5 @@
 import renderOfflineInvoiceHTML from "../../offline_print_template";
+import { getOpeningStorage } from "../../offline/index.js";
 
 async function generatePrintURL({ doctype, name, print_format, no_letterhead, trigger_print }) {
 	const baseUrl = frappe.urllib.get_base_url();
@@ -105,7 +106,7 @@ function updateFormatSelect(select, formats, selectedFormat) {
 
 async function openPrintDialogInHiddenIframe(
 	url,
-	{ iframeId = `posa-print-frame-${Date.now()}`, cleanupDelay = 60000, onError } = {},
+	{ iframeId = `posa-print-frame-${Date.now()}`, cleanupDelay = 60000, onError, invoiceDoc, printPayload, html } = {},
 ) {
 	const existingFrame = document.getElementById(iframeId);
 	if (existingFrame) {
@@ -132,6 +133,19 @@ async function openPrintDialogInHiddenIframe(
 				}
 				win.focus();
 				win.print();
+
+				// Cache the print HTML and invoice doc for offline printing
+				if (invoiceDoc && printPayload && printPayload.doctype === "Sales Invoice" && !html) {
+					try {
+						const printHtml = win.document.documentElement.innerHTML;
+						const formatName = printPayload.print_format || "Standard";
+						localStorage.setItem(`posa_print_template_html_${formatName}`, printHtml);
+						localStorage.setItem(`posa_print_template_doc_${formatName}`, JSON.stringify(invoiceDoc));
+						console.log(`Cached print format template for: ${formatName}`);
+					} catch (e) {
+						console.warn("Failed to cache print format HTML from iframe:", e);
+					}
+				}
 			} catch (error) {
 				if (onError) {
 					await onError(error);
@@ -150,8 +164,18 @@ async function openPrintDialogInHiddenIframe(
 			resolve();
 		};
 
-		iframe.src = url;
-		document.body.appendChild(iframe);
+		if (html) {
+			document.body.appendChild(iframe);
+			const win = iframe.contentWindow;
+			if (win) {
+				win.document.open();
+				win.document.write(html);
+				win.document.close();
+			}
+		} else {
+			iframe.src = url;
+			document.body.appendChild(iframe);
+		}
 	});
 }
 
@@ -161,6 +185,8 @@ async function showPrintPreview(
 		overlayId = "posa-print-preview",
 		iframeId = "posa-print-preview-frame",
 		buildURL = generatePrintURL,
+		invoiceDoc = null,
+		html = null,
 	} = {},
 ) {
 	const existingPreview = document.getElementById(overlayId);
@@ -302,17 +328,42 @@ async function showPrintPreview(
 			loader.style.display = "none";
 			printButton.disabled = false;
 			printButton.style.opacity = "1";
+
+			// Cache print template here
+			if (invoiceDoc && payload.doctype === "Sales Invoice" && !html) {
+				try {
+					const win = iframe.contentWindow;
+					if (win) {
+						const printHtml = win.document.documentElement.innerHTML;
+						localStorage.setItem(`posa_print_template_html_${printFormat}`, printHtml);
+						localStorage.setItem(`posa_print_template_doc_${printFormat}`, JSON.stringify(invoiceDoc));
+						console.log(`Cached print format template from preview for: ${printFormat}`);
+					}
+				} catch (e) {
+					console.warn("Failed to cache template from preview iframe:", e);
+				}
+			}
 		};
 		iframe.onerror = () => {
 			loader.style.display = "none";
 			printButton.disabled = false;
 			printButton.style.opacity = "1";
 		};
-		const url = await buildURL({
-			...payload,
-			print_format: printFormat,
-		});
-		iframe.src = url;
+
+		if (html) {
+			const win = iframe.contentWindow;
+			if (win) {
+				win.document.open();
+				win.document.write(html);
+				win.document.close();
+			}
+		} else {
+			const url = await buildURL({
+				...payload,
+				print_format: printFormat,
+			});
+			iframe.src = url;
+		}
 	};
 
 	select.addEventListener("change", () => {
@@ -374,14 +425,18 @@ async function showPrintPreview(
 	await loadPreview(selectedFormat);
 }
 
-async function printSilently(payload) {
+async function printSilently(payload, options = {}) {
 	await showPrintPreview(
 		payload,
-		{ overlayId: "posa-silent-print-preview", iframeId: "posa-silent-print-preview-frame" },
+		{
+			overlayId: "posa-silent-print-preview",
+			iframeId: "posa-silent-print-preview-frame",
+			invoiceDoc: options.invoiceDoc,
+		},
 	);
 }
 
-async function openDirectPrintPreview(payload, { buildURL, iframeId }) {
+async function openDirectPrintPreview(payload, { buildURL, iframeId }, options = {}) {
 	const url = await buildURL(payload);
 	await openPrintDialogInHiddenIframe(url, {
 		iframeId,
@@ -389,23 +444,51 @@ async function openDirectPrintPreview(payload, { buildURL, iframeId }) {
 			console.error("Unable to open direct print preview", error);
 			frappe.msgprint(__("Unable to open print preview."));
 		},
+		invoiceDoc: options.invoiceDoc,
+		printPayload: payload,
 	});
 }
 
-async function fallbackToOffline(invoiceDoc) {
+export async function fallbackToOffline(invoiceDoc, usePreviewOverlay = false) {
 	if (!invoiceDoc) return;
 	try {
-		const html = await renderOfflineInvoiceHTML(invoiceDoc);
+		let posProfile = null;
+		try {
+			const openingData = getOpeningStorage();
+			if (openingData && openingData.pos_profile) {
+				posProfile = openingData.pos_profile;
+			}
+		} catch (e) {
+			console.warn("Failed to retrieve posProfile in print.js fallbackToOffline", e);
+		}
+
+		const html = await renderOfflineInvoiceHTML(invoiceDoc, posProfile);
 		if (!html) return;
 
-		const target = window.open("", "_blank", "noopener,noreferrer");
-		if (!target) return;
+		const formatName = posProfile?.print_format_for_online || posProfile?.print_format || "Standard";
 
-		target.document.open();
-		target.document.write(html);
-		target.document.close();
-		target.focus();
-		target.print();
+		if (usePreviewOverlay) {
+			await showPrintPreview(
+				{
+					doctype: "Sales Invoice",
+					name: invoiceDoc.name,
+					print_format: formatName,
+				},
+				{
+					overlayId: "posa-silent-print-preview",
+					iframeId: "posa-silent-print-preview-frame",
+					html: html,
+				}
+			);
+		} else {
+			await openPrintDialogInHiddenIframe("", {
+				iframeId: "posa-silent-print-direct-frame",
+				html: html,
+				onError: async (error) => {
+					console.error("Unable to open offline direct print", error);
+				}
+			});
+		}
 	} catch (error) {
 		console.error("Offline print fallback failed", error);
 	}
@@ -417,17 +500,18 @@ export function silentPrint(payload, options = {}) {
 	const usePreviewOverlay =
 		!!printPayload.use_print_preview_overlay || !!options.use_print_preview_overlay;
 	const action = usePreviewOverlay
-		? printSilently(printPayload)
+		? printSilently(printPayload, options)
 		: openDirectPrintPreview(
-				{ ...printPayload, trigger_print: true },
-				{
-					buildURL: generatePrintURL,
-					iframeId: "posa-silent-print-direct-frame",
-				},
-			);
+			{ ...printPayload, trigger_print: true },
+			{
+				buildURL: generatePrintURL,
+				iframeId: "posa-silent-print-direct-frame",
+			},
+			options
+		);
 	Promise.resolve(action).catch(async (error) => {
 		console.error("Silent print failed, using offline fallback", error);
-		await fallbackToOffline(options?.invoiceDoc);
+		await fallbackToOffline(options?.invoiceDoc, usePreviewOverlay);
 	});
 }
 
@@ -436,16 +520,87 @@ export function multiSilentPrint(payload) {
 	const usePreviewOverlay = !!payload.use_print_preview_overlay;
 	const action = usePreviewOverlay
 		? showPrintPreview(payload, {
-				overlayId: "posa-payment-entry-multi-print-preview",
-				iframeId: "posa-payment-entry-multi-print-frame",
-				buildURL: generateMultiPrintURL,
-			})
+			overlayId: "posa-payment-entry-multi-print-preview",
+			iframeId: "posa-payment-entry-multi-print-frame",
+			buildURL: generateMultiPrintURL,
+		})
 		: openDirectPrintPreview(payload, {
-				buildURL: generateMultiPrintURL,
-				iframeId: "posa-payment-entry-multi-direct-frame",
-			});
+			buildURL: generateMultiPrintURL,
+			iframeId: "posa-payment-entry-multi-direct-frame",
+		});
 	Promise.resolve(action).catch((error) => {
 		console.error("Multi print failed", error);
 		frappe.msgprint(__("Unable to open print preview."));
 	});
+}
+export async function prefetchPrintTemplate(posProfile) {
+	if (!navigator.onLine || !posProfile) return;
+
+	const printFormat = posProfile.print_format_for_online || posProfile.print_format || "Standard";
+	const noLetterhead = posProfile.letter_head ? 0 : 1;
+
+	// Check if already cached
+	const cachedHtml = localStorage.getItem(`posa_print_template_html_${printFormat}`);
+	const cachedDoc = localStorage.getItem(`posa_print_template_doc_${printFormat}`);
+	if (cachedHtml && cachedDoc) {
+		console.log(`Print template for ${printFormat} is already cached.`);
+		return;
+	}
+
+	console.log(`Pre-fetching print template for format: ${printFormat}`);
+	try {
+		// 1. Get the latest submitted Sales Invoice
+		const response = await frappe.call({
+			method: "frappe.client.get_list",
+			args: {
+				doctype: "Sales Invoice",
+				filters: { docstatus: 1, company: posProfile.company },
+				fields: ["name"],
+				limit_page_length: 1,
+				order_by: "creation desc"
+			}
+		});
+
+		if (!response.message || !response.message.length) {
+			console.log("No submitted Sales Invoices found to use as print template.");
+			return;
+		}
+
+		const invoiceName = response.message[0].name;
+
+		// 2. Fetch the invoice document details
+		const docResponse = await frappe.call({
+			method: "frappe.client.get",
+			args: {
+				doctype: "Sales Invoice",
+				name: invoiceName
+			}
+		});
+
+		if (!docResponse.message) return;
+		const invoiceDoc = docResponse.message;
+
+		// 3. Fetch the rendered print HTML
+		const baseUrl = frappe.urllib.get_base_url();
+		const params = new URLSearchParams({
+			doctype: "Sales Invoice",
+			name: invoiceName,
+			format: printFormat,
+			no_letterhead: String(noLetterhead),
+			_: String(Date.now()),
+		});
+
+		const printViewUrl = `${baseUrl}/printview?${params.toString()}`;
+		const fetchResponse = await fetch(printViewUrl);
+		if (!fetchResponse.ok) throw new Error("Failed to fetch printview");
+
+		const printHtml = await fetchResponse.text();
+
+		// 4. Save to localStorage
+		localStorage.setItem(`posa_print_template_html_${printFormat}`, printHtml);
+		localStorage.setItem(`posa_print_template_doc_${printFormat}`, JSON.stringify(invoiceDoc));
+		console.log(`Successfully pre-fetched and cached print template for ${printFormat}`);
+	} catch (error) {
+		console.error("Failed to pre-fetch print template:", error);
+	}
 }
