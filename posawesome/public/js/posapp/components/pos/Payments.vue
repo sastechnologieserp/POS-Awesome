@@ -661,7 +661,7 @@ import {
 } from "../../../offline/index.js";
 
 import generateOfflineInvoiceHTML from "../../../offline_print_template";
-import { silentPrint } from "../../plugins/print.js";
+import { silentPrint, fallbackToOffline } from "../../plugins/print.js";
 
 export default {
 	// Using format mixin for shared formatting methods
@@ -1435,19 +1435,11 @@ export default {
 			console.log('POS Profile Name:', this.pos_profile?.name);
 			console.log('Company:', this.pos_profile?.company);
 			
-			// Test: Force use of POS Print format for testing
-			if (!this.pos_profile?.print_format) {
-				console.log('No print format found in POS Profile, using default format');
-			} else {
-				console.log('Print format found:', this.pos_profile.print_format);
-			}
+			const usePreviewOverlay = !!this.pos_profile?.posa_enable_print_preview_overlay;
 			
-			const html = generateOfflineInvoiceHTML(invoice, this.pos_profile);
-			const win = window.open("", "_blank");
-			win.document.write(html);
-			win.document.close();
-			win.focus();
-			win.print();
+			fallbackToOffline(invoice, usePreviewOverlay).catch((err) => {
+				console.error("Error in fallbackToOffline inside print_offline_invoice:", err);
+			});
 		},
 		// Validate due date (should not be in the past)
 		validate_due_date() {
