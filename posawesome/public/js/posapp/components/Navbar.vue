@@ -95,7 +95,10 @@
 							v-model="pettyCashData.amount"
 							:label="__('Amount')"
 							type="number"
-							:rules="[v => !!v || __('Amount is required'), v => v > 0 || __('Amount must be positive')]"
+							:rules="[
+								(v) => !!v || __('Amount is required'),
+								(v) => v > 0 || __('Amount must be positive'),
+							]"
 							required
 							prepend-icon="mdi-currency-usd"
 						></v-text-field>
@@ -103,7 +106,7 @@
 							v-model="pettyCashData.note"
 							:label="__('Note')"
 							rows="3"
-							:rules="[v => !!v || __('Note is required')]"
+							:rules="[(v) => !!v || __('Note is required')]"
 							required
 							prepend-icon="mdi-note-text"
 						></v-textarea>
@@ -134,7 +137,10 @@
 							v-model="pettyCashData.amount"
 							:label="__('Amount')"
 							type="number"
-							:rules="[v => !!v || __('Amount is required'), v => v > 0 || __('Amount must be positive')]"
+							:rules="[
+								(v) => !!v || __('Amount is required'),
+								(v) => v > 0 || __('Amount must be positive'),
+							]"
 							required
 							prepend-icon="mdi-currency-usd"
 						></v-text-field>
@@ -142,7 +148,7 @@
 							v-model="pettyCashData.note"
 							:label="__('Note')"
 							rows="3"
-							:rules="[v => !!v || __('Note is required')]"
+							:rules="[(v) => !!v || __('Note is required')]"
 							required
 							prepend-icon="mdi-note-text"
 						></v-textarea>
@@ -253,7 +259,7 @@ export default {
 				note: "",
 				entry_type: "",
 				pos_shift: "",
-				pos_profile: ""
+				pos_profile: "",
 			},
 			pettyCashSubmitting: false,
 			freeze: false,
@@ -275,17 +281,13 @@ export default {
 			const shortcuts = this.doctypeShortcuts;
 
 			if (shortcuts.length) {
-				const shortcutItem = {
-					text: this.translate("Doctype shortcuts"),
-					icon: "mdi-file-link-outline",
-					children: shortcuts.map((doctype) => ({
-						text: doctype,
-						icon: "mdi-file-document-outline",
-						url: this.getDoctypeRoute(doctype),
-					})),
-				};
+				const mappedShortcuts = shortcuts.map((doctype) => ({
+					text: this.translate(doctype),
+					icon: "mdi-file-plus-outline",
+					url: this.getNewDoctypeRoute(doctype),
+				}));
 				const paymentsIndex = items.findIndex((item) => item.text === "Payments");
-				items.splice(paymentsIndex === -1 ? items.length : paymentsIndex + 1, 0, shortcutItem);
+				items.splice(paymentsIndex === -1 ? items.length : paymentsIndex + 1, 0, ...mappedShortcuts);
 			}
 
 			return items;
@@ -303,11 +305,7 @@ export default {
 					}
 
 					return (
-						row?.link_doctype ||
-						row?.doctype_name ||
-						row?.document_type ||
-						row?.dt ||
-						row?.value
+						row?.link_doctype || row?.doctype_name || row?.document_type || row?.dt || row?.value
 					);
 				})
 				.filter(Boolean)
@@ -366,8 +364,13 @@ export default {
 		translate(text) {
 			return typeof __ === "function" ? __(text) : text;
 		},
-		getDoctypeRoute(doctype) {
-			return `/app/List/${encodeURIComponent(String(doctype).trim())}`;
+		getNewDoctypeRoute(doctype) {
+			const cleanDoctype = String(doctype).trim();
+			const slug =
+				typeof frappe !== "undefined" && frappe.router && typeof frappe.router.slug === "function"
+					? frappe.router.slug(cleanDoctype)
+					: cleanDoctype.toLowerCase().replace(/ /g, "-").replace(/_/g, "-");
+			return `/app/${slug}/new-${slug}`;
 		},
 		openCloseShift() {
 			this.$emit("close-shift");
@@ -379,28 +382,35 @@ export default {
 			try {
 				// Prevent multiple simultaneous cash drawer operations
 				if (this.cashDrawerOpening) {
-					this.showMessage({ title: this.__("Cash drawer is already opening..."), color: "warning" });
+					this.showMessage({
+						title: this.__("Cash drawer is already opening..."),
+						color: "warning",
+					});
 					return;
 				}
-				
+
 				this.cashDrawerOpening = true;
-				
+
 				const result = await frappe.call({
 					method: "posawesome.posawesome.api.invoices.open_cash_drawer",
 					args: {},
 				});
-				
+
 				if (result.message && result.message.success) {
 					// Show counter information
 					const counter = result.message.counter || 1;
-					this.showMessage({ 
-						title: this.__("Opening cash drawer... Counter: {0}", [counter]), 
-						color: "info" 
+					this.showMessage({
+						title: this.__("Opening cash drawer... Counter: {0}", [counter]),
+						color: "info",
 					});
-					
+
 					// Create a minimal print window for cash drawer with strict controls
-					const printWindow = window.open("", "_blank", "width=1,height=1,scrollbars=no,resizable=no,toolbar=no,menubar=no,location=no,status=no");
-					
+					const printWindow = window.open(
+						"",
+						"_blank",
+						"width=1,height=1,scrollbars=no,resizable=no,toolbar=no,menubar=no,location=no,status=no",
+					);
+
 					// Add additional safeguards to prevent long page issues
 					printWindow.document.write(`
 						<!DOCTYPE html>
@@ -429,16 +439,16 @@ export default {
 						</html>
 					`);
 					printWindow.document.close();
-					
+
 					// Wait for content to load, then print and close immediately
-					printWindow.addEventListener('load', () => {
+					printWindow.addEventListener("load", () => {
 						// Set a timeout to ensure content is fully rendered
 						setTimeout(() => {
 							try {
 								// Force focus and print
 								printWindow.focus();
 								printWindow.print();
-								
+
 								// Close the window after a very short delay
 								setTimeout(() => {
 									if (!printWindow.closed) {
@@ -453,22 +463,21 @@ export default {
 							}
 						}, 200);
 					});
-					
+
 					// Fallback: if load event doesn't fire, close after reasonable timeout
 					setTimeout(() => {
 						if (!printWindow.closed) {
 							printWindow.close();
 						}
 					}, 5000);
-					
+
 					// Success message with counter
 					setTimeout(() => {
-						this.showMessage({ 
-							title: this.__("Cash drawer opened successfully! Counter: {0}", [counter]), 
-							color: "success" 
+						this.showMessage({
+							title: this.__("Cash drawer opened successfully! Counter: {0}", [counter]),
+							color: "success",
 						});
 					}, 1000);
-					
 				} else {
 					this.showMessage({ title: this.__("Failed to open cash drawer"), color: "error" });
 				}
@@ -546,13 +555,13 @@ export default {
 				note: "",
 				entry_type: "",
 				pos_shift: "",
-				pos_profile: ""
+				pos_profile: "",
 			};
 			this.pettyCashSubmitting = false;
 		},
 		async submitPettyCashPayIn() {
 			if (!this.$refs.pettyCashPayInForm.validate()) return;
-			
+
 			this.pettyCashSubmitting = true;
 			try {
 				await this.createPettyCashEntry("Pay In");
@@ -573,7 +582,7 @@ export default {
 		},
 		async submitPettyCashPayOut() {
 			if (!this.$refs.pettyCashPayOutForm.validate()) return;
-			
+
 			this.pettyCashSubmitting = true;
 			try {
 				await this.createPettyCashEntry("Pay Out");
@@ -595,18 +604,18 @@ export default {
 		async createPettyCashEntry(entryType) {
 			// Get current POS opening shift and profile
 			const posData = await this.getCurrentPOSData();
-			
+
 			// Validate amount
 			const amount = parseFloat(this.pettyCashData.amount);
 			if (isNaN(amount) || amount <= 0) {
 				throw new Error("Amount must be a positive number");
 			}
-			
+
 			// Validate note
 			if (!this.pettyCashData.note || !this.pettyCashData.note.trim()) {
 				throw new Error("Note is required");
 			}
-			
+
 			const entryData = {
 				date: frappe.datetime.get_today(),
 				entry_type: entryType,
@@ -615,14 +624,14 @@ export default {
 				amount: amount,
 				note: this.pettyCashData.note.trim(),
 				opening_amount: posData.pos_opening_shift?.balance_details?.[0]?.opening_amount || 0,
-				closing_amount: posData.pos_opening_shift?.balance_details?.[0]?.closing_amount || 0
+				closing_amount: posData.pos_opening_shift?.balance_details?.[0]?.closing_amount || 0,
 			};
 
 			return new Promise((resolve, reject) => {
 				frappe.call({
 					method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.create_and_submit_petty_cash_entry",
 					args: {
-						entry_data: entryData
+						entry_data: entryData,
 					},
 					callback: (r) => {
 						if (r.exc) {
@@ -635,7 +644,7 @@ export default {
 					},
 					error: (err) => {
 						reject(err);
-					}
+					},
 				});
 			});
 		},
@@ -644,7 +653,7 @@ export default {
 				frappe.call({
 					method: "posawesome.posawesome.api.shifts.check_opening_shift",
 					args: {
-						user: frappe.session.user
+						user: frappe.session.user,
 					},
 					callback: (r) => {
 						if (r.exc) {
@@ -655,7 +664,7 @@ export default {
 					},
 					error: (err) => {
 						reject(err);
-					}
+					},
 				});
 			});
 		},
