@@ -1272,7 +1272,13 @@ export default {
 					vm.eventBus.emit("reset_posting_date");
 					vm.back_to_invoice();
 					resetLoading();
+					vm.eventBus.emit("refocus_item_search");
 				},
+				error: function (err) {
+					clearTimeout(loadingTimeout);
+					vm.loading = false;
+					console.error("Error submitting invoice:", err);
+				}
 			});
 		},
 		// Reset loading state - can be called from anywhere

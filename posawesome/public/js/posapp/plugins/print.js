@@ -1,5 +1,6 @@
 import renderOfflineInvoiceHTML from "../../offline_print_template";
 import { getOpeningStorage } from "../../offline/index.js";
+import { emitter } from "../bus.js";
 
 async function generatePrintURL({ doctype, name, print_format, no_letterhead, trigger_print }) {
 	const baseUrl = frappe.urllib.get_base_url();
@@ -379,6 +380,7 @@ async function showPrintPreview(
 	const cleanup = () => {
 		document.removeEventListener("keydown", closeOnEscape);
 		overlay.remove();
+		emitter.emit("refocus_item_search");
 	};
 	const closeOnEscape = (event) => {
 		if (event.key === "Escape") {
@@ -491,6 +493,8 @@ export async function fallbackToOffline(invoiceDoc, usePreviewOverlay = false) {
 		}
 	} catch (error) {
 		console.error("Offline print fallback failed", error);
+	} finally {
+		emitter.emit("refocus_item_search");
 	}
 }
 
@@ -509,10 +513,15 @@ export function silentPrint(payload, options = {}) {
 			},
 			options
 		);
-	Promise.resolve(action).catch(async (error) => {
-		console.error("Silent print failed, using offline fallback", error);
-		await fallbackToOffline(options?.invoiceDoc, usePreviewOverlay);
-	});
+	Promise.resolve(action)
+		.then(() => {
+			emitter.emit("refocus_item_search");
+		})
+		.catch(async (error) => {
+			console.error("Silent print failed, using offline fallback", error);
+			await fallbackToOffline(options?.invoiceDoc, usePreviewOverlay);
+			emitter.emit("refocus_item_search");
+		});
 }
 
 export function multiSilentPrint(payload) {
@@ -528,10 +537,15 @@ export function multiSilentPrint(payload) {
 			buildURL: generateMultiPrintURL,
 			iframeId: "posa-payment-entry-multi-direct-frame",
 		});
-	Promise.resolve(action).catch((error) => {
-		console.error("Multi print failed", error);
-		frappe.msgprint(__("Unable to open print preview."));
-	});
+	Promise.resolve(action)
+		.then(() => {
+			emitter.emit("refocus_item_search");
+		})
+		.catch((error) => {
+			console.error("Multi print failed", error);
+			frappe.msgprint(__("Unable to open print preview."));
+			emitter.emit("refocus_item_search");
+		});
 }
 export async function prefetchPrintTemplate(posProfile) {
 	if (!navigator.onLine || !posProfile) return;

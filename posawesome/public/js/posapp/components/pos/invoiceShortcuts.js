@@ -838,6 +838,7 @@ export default {
 				title: __("Printing invoice"),
 				color: "success",
 			});
+			this.eventBus.emit("refocus_item_search");
 		} catch (error) {
 			console.error("Error printing invoice:", error);
 			this.eventBus.emit("show_message", {
