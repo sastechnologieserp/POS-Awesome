@@ -701,7 +701,6 @@ export default {
 }
 
 .v-overlay.v-dialog {
-    z-index: 1000 !important;
+	z-index: 1000 !important;
 }
-
 </style>

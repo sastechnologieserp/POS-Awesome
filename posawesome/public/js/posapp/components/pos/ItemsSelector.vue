@@ -282,7 +282,12 @@
 			</div>
 		</v-card>
 		<v-card class="cards mb-0 mt-3 dynamic-padding resizable" style="resize: vertical; overflow: auto">
-			<v-row no-gutters align="center" justify="center" class="dynamic-spacing-sm selector-controls-row">
+			<v-row
+				no-gutters
+				align="center"
+				justify="center"
+				class="dynamic-spacing-sm selector-controls-row"
+			>
 				<v-col
 					:class="[
 						'mb-2',
@@ -300,7 +305,10 @@
 						v-model="item_group"
 					></v-select>
 				</v-col>
-				<v-col class="mb-2 selector-control-col-half" v-if="pos_profile.posa_enable_price_list_dropdown">
+				<v-col
+					class="mb-2 selector-control-col-half"
+					v-if="pos_profile.posa_enable_price_list_dropdown"
+				>
 					<v-select
 						:items="price_lists"
 						:label="frappe._('Price List')"
@@ -408,7 +416,7 @@ export default {
 		new_line: false,
 		qty: 1,
 		selected_price_list: null,
-    	price_lists: [],
+		price_lists: [],
 		refresh_interval: null,
 		currentRequest: null,
 		abortController: null,
@@ -998,7 +1006,7 @@ export default {
 			this.get_items(true);
 			this.eventBus.emit("price_list_changed", this.selected_price_list);
 		},
-		
+
 		getItemsHeaders() {
 			const items_headers = [
 				{
@@ -1121,7 +1129,13 @@ export default {
 				});
 				console.log("sending profile", this.pos_profile);
 				// Pass the active price list along with the profile
-				this.eventBus.emit("open_variants_model", item, variants, this.pos_profile, this.active_price_list);
+				this.eventBus.emit(
+					"open_variants_model",
+					item,
+					variants,
+					this.pos_profile,
+					this.active_price_list,
+				);
 			} else {
 				if (item.actual_qty === 0 && this.pos_profile.posa_display_items_in_stock) {
 					this.eventBus.emit("show_message", {
@@ -1258,11 +1272,12 @@ export default {
 
 			// --- SCALE BARCODE LOGIC ---
 			const scaleData = vm.parseScaleBarcode(vm.search);
-			
+
 			if (scaleData) {
-				const item = vm.items.find(it => it.item_code.endsWith(scaleData.item_code));
+				const item = vm.items.find((it) => it.item_code.endsWith(scaleData.item_code));
 				if (item) {
-					let qty = 1, rate = item.rate;
+					let qty = 1,
+						rate = item.rate;
 					if (vm.pos_profile.custom_barcode_type === "Weight Code") {
 						qty = scaleData.value / 1000;
 					} else if (vm.pos_profile.custom_barcode_type === "Item Price") {
@@ -1270,7 +1285,10 @@ export default {
 					}
 					const newItem = { ...item, qty, rate };
 					vm.add_item(newItem);
-					frappe.show_alert({ message: `Added: ${item.item_name} (${qty} / ${rate})`, indicator: "green" }, 3);
+					frappe.show_alert(
+						{ message: `Added: ${item.item_name} (${qty} / ${rate})`, indicator: "green" },
+						3,
+					);
 					vm.clearSearch();
 					vm.$refs.debounce_search && vm.$refs.debounce_search.focus();
 					vm.search_from_scanner = false;
@@ -1307,41 +1325,48 @@ export default {
 				vm.search_from_scanner = false;
 			}
 		},
-	get_item_qty(first_search) {
-		const qtyVal = this.qty != null ? this.qty : 1;
-		let scal_qty = Math.abs(qtyVal);
-		// Only apply scale barcode logic when first 2 codes are "21"
-		if (first_search.startsWith(this.pos_profile.posa_scale_barcode_start) && first_search.substr(0, 2) === "21") {
-			let pesokg1 = first_search.substr(7, 5);
-			let pesokg;
-			if (pesokg1.startsWith("0000")) {
-				pesokg = "0.00" + pesokg1.substr(4);
-			} else if (pesokg1.startsWith("000")) {
-				pesokg = "0.0" + pesokg1.substr(3);
-			} else if (pesokg1.startsWith("00")) {
-				pesokg = "0." + pesokg1.substr(2);
-			} else if (pesokg1.startsWith("0")) {
-				pesokg = pesokg1.substr(1, 1) + "." + pesokg1.substr(2, pesokg1.length);
-			} else if (!pesokg1.startsWith("0")) {
-				pesokg = pesokg1.substr(0, 2) + "." + pesokg1.substr(2, pesokg1.length);
+		get_item_qty(first_search) {
+			const qtyVal = this.qty != null ? this.qty : 1;
+			let scal_qty = Math.abs(qtyVal);
+			// Only apply scale barcode logic when first 2 codes are "21"
+			if (
+				first_search.startsWith(this.pos_profile.posa_scale_barcode_start) &&
+				first_search.substr(0, 2) === "21"
+			) {
+				let pesokg1 = first_search.substr(7, 5);
+				let pesokg;
+				if (pesokg1.startsWith("0000")) {
+					pesokg = "0.00" + pesokg1.substr(4);
+				} else if (pesokg1.startsWith("000")) {
+					pesokg = "0.0" + pesokg1.substr(3);
+				} else if (pesokg1.startsWith("00")) {
+					pesokg = "0." + pesokg1.substr(2);
+				} else if (pesokg1.startsWith("0")) {
+					pesokg = pesokg1.substr(1, 1) + "." + pesokg1.substr(2, pesokg1.length);
+				} else if (!pesokg1.startsWith("0")) {
+					pesokg = pesokg1.substr(0, 2) + "." + pesokg1.substr(2, pesokg1.length);
+				}
+				scal_qty = pesokg;
 			}
-			scal_qty = pesokg;
-		}
-		if (this.hide_qty_decimals) {
-			scal_qty = Math.trunc(scal_qty);
-		}
-		return scal_qty;
-	},
-	get_search(first_search) {
-		let search_term = "";
-		// Only apply scale barcode logic when first 2 codes are "21"
-		if (first_search && first_search.startsWith(this.pos_profile.posa_scale_barcode_start) && first_search.substr(0, 2) === "21") {
-			search_term = first_search.substr(0, 7);
-		} else {
-			search_term = first_search;
-		}
-		return search_term;
-	},
+			if (this.hide_qty_decimals) {
+				scal_qty = Math.trunc(scal_qty);
+			}
+			return scal_qty;
+		},
+		get_search(first_search) {
+			let search_term = "";
+			// Only apply scale barcode logic when first 2 codes are "21"
+			if (
+				first_search &&
+				first_search.startsWith(this.pos_profile.posa_scale_barcode_start) &&
+				first_search.substr(0, 2) === "21"
+			) {
+				search_term = first_search.substr(0, 7);
+			} else {
+				search_term = first_search;
+			}
+			return search_term;
+		},
 		toggleItemSearchFocus() {
 			this.$nextTick(() => {
 				const searchField = this.$refs.debounce_search;
@@ -1723,7 +1748,9 @@ export default {
 			return (this.pos_profile?.posa_search_result_type || "Contains").toLowerCase();
 		},
 		parseSearchTermGroups(term) {
-			const normalized = String(term || "").toLowerCase().trim();
+			const normalized = String(term || "")
+				.toLowerCase()
+				.trim();
 			if (!normalized) {
 				return [];
 			}
@@ -1835,38 +1862,42 @@ export default {
 				this.processScannedItem(scannedCode);
 			}, 300);
 		},
-	// Parse scale barcode: DDIIIIIWWWWC or DDIIIIIPPPPC
-	parseScaleBarcode(barcode) {
-		// Must be at least 12 chars (DDIIIIIWWWWC)
-		if (!barcode || barcode.length < 12) return null;
-		const dept = barcode.substr(0, 2);
-		// Only apply scale barcode logic when first 2 codes are "21"
-		if (dept !== "21") return null;
-		const itemCode = barcode.substr(2, 5);
-		const value = barcode.substr(7, 5); // 5 digits for weight/price
-		const typeChar = barcode.substr(11, 1); // C
-		return {
-			department: dept,
-			item_code: itemCode,
-			value: value,
-			typeChar: typeChar,
-		};
-	},
+		// Parse scale barcode: DDIIIIIWWWWC or DDIIIIIPPPPC
+		parseScaleBarcode(barcode) {
+			// Must be at least 12 chars (DDIIIIIWWWWC)
+			if (!barcode || barcode.length < 12) return null;
+			const dept = barcode.substr(0, 2);
+			// Only apply scale barcode logic when first 2 codes are "21"
+			if (dept !== "21") return null;
+			const itemCode = barcode.substr(2, 5);
+			const value = barcode.substr(7, 5); // 5 digits for weight/price
+			const typeChar = barcode.substr(11, 1); // C
+			return {
+				department: dept,
+				item_code: itemCode,
+				value: value,
+				typeChar: typeChar,
+			};
+		},
 
 		async processScannedItem(scannedCode) {
 			const scaleData = this.parseScaleBarcode(scannedCode);
 			if (scaleData) {
-				const item = this.items.find(it => it.item_code.endsWith(scaleData.item_code));
+				const item = this.items.find((it) => it.item_code.endsWith(scaleData.item_code));
 				if (item) {
-					let qty = 1, rate = item.rate;
-				if (this.pos_profile.custom_barcode_type === "Weight Code") {
-					qty = parseFloat(scaleData.value) / 1000;
-				} else if (this.pos_profile.custom_barcode_type === "Item Price") {
-					rate = parseFloat(scaleData.value) / 100;
-				}
+					let qty = 1,
+						rate = item.rate;
+					if (this.pos_profile.custom_barcode_type === "Weight Code") {
+						qty = parseFloat(scaleData.value) / 1000;
+					} else if (this.pos_profile.custom_barcode_type === "Item Price") {
+						rate = parseFloat(scaleData.value) / 100;
+					}
 					const newItem = { ...item, qty, rate };
 					await this.add_item(newItem);
-					frappe.show_alert({ message: `Added: ${item.item_name} (${qty} / ${rate})`, indicator: "green" }, 3);
+					frappe.show_alert(
+						{ message: `Added: ${item.item_name} (${qty} / ${rate})`, indicator: "green" },
+						3,
+					);
 					this.clearSearch();
 					this.$refs.debounce_search && this.$refs.debounce_search.focus();
 					return;
@@ -2234,7 +2265,11 @@ export default {
 			return this.$theme.current === "dark";
 		},
 		active_price_list() {
-			return this.customer_price_list || this.selected_price_list || (this.pos_profile && this.pos_profile.selling_price_list);
+			return (
+				this.customer_price_list ||
+				this.selected_price_list ||
+				(this.pos_profile && this.pos_profile.selling_price_list)
+			);
 		},
 	},
 
@@ -2343,7 +2378,7 @@ export default {
 		this.scan_barcoud();
 		// grid layout adjusts automatically with CSS, set items per page based on device size
 		this.adjustItemsPerPage(this.windowWidth, this.windowHeight);
-		
+
 		// Listen for refocus event after item is added
 		this.eventBus.on("refocus_item_search", () => {
 			this.$nextTick(() => {

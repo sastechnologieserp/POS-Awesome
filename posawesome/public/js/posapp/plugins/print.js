@@ -107,7 +107,14 @@ function updateFormatSelect(select, formats, selectedFormat) {
 
 async function openPrintDialogInHiddenIframe(
 	url,
-	{ iframeId = `posa-print-frame-${Date.now()}`, cleanupDelay = 60000, onError, invoiceDoc, printPayload, html } = {},
+	{
+		iframeId = `posa-print-frame-${Date.now()}`,
+		cleanupDelay = 60000,
+		onError,
+		invoiceDoc,
+		printPayload,
+		html,
+	} = {},
 ) {
 	const existingFrame = document.getElementById(iframeId);
 	if (existingFrame) {
@@ -141,7 +148,10 @@ async function openPrintDialogInHiddenIframe(
 						const printHtml = win.document.documentElement.innerHTML;
 						const formatName = printPayload.print_format || "Standard";
 						localStorage.setItem(`posa_print_template_html_${formatName}`, printHtml);
-						localStorage.setItem(`posa_print_template_doc_${formatName}`, JSON.stringify(invoiceDoc));
+						localStorage.setItem(
+							`posa_print_template_doc_${formatName}`,
+							JSON.stringify(invoiceDoc),
+						);
 						console.log(`Cached print format template for: ${formatName}`);
 					} catch (e) {
 						console.warn("Failed to cache print format HTML from iframe:", e);
@@ -337,7 +347,10 @@ async function showPrintPreview(
 					if (win) {
 						const printHtml = win.document.documentElement.innerHTML;
 						localStorage.setItem(`posa_print_template_html_${printFormat}`, printHtml);
-						localStorage.setItem(`posa_print_template_doc_${printFormat}`, JSON.stringify(invoiceDoc));
+						localStorage.setItem(
+							`posa_print_template_doc_${printFormat}`,
+							JSON.stringify(invoiceDoc),
+						);
 						console.log(`Cached print format template from preview for: ${printFormat}`);
 					}
 				} catch (e) {
@@ -428,14 +441,11 @@ async function showPrintPreview(
 }
 
 async function printSilently(payload, options = {}) {
-	await showPrintPreview(
-		payload,
-		{
-			overlayId: "posa-silent-print-preview",
-			iframeId: "posa-silent-print-preview-frame",
-			invoiceDoc: options.invoiceDoc,
-		},
-	);
+	await showPrintPreview(payload, {
+		overlayId: "posa-silent-print-preview",
+		iframeId: "posa-silent-print-preview-frame",
+		invoiceDoc: options.invoiceDoc,
+	});
 }
 
 async function openDirectPrintPreview(payload, { buildURL, iframeId }, options = {}) {
@@ -480,7 +490,7 @@ export async function fallbackToOffline(invoiceDoc, usePreviewOverlay = false) {
 					overlayId: "posa-silent-print-preview",
 					iframeId: "posa-silent-print-preview-frame",
 					html: html,
-				}
+				},
 			);
 		} else {
 			await openPrintDialogInHiddenIframe("", {
@@ -488,7 +498,7 @@ export async function fallbackToOffline(invoiceDoc, usePreviewOverlay = false) {
 				html: html,
 				onError: async (error) => {
 					console.error("Unable to open offline direct print", error);
-				}
+				},
 			});
 		}
 	} catch (error) {
@@ -501,18 +511,17 @@ export async function fallbackToOffline(invoiceDoc, usePreviewOverlay = false) {
 export function silentPrint(payload, options = {}) {
 	const printPayload = normalizePrintPayload(payload);
 	if (!printPayload) return;
-	const usePreviewOverlay =
-		!!printPayload.use_print_preview_overlay || !!options.use_print_preview_overlay;
+	const usePreviewOverlay = !!printPayload.use_print_preview_overlay || !!options.use_print_preview_overlay;
 	const action = usePreviewOverlay
 		? printSilently(printPayload, options)
 		: openDirectPrintPreview(
-			{ ...printPayload, trigger_print: true },
-			{
-				buildURL: generatePrintURL,
-				iframeId: "posa-silent-print-direct-frame",
-			},
-			options
-		);
+				{ ...printPayload, trigger_print: true },
+				{
+					buildURL: generatePrintURL,
+					iframeId: "posa-silent-print-direct-frame",
+				},
+				options,
+			);
 	Promise.resolve(action)
 		.then(() => {
 			emitter.emit("refocus_item_search");
@@ -529,14 +538,14 @@ export function multiSilentPrint(payload) {
 	const usePreviewOverlay = !!payload.use_print_preview_overlay;
 	const action = usePreviewOverlay
 		? showPrintPreview(payload, {
-			overlayId: "posa-payment-entry-multi-print-preview",
-			iframeId: "posa-payment-entry-multi-print-frame",
-			buildURL: generateMultiPrintURL,
-		})
+				overlayId: "posa-payment-entry-multi-print-preview",
+				iframeId: "posa-payment-entry-multi-print-frame",
+				buildURL: generateMultiPrintURL,
+			})
 		: openDirectPrintPreview(payload, {
-			buildURL: generateMultiPrintURL,
-			iframeId: "posa-payment-entry-multi-direct-frame",
-		});
+				buildURL: generateMultiPrintURL,
+				iframeId: "posa-payment-entry-multi-direct-frame",
+			});
 	Promise.resolve(action)
 		.then(() => {
 			emitter.emit("refocus_item_search");
@@ -571,8 +580,8 @@ export async function prefetchPrintTemplate(posProfile) {
 				filters: { docstatus: 1, company: posProfile.company },
 				fields: ["name"],
 				limit_page_length: 1,
-				order_by: "creation desc"
-			}
+				order_by: "creation desc",
+			},
 		});
 
 		if (!response.message || !response.message.length) {
@@ -587,8 +596,8 @@ export async function prefetchPrintTemplate(posProfile) {
 			method: "frappe.client.get",
 			args: {
 				doctype: "Sales Invoice",
-				name: invoiceName
-			}
+				name: invoiceName,
+			},
 		});
 
 		if (!docResponse.message) return;

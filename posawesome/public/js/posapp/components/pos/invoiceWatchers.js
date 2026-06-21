@@ -147,17 +147,19 @@ export default {
 
 		// Then fetch fresh prices from server for all cart items
 		try {
-			const itemCodes = [...new Set(this.items.map(item => item.item_code))];
+			const itemCodes = [...new Set(this.items.map((item) => item.item_code))];
 			const response = await frappe.call({
 				method: "posawesome.posawesome.api.items.get_items_details",
 				args: {
 					pos_profile: JSON.stringify(this.pos_profile),
-					items_data: JSON.stringify(this.items.map(item => ({
-						item_code: item.item_code,
-						posa_row_id: item.posa_row_id,
-						uom: item.uom,
-						qty: item.qty
-					}))),
+					items_data: JSON.stringify(
+						this.items.map((item) => ({
+							item_code: item.item_code,
+							posa_row_id: item.posa_row_id,
+							uom: item.uom,
+							qty: item.qty,
+						})),
+					),
 					price_list: price_list,
 				},
 			});
@@ -165,7 +167,7 @@ export default {
 			if (response && response.message) {
 				this.items.forEach((item) => {
 					const updated = response.message.find(
-						(el) => el.item_code === item.item_code && el.posa_row_id === item.posa_row_id
+						(el) => el.item_code === item.item_code && el.posa_row_id === item.posa_row_id,
 					);
 
 					if (updated) {
@@ -197,7 +199,7 @@ export default {
 			// If server call fails, at least we have the cached prices applied
 		}
 	},
-	
+
 	// Reactively update item prices when currency changes
 	selected_currency() {
 		clearPriceListCache();

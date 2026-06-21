@@ -94,11 +94,13 @@ export default {
 				this.eventBus.emit("network-online");
 				this.handleSyncInvoices();
 				if (this.posProfile && this.posProfile.name) {
-					import("./plugins/print.js").then(({ prefetchPrintTemplate }) => {
-						prefetchPrintTemplate(this.posProfile).catch((err) => {
-							console.warn("Failed to prefetch print template on network recovery", err);
-						});
-					}).catch(() => {});
+					import("./plugins/print.js")
+						.then(({ prefetchPrintTemplate }) => {
+							prefetchPrintTemplate(this.posProfile).catch((err) => {
+								console.warn("Failed to prefetch print template on network recovery", err);
+							});
+						})
+						.catch(() => {});
 				}
 			}
 		},

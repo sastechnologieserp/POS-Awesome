@@ -1,5 +1,10 @@
 <template>
-	<v-row align="center" justify="space-between" class="items px-3 py-2 mt-0" v-if="showPostingDate || showCustomerBalance">
+	<v-row
+		align="center"
+		justify="space-between"
+		class="items px-3 py-2 mt-0"
+		v-if="showPostingDate || showCustomerBalance"
+	>
 		<v-col v-if="showPostingDate" cols="12" :sm="showCustomerBalance ? 4 : 12" class="pb-2">
 			<VueDatePicker
 				v-model="internal_posting_date_display"

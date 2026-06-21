@@ -1,20 +1,19 @@
 /* Numeric keypad used in invoice dialogs */
 .numeric-keypad {
-  display: grid;
-  gap: 6px;
+	display: grid;
+	gap: 6px;
 }
 .numeric-keypad .keypad-row {
-  display: flex;
-  gap: 6px;
+	display: flex;
+	gap: 6px;
 }
 .numeric-keypad .key {
-    flex: 1;
-    font-size: 18px;
+	flex: 1;
+	font-size: 18px;
 }
 /* .numeric-keypad .key:hover { background: #eee; } */
 .numeric-keypad .key.clear {
-  background: #ffdddd;
-  border-color: #ffb3b3;
-  color: #900;
+	background: #ffdddd;
+	border-color: #ffb3b3;
+	color: #900;
 }
-

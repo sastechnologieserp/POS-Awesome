@@ -33,24 +33,14 @@
 		<slot name="cache-usage-meter"></slot>
 
 		<!-- Petty Cash Buttons -->
-		<v-btn
-			icon
-			color="success"
-			class="mx-1 petty-cash-btn"
-			@click="$emit('show-petty-cash-pay-in')"
-		>
+		<v-btn icon color="success" class="mx-1 petty-cash-btn" @click="$emit('show-petty-cash-pay-in')">
 			<v-icon>mdi-cash-plus</v-icon>
 			<v-tooltip activator="parent" location="bottom">
 				{{ __("Pay In") }}
 			</v-tooltip>
 		</v-btn>
 
-		<v-btn
-			icon
-			color="warning"
-			class="mx-1 petty-cash-btn"
-			@click="$emit('show-petty-cash-pay-out')"
-		>
+		<v-btn icon color="warning" class="mx-1 petty-cash-btn" @click="$emit('show-petty-cash-pay-out')">
 			<v-icon>mdi-cash-minus</v-icon>
 			<v-tooltip activator="parent" location="bottom">
 				{{ __("Pay Out") }}
@@ -58,12 +48,7 @@
 		</v-btn>
 
 		<!-- Open Cash Drawer Button -->
-		<v-btn
-			icon
-			color="primary"
-			class="mx-1 petty-cash-btn"
-			@click="$emit('open-cash-drawer')"
-		>
+		<v-btn icon color="primary" class="mx-1 petty-cash-btn" @click="$emit('open-cash-drawer')">
 			<v-icon>mdi-cash-register</v-icon>
 			<v-tooltip activator="parent" location="bottom">
 				{{ __("Open Cash Drawer") }}
@@ -135,7 +120,14 @@ export default {
 			return "User";
 		},
 	},
-	emits: ["nav-click", "go-desk", "show-offline-invoices", "show-petty-cash-pay-in", "show-petty-cash-pay-out", "open-cash-drawer"],
+	emits: [
+		"nav-click",
+		"go-desk",
+		"show-offline-invoices",
+		"show-petty-cash-pay-in",
+		"show-petty-cash-pay-out",
+		"open-cash-drawer",
+	],
 };
 </script>
 
