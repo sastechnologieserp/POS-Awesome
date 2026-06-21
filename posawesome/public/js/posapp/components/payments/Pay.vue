@@ -1056,9 +1056,7 @@ export default {
 
 			await this.hydrate_payment_method_types();
 
-			const bankPayments = paymentMethods.filter((payment) =>
-				this.is_bank_payment_method(payment),
-			);
+			const bankPayments = paymentMethods.filter((payment) => this.is_bank_payment_method(payment));
 
 			for (const bankPayment of bankPayments) {
 				if (!bankPayment.reference_no) {

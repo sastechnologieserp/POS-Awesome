@@ -75,6 +75,25 @@ def update_sales_order(data):
 		so_doc = frappe.get_doc("Sales Order", data.get("name"))
 		so_doc.update(data)
 	else:
+		if isinstance(data, dict):
+			if not data.get("doctype"):
+				data["doctype"] = "Sales Order"
+			if not data.get("company"):
+				if data.get("pos_profile"):
+					data["company"] = frappe.db.get_value("POS Profile", data.get("pos_profile"), "company")
+				if not data.get("company"):
+					active_shift_company = frappe.db.sql(
+						"""
+						SELECT company FROM `tabPOS Opening Entry` 
+						WHERE user = %s AND status = 'Open' and docstatus = 1
+						LIMIT 1
+						""",
+						frappe.session.user,
+					)
+					if active_shift_company:
+						data["company"] = active_shift_company[0][0]
+				if not data.get("company"):
+					data["company"] = frappe.defaults.get_user_default("company") or frappe.db.get_default("company")
 		so_doc = frappe.get_doc(data)
 
 	so_doc.flags.ignore_permissions = True
@@ -128,6 +147,25 @@ def submit_sales_order(order):
 		so_doc = frappe.get_doc("Sales Order", order.get("name"))
 		so_doc.update(order)
 	else:
+		if isinstance(order, dict):
+			if not order.get("doctype"):
+				order["doctype"] = "Sales Order"
+			if not order.get("company"):
+				if order.get("pos_profile"):
+					order["company"] = frappe.db.get_value("POS Profile", order.get("pos_profile"), "company")
+				if not order.get("company"):
+					active_shift_company = frappe.db.sql(
+						"""
+						SELECT company FROM `tabPOS Opening Entry` 
+						WHERE user = %s AND status = 'Open' and docstatus = 1
+						LIMIT 1
+						""",
+						frappe.session.user,
+					)
+					if active_shift_company:
+						order["company"] = active_shift_company[0][0]
+				if not order.get("company"):
+					order["company"] = frappe.defaults.get_user_default("company") or frappe.db.get_default("company")
 		so_doc = frappe.get_doc(order)
 
 	payments = order.get("payments")

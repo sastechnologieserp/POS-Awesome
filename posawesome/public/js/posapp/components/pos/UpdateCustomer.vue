@@ -64,15 +64,17 @@
 								></v-select>
 							</v-col>
 							<v-col cols="12">
-								<div 
-									class="d-flex align-center" 
+								<div
+									class="d-flex align-center"
 									@click="show_other_details = !show_other_details"
-									style="cursor: pointer;"
+									style="cursor: pointer"
 								>
 									<div class="text-subtitle-1 text-primary">{{ __("Other Details") }}</div>
 									<v-spacer></v-spacer>
 									<v-btn icon variant="text" density="compact" color="primary">
-										<v-icon :icon="show_other_details ? 'mdi-chevron-up' : 'mdi-chevron-down'"></v-icon>
+										<v-icon
+											:icon="show_other_details ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+										></v-icon>
 									</v-btn>
 								</div>
 							</v-col>

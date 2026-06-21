@@ -3,6 +3,7 @@ export default {
 		return {
 			float_precision: 2,
 			currency_precision: 2,
+			posa_qty_has_decimal: false,
 		};
 	},
 	methods: {
@@ -42,6 +43,14 @@ export default {
 			if (!Number.isInteger(prec) || prec < 0 || prec > 20) {
 				prec = Math.min(Math.max(parseInt(prec) || 2, 0), 20);
 			}
+
+			if (this.posa_qty_has_decimal) {
+				return number.toLocaleString("en-US", {
+					minimumFractionDigits: 0,
+					maximumFractionDigits: prec,
+				});
+			}
+
 			return number.toLocaleString("en-US", {
 				minimumFractionDigits: prec,
 				maximumFractionDigits: prec,
@@ -97,7 +106,10 @@ export default {
 
 		// Load saved precision from localStorage for offline usage
 		try {
-			const saved = typeof localStorage !== "undefined" ? localStorage.getItem("posawesome_currency_precision") : null;
+			const saved =
+				typeof localStorage !== "undefined"
+					? localStorage.getItem("posawesome_currency_precision")
+					: null;
 			const savedPrec = saved != null ? parseInt(saved) : NaN;
 			console.log("format.js - loading precision from localStorage:", saved, "parsed as:", savedPrec);
 			if (!isNaN(savedPrec)) {
@@ -109,6 +121,16 @@ export default {
 			// ignore localStorage errors
 			console.log("format.js - localStorage error:", e);
 		}
+
+		try {
+			const savedQtyDec =
+				typeof localStorage !== "undefined"
+					? localStorage.getItem("posawesome_qty_has_decimal")
+					: null;
+			if (savedQtyDec !== null) {
+				this.posa_qty_has_decimal = savedQtyDec === "1";
+			}
+		} catch (e) {}
 
 		const updatePrecision = (data) => {
 			const profile = data.pos_profile || data;
@@ -124,6 +146,18 @@ export default {
 				} catch (e) {
 					// ignore localStorage errors
 				}
+			}
+
+			if (profile && profile.posa_qty_has_decimal !== undefined) {
+				this.posa_qty_has_decimal = !!profile.posa_qty_has_decimal;
+				try {
+					if (typeof localStorage !== "undefined") {
+						localStorage.setItem(
+							"posawesome_qty_has_decimal",
+							String(this.posa_qty_has_decimal ? 1 : 0),
+						);
+					}
+				} catch (e) {}
 			}
 		};
 

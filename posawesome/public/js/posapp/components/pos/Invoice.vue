@@ -175,7 +175,6 @@
 			@cancel-sale="cancel_dialog = true"
 			@open-returns="open_returns"
 			@print-draft="handlePrintDraftAction"
-
 			@show-payment="handleShowPaymentAction"
 		/>
 	</div>
@@ -501,8 +500,7 @@ export default {
 			this.items_headers = this.available_columns
 				.filter(
 					(col) =>
-						col.in_table !== false &&
-						(this.selected_columns.includes(col.key) || col.required),
+						col.in_table !== false && (this.selected_columns.includes(col.key) || col.required),
 				)
 				.map((col) => ({ ...col, sortable: false }));
 		},
@@ -989,10 +987,10 @@ export default {
 			this.update_item_rates();
 		},
 
-				// Add new rounding function
+		// Add new rounding function
 		roundAmount(amount) {
 			console.log("roundAmount called with:", amount, "precision:", this.currency_precision);
-			
+
 			// Respect POS Profile setting to disable rounding
 			if (this.pos_profile.disable_rounded_total) {
 				// Use configured precision without applying rounding
@@ -1000,7 +998,7 @@ export default {
 				console.log("roundAmount (disabled):", result);
 				return result;
 			}
-			
+
 			// For precision 3, round to nearest 0.005 increment
 			if (this.currency_precision === 3) {
 				// Round to nearest 0.005 (200 increments per unit)
@@ -1011,31 +1009,31 @@ export default {
 				console.log("roundAmount (precision 3):", amount, "->", roundedAmount, "->", result);
 				return result;
 			}
-			
+
 			// For other precisions, round to the nearest smallest currency unit
 			// For most currencies, this is 0.01 (2 decimal places)
 			let smallestUnit = 0.01; // Default to 2 decimal places
-			
+
 			// Check if we're dealing with KWD (Kuwaiti Dinar) which uses 3 decimal places
-			if (this.pos_profile.currency === 'KWD' || this.selected_currency === 'KWD') {
+			if (this.pos_profile.currency === "KWD" || this.selected_currency === "KWD") {
 				smallestUnit = 0.001;
 			}
 			// Check if we're dealing with currencies that use 3 decimal places
 			else if (this.currency_precision >= 3) {
 				smallestUnit = 0.01; // Use 0.01 (cent) rounding for 3+ decimal currencies
 			}
-			
+
 			// Special handling for KWD: round to nearest 0.001
-			if (this.pos_profile.currency === 'KWD' || this.selected_currency === 'KWD') {
+			if (this.pos_profile.currency === "KWD" || this.selected_currency === "KWD") {
 				// For KWD, round to 3 decimal places
 				const roundedAmount = Math.round(amount * 1000) / 1000;
 				return this.flt(roundedAmount, 3);
 			}
-			
+
 			// Round to the nearest smallest currency unit
 			const multiplier = 1 / smallestUnit;
 			const roundedAmount = Math.round(amount * multiplier) / multiplier;
-			
+
 			return this.flt(roundedAmount, this.currency_precision);
 		},
 
@@ -1231,7 +1229,7 @@ export default {
 		this.eventBus.on("reset_posting_date", () => {
 			this.posting_date = frappe.datetime.nowdate();
 		});
-               this.eventBus.on("calc_uom", this.calc_uom);
+		this.eventBus.on("calc_uom", this.calc_uom);
 		this.eventBus.on("item-drag-start", (item) => {
 			this.showDropFeedback(true);
 		});

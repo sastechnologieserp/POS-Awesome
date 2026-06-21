@@ -681,6 +681,49 @@ def update_invoice(data):
 		invoice_doc = frappe.get_doc("Sales Invoice", data.get("name"))
 		invoice_doc.update(data)
 	else:
+		if isinstance(data, dict):
+			if not data.get("doctype"):
+				data["doctype"] = "Sales Invoice"
+			if not data.get("pos_profile"):
+				active_shift_profile = frappe.db.sql(
+					"""
+					SELECT pos_profile FROM `tabPOS Opening Entry` 
+					WHERE user = %s AND status = 'Open' and docstatus = 1
+					LIMIT 1
+					""",
+					frappe.session.user,
+				)
+				if active_shift_profile:
+					data["pos_profile"] = active_shift_profile[0][0]
+			if not data.get("company"):
+				if data.get("pos_profile"):
+					data["company"] = frappe.db.get_value("POS Profile", data.get("pos_profile"), "company")
+				if not data.get("company"):
+					active_shift_company = frappe.db.sql(
+						"""
+						SELECT company FROM `tabPOS Opening Entry` 
+						WHERE user = %s AND status = 'Open' and docstatus = 1
+						LIMIT 1
+						""",
+						frappe.session.user,
+					)
+					if active_shift_company:
+						data["company"] = active_shift_company[0][0]
+				if not data.get("company"):
+					data["company"] = frappe.defaults.get_user_default("company") or frappe.db.get_default("company")
+			if not data.get("customer") and data.get("pos_profile"):
+				data["customer"] = frappe.db.get_value("POS Profile", data.get("pos_profile"), "customer")
+			if not data.get("posa_pos_opening_shift"):
+				active_shift = frappe.db.sql(
+					"""
+					SELECT name FROM `tabPOS Opening Entry` 
+					WHERE user = %s AND status = 'Open' and docstatus = 1
+					LIMIT 1
+					""",
+					frappe.session.user,
+				)
+				if active_shift:
+					data["posa_pos_opening_shift"] = active_shift[0][0]
 		invoice_doc = frappe.get_doc(data)
 
 	# Set currency from data before set_missing_values

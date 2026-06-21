@@ -111,7 +111,10 @@ export default {
 		this.$forceUpdate();
 
 		// Keep existing expanded logic and refocus search
-		if (new_item && ((!this.pos_profile.posa_auto_set_batch && new_item.has_batch_no) || new_item.has_serial_no)) {
+		if (
+			new_item &&
+			((!this.pos_profile.posa_auto_set_batch && new_item.has_batch_no) || new_item.has_serial_no)
+		) {
 			this.expanded = [new_item.posa_row_id];
 		}
 
@@ -127,7 +130,6 @@ export default {
 				this.editQuantity(item_to_edit);
 			}
 		});
-
 	},
 
 	// Create a new item object with default and calculated fields

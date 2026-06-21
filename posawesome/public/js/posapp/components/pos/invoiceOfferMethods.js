@@ -575,8 +575,8 @@ export default {
 		new_item.posa_offers = JSON.stringify([]);
 		new_item.posa_offer_applied =
 			offer.discount_type === "Rate" ||
-				offer.discount_type === "Discount Amount" ||
-				offer.discount_type === "Discount Percentage"
+			offer.discount_type === "Discount Amount" ||
+			offer.discount_type === "Discount Percentage"
 				? 1
 				: 0;
 		new_item.posa_is_offer = 1;

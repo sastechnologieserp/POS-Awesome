@@ -1,4 +1,4 @@
-	<template>
+<template>
 	<div ref="posRoot" class="pos-main-container dynamic-container" :style="responsiveStyles">
 		<ClosingDialog></ClosingDialog>
 		<Drafts></Drafts>
@@ -170,9 +170,9 @@ export default {
 								currency: data.pos_profile.currency,
 								disable_rounded_total: data.pos_profile.disable_rounded_total,
 								posa_decimal_precision: data.pos_profile.posa_decimal_precision,
-								print_format: data.pos_profile.print_format
+								print_format: data.pos_profile.print_format,
 							});
-							
+
 							this.pos_profile = data.pos_profile;
 							this.pos_opening_shift = data.pos_opening_shift;
 							this.get_offers(this.pos_profile.name);
@@ -198,9 +198,9 @@ export default {
 							currency: data.pos_profile.currency,
 							disable_rounded_total: data.pos_profile.disable_rounded_total,
 							posa_decimal_precision: data.pos_profile.posa_decimal_precision,
-							print_format: data.pos_profile.print_format
+							print_format: data.pos_profile.print_format,
 						});
-						
+
 						this.pos_profile = data.pos_profile;
 						this.pos_opening_shift = data.pos_opening_shift;
 						this.get_offers(this.pos_profile.name);
@@ -276,10 +276,10 @@ export default {
 							title: `POS Shift Closed`,
 							color: "success",
 						});
-						
+
 						// Auto-print the cashier shift report
 						this.print_cashier_shift_report(r.message);
-						
+
 						this.check_opening_entry();
 					} else {
 						this.eventBus.emit("closing_shift_submit_error");
@@ -329,33 +329,37 @@ export default {
 					});
 				});
 		},
-		
+
 		print_cashier_shift_report(closing_shift_name) {
 			// Get the HTML content directly from backend
 			frappe.call({
 				method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.direct_print_cashier_shift_report",
 				args: {
-					closing_shift_name: closing_shift_name
+					closing_shift_name: closing_shift_name,
 				},
 				callback: (r) => {
 					if (r.message) {
 						const html_content = r.message;
-						
+
 						// Create a new window with the HTML content
-						const printWindow = window.open('', '_blank', 'width=' + screen.width + ',height=' + screen.height);
+						const printWindow = window.open(
+							"",
+							"_blank",
+							"width=" + screen.width + ",height=" + screen.height,
+						);
 						printWindow.document.open();
 						printWindow.document.write(html_content);
-						printWindow.document.close();	// Wait for content to load then print
-						printWindow.onload = function() {
+						printWindow.document.close(); // Wait for content to load then print
+						printWindow.onload = function () {
 							printWindow.print();
 						};
-						
+
 						// Fallback if onload doesn't work
 						setTimeout(() => {
 							printWindow.print();
 						}, 1000);
 					}
-				}
+				},
 			});
 		},
 		get_offers(pos_profile) {
@@ -423,9 +427,11 @@ export default {
 				});
 
 				// Keep header controls out of tab flow.
-				root.querySelectorAll("thead button, th button, [role='columnheader'] button").forEach((el) => {
-					el.setAttribute("tabindex", "-1");
-				});
+				root.querySelectorAll("thead button, th button, [role='columnheader'] button").forEach(
+					(el) => {
+						el.setAttribute("tabindex", "-1");
+					},
+				);
 
 				const interactiveSelectors = [
 					"table input",
@@ -587,20 +593,20 @@ export default {
 			this.eventBus.on("submit_closing_pos", (data) => {
 				this.submit_closing_pos(data);
 			});
-				this.eventBus.on("print_last_closing_shift", (pos_profile) => {
-					this.print_last_closing_shift(pos_profile);
-				});
+			this.eventBus.on("print_last_closing_shift", (pos_profile) => {
+				this.print_last_closing_shift(pos_profile);
+			});
 			this.sanitizeGlobalTableTabStops();
 			this.startTableFocusObserver();
-				this.globalEscapeHandler = this.handleGlobalEscape.bind(this);
-				window.addEventListener("keydown", this.globalEscapeHandler);
+			this.globalEscapeHandler = this.handleGlobalEscape.bind(this);
+			window.addEventListener("keydown", this.globalEscapeHandler);
 		});
 	},
 	beforeUnmount() {
-			if (this.globalEscapeHandler) {
-				window.removeEventListener("keydown", this.globalEscapeHandler);
-				this.globalEscapeHandler = null;
-			}
+		if (this.globalEscapeHandler) {
+			window.removeEventListener("keydown", this.globalEscapeHandler);
+			this.globalEscapeHandler = null;
+		}
 
 		this.stopTableFocusObserver();
 		this.eventBus.off("close_opening_dialog");

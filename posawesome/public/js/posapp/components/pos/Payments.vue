@@ -186,8 +186,6 @@
 					</v-col>
 				</v-row>
 
-
-
 				<v-divider></v-divider>
 
 				<v-row class="pa-1">
@@ -423,8 +421,8 @@
 						></v-switch>
 					</v-col>
 					<v-col cols="6" v-if="!invoice_doc.is_return">
-						<v-switch 
-							v-model="is_credit_sale" 
+						<v-switch
+							v-model="is_credit_sale"
 							:label="frappe._('Credit Sale?')"
 							color="primary"
 							class="my-0 pa-1"
@@ -433,17 +431,22 @@
 							<template v-slot:label>
 								<div class="d-flex align-center">
 									<v-icon class="mr-2" color="primary">mdi-credit-card-outline</v-icon>
-									<span class="text-body-2 font-weight-medium">{{ frappe._('Credit Sale?') }}</span>
+									<span class="text-body-2 font-weight-medium">{{
+										frappe._("Credit Sale?")
+									}}</span>
 								</div>
 							</template>
 						</v-switch>
 						<div v-if="is_credit_sale" class="mt-2 pa-2 bg-blue-lighten-5 rounded-lg">
 							<v-icon class="mr-2" color="info" size="small">mdi-information-outline</v-icon>
 							<span class="text-caption text-blue-darken-2">
-								{{ frappe._("Credit sale enabled. No payment required - customer will pay later.") }}
+								{{
+									frappe._(
+										"Credit sale enabled. No payment required - customer will pay later.",
+									)
+								}}
 							</span>
 						</div>
-
 					</v-col>
 					<v-col cols="6" v-if="invoice_doc.is_return && pos_profile.use_cashback">
 						<v-switch
@@ -499,10 +502,7 @@
 							</v-chip>
 						</div>
 					</v-col>
-
 				</v-row>
-
-
 
 				<v-divider></v-divider>
 
@@ -719,7 +719,7 @@ export default {
 				console.log("Credit sale mode detected in total_payments - returning 0");
 				return 0;
 			}
-			
+
 			let total = 0;
 			if (this.invoice_doc && this.invoice_doc.payments) {
 				this.invoice_doc.payments.forEach((payment) => {
@@ -963,130 +963,132 @@ export default {
 			}
 
 			try {
-			if (this.invoice_doc.is_return) {
-				this.ensureReturnPaymentsAreNegative();
-			}
-			
-			const is_credit_sale_mode = this.is_credit_sale || this.invoice_doc.is_credit_sale;
-			
-			if (
-				!is_credit_sale_mode &&
-				!this.invoice_doc.is_return &&
-				this.total_payments <= 0 &&
-				(this.invoice_doc.rounded_total || this.invoice_doc.grand_total) > 0
-			) {
-				console.log("Payment validation failed - showing error");
-				this.eventBus.emit("show_message", {
-					title: `Please enter payment amount`,
-					color: "error",
-				});
-				frappe.utils.play_sound("error");
-				return;
-			}
-			
-			// For credit sales, ensure all payment amounts are 0
-			if (is_credit_sale_mode) {
-				console.log("Credit sale mode detected - clearing all payment amounts");
-				this.invoice_doc.payments.forEach((payment) => {
-					payment.amount = 0;
-					if (payment.base_amount !== undefined) {
-						payment.base_amount = 0;
+				if (this.invoice_doc.is_return) {
+					this.ensureReturnPaymentsAreNegative();
+				}
+
+				const is_credit_sale_mode = this.is_credit_sale || this.invoice_doc.is_credit_sale;
+
+				if (
+					!is_credit_sale_mode &&
+					!this.invoice_doc.is_return &&
+					this.total_payments <= 0 &&
+					(this.invoice_doc.rounded_total || this.invoice_doc.grand_total) > 0
+				) {
+					console.log("Payment validation failed - showing error");
+					this.eventBus.emit("show_message", {
+						title: `Please enter payment amount`,
+						color: "error",
+					});
+					frappe.utils.play_sound("error");
+					return;
+				}
+
+				// For credit sales, ensure all payment amounts are 0
+				if (is_credit_sale_mode) {
+					console.log("Credit sale mode detected - clearing all payment amounts");
+					this.invoice_doc.payments.forEach((payment) => {
+						payment.amount = 0;
+						if (payment.base_amount !== undefined) {
+							payment.base_amount = 0;
+						}
+					});
+					// Set credit sale flag on invoice
+					this.invoice_doc.is_credit_sale = true;
+				}
+
+				// Validate cash payments when credit sale is off
+				if (!is_credit_sale_mode && !this.invoice_doc.is_return) {
+					let has_cash_payment = false;
+					let cash_amount = 0;
+					this.invoice_doc.payments.forEach((payment) => {
+						if (payment.mode_of_payment.toLowerCase().includes("cash")) {
+							has_cash_payment = true;
+							cash_amount = this.flt(payment.amount);
+						}
+					});
+					if (has_cash_payment && cash_amount > 0) {
+						if (
+							!this.pos_profile.posa_allow_partial_payment &&
+							cash_amount < (this.invoice_doc.rounded_total || this.invoice_doc.grand_total) &&
+							(this.invoice_doc.rounded_total || this.invoice_doc.grand_total) > 0
+						) {
+							this.eventBus.emit("show_message", {
+								title: `Cash payment cannot be less than invoice total when partial payment is not allowed`,
+								color: "error",
+							});
+							frappe.utils.play_sound("error");
+							return;
+						}
 					}
-				});
-				// Set credit sale flag on invoice
-				this.invoice_doc.is_credit_sale = true;
-			}
-			
-			// Validate cash payments when credit sale is off
-			if (!is_credit_sale_mode && !this.invoice_doc.is_return) {
-				let has_cash_payment = false;
-				let cash_amount = 0;
-				this.invoice_doc.payments.forEach((payment) => {
-					if (payment.mode_of_payment.toLowerCase().includes("cash")) {
-						has_cash_payment = true;
-						cash_amount = this.flt(payment.amount);
-					}
-				});
-				if (has_cash_payment && cash_amount > 0) {
-					if (
-						!this.pos_profile.posa_allow_partial_payment &&
-						cash_amount < (this.invoice_doc.rounded_total || this.invoice_doc.grand_total) &&
-						(this.invoice_doc.rounded_total || this.invoice_doc.grand_total) > 0
-					) {
+				}
+				// Validate partial payments only if not credit sale and invoice total is not zero
+				// Add tolerance for floating point precision issues (0.0001 tolerance)
+				const invoiceTotal = this.invoice_doc.rounded_total || this.invoice_doc.grand_total;
+				const tolerance = 0.0001; // Very small tolerance for floating point precision
+				const isPaymentComplete = this.total_payments >= invoiceTotal - tolerance;
+
+				if (
+					!is_credit_sale_mode &&
+					!this.pos_profile.posa_allow_partial_payment &&
+					!isPaymentComplete &&
+					invoiceTotal > 0
+				) {
+					console.log("Payment validation - Total payments:", this.total_payments);
+					console.log("Payment validation - Invoice total:", invoiceTotal);
+					console.log("Payment validation - Difference:", invoiceTotal - this.total_payments);
+					console.log("Payment validation - Tolerance:", tolerance);
+
+					this.eventBus.emit("show_message", {
+						title: `The amount paid is not complete`,
+						color: "error",
+					});
+					frappe.utils.play_sound("error");
+					return;
+				}
+				// Validate phone payment
+				let phone_payment_is_valid = true;
+				if (!payment_received) {
+					this.invoice_doc.payments.forEach((payment) => {
+						if (
+							payment.type === "Phone" &&
+							![0, "0", "", null, undefined].includes(payment.amount)
+						) {
+							phone_payment_is_valid = false;
+						}
+					});
+					if (!phone_payment_is_valid) {
 						this.eventBus.emit("show_message", {
-							title: `Cash payment cannot be less than invoice total when partial payment is not allowed`,
+							title: __("Please request phone payment or use another payment method"),
 							color: "error",
 						});
 						frappe.utils.play_sound("error");
 						return;
 					}
 				}
-			}
-			// Validate partial payments only if not credit sale and invoice total is not zero
-			// Add tolerance for floating point precision issues (0.0001 tolerance)
-			const invoiceTotal = this.invoice_doc.rounded_total || this.invoice_doc.grand_total;
-			const tolerance = 0.0001; // Very small tolerance for floating point precision
-			const isPaymentComplete = this.total_payments >= (invoiceTotal - tolerance);
-			
-			if (
-				!is_credit_sale_mode &&
-				!this.pos_profile.posa_allow_partial_payment &&
-				!isPaymentComplete &&
-				invoiceTotal > 0
-			) {
-				console.log("Payment validation - Total payments:", this.total_payments);
-				console.log("Payment validation - Invoice total:", invoiceTotal);
-				console.log("Payment validation - Difference:", invoiceTotal - this.total_payments);
-				console.log("Payment validation - Tolerance:", tolerance);
-				
-				this.eventBus.emit("show_message", {
-					title: `The amount paid is not complete`,
-					color: "error",
-				});
-				frappe.utils.play_sound("error");
-				return;
-			}
-			// Validate phone payment
-			let phone_payment_is_valid = true;
-			if (!payment_received) {
-				this.invoice_doc.payments.forEach((payment) => {
-					if (payment.type === "Phone" && ![0, "0", "", null, undefined].includes(payment.amount)) {
-						phone_payment_is_valid = false;
-					}
-				});
-				if (!phone_payment_is_valid) {
+				// Validate paid_change
+				if (this.paid_change > -this.diff_payment) {
 					this.eventBus.emit("show_message", {
-						title: __("Please request phone payment or use another payment method"),
+						title: `Paid change cannot be greater than total change!`,
 						color: "error",
 					});
 					frappe.utils.play_sound("error");
 					return;
 				}
-			}
-			// Validate paid_change
-			if (this.paid_change > -this.diff_payment) {
-				this.eventBus.emit("show_message", {
-					title: `Paid change cannot be greater than total change!`,
-					color: "error",
-				});
-				frappe.utils.play_sound("error");
-				return;
-			}
-			// Validate cashback
-			let total_change = this.flt(this.flt(this.paid_change) + this.flt(-this.credit_change));
-			if (this.is_cashback && total_change !== -this.diff_payment) {
-				this.eventBus.emit("show_message", {
-					title: `Error in change calculations!`,
-					color: "error",
-				});
-				frappe.utils.play_sound("error");
-				return;
-			}
+				// Validate cashback
+				let total_change = this.flt(this.flt(this.paid_change) + this.flt(-this.credit_change));
+				if (this.is_cashback && total_change !== -this.diff_payment) {
+					this.eventBus.emit("show_message", {
+						title: `Error in change calculations!`,
+						color: "error",
+					});
+					frappe.utils.play_sound("error");
+					return;
+				}
 
-
-							// Proceed to submit the invoice
+				// Proceed to submit the invoice
 				this.loading = true;
-				
+
 				// Safety timeout to reset loading if something goes wrong
 				setTimeout(() => {
 					if (this.loading) {
@@ -1098,7 +1100,7 @@ export default {
 						});
 					}
 				}, 60000); // 60 seconds safety timeout
-				
+
 				this.submit_invoice(print);
 			} catch (error) {
 				console.error("Error in submit method:", error);
@@ -1116,13 +1118,13 @@ export default {
 			if (!vm.loading) {
 				vm.loading = true;
 			}
-			
+
 			// Ensure loading state is reset on any error
 			const resetLoading = () => {
 				console.log("Resetting loading state");
 				vm.loading = false;
 			};
-			
+
 			// Set a timeout to reset loading state if request takes too long
 			const loadingTimeout = setTimeout(() => {
 				console.warn("Request timeout - resetting loading state");
@@ -1144,12 +1146,12 @@ export default {
 			if (this.invoice_doc.is_return && totalPayedAmount === 0) {
 				this.invoice_doc.is_pos = 0;
 			}
-			
+
 			// Ensure is_pos is set correctly for credit sales
 			if (this.is_credit_sale) {
 				this.invoice_doc.is_pos = 1;
 			}
-			
+
 			let data = {
 				total_change: !this.invoice_doc.is_return ? -this.diff_payment : 0,
 				paid_change: !this.invoice_doc.is_return ? this.paid_change : 0,
@@ -1196,10 +1198,10 @@ export default {
 				callback: function (r) {
 					// Clear the timeout since we got a response
 					clearTimeout(loadingTimeout);
-					
+
 					// Always reset loading state first
 					vm.loading = false;
-					
+
 					if (r.exc) {
 						console.error("Error submitting invoice:", r.exc);
 						// Show detailed error message to help debugging
@@ -1272,6 +1274,12 @@ export default {
 					vm.eventBus.emit("reset_posting_date");
 					vm.back_to_invoice();
 					resetLoading();
+					vm.eventBus.emit("refocus_item_search");
+				},
+				error: function (err) {
+					clearTimeout(loadingTimeout);
+					vm.loading = false;
+					console.error("Error submitting invoice:", err);
 				},
 			});
 		},
@@ -1427,16 +1435,16 @@ export default {
 		// Print invoice using a more detailed offline template
 		print_offline_invoice(invoice) {
 			if (!invoice) return;
-			
+
 			// Debug information
-			console.log('Printing offline invoice:', invoice.name);
-			console.log('POS Profile:', this.pos_profile);
-			console.log('Print Format from POS Profile:', this.pos_profile?.print_format);
-			console.log('POS Profile Name:', this.pos_profile?.name);
-			console.log('Company:', this.pos_profile?.company);
-			
+			console.log("Printing offline invoice:", invoice.name);
+			console.log("POS Profile:", this.pos_profile);
+			console.log("Print Format from POS Profile:", this.pos_profile?.print_format);
+			console.log("POS Profile Name:", this.pos_profile?.name);
+			console.log("Company:", this.pos_profile?.company);
+
 			const usePreviewOverlay = !!this.pos_profile?.posa_enable_print_preview_overlay;
-			
+
 			fallbackToOffline(invoice, usePreviewOverlay).catch((err) => {
 				console.error("Error in fallbackToOffline inside print_offline_invoice:", err);
 			});
@@ -1472,7 +1480,7 @@ export default {
 			console.log("setCashPaymentAndPrint method called");
 			console.log("Invoice doc:", this.invoice_doc);
 			console.log("Payments:", this.invoice_doc?.payments);
-			
+
 			if (!this.invoice_doc || !this.invoice_doc.payments) {
 				console.log("No invoice doc or payments found - returning");
 				return;
@@ -1481,11 +1489,11 @@ export default {
 			// Customer should only pay the grand_total, not the rounded_total
 			// The rounding adjustment should be handled by the system, not charged to customer
 			let invoiceTotal = this.invoice_doc.grand_total || 0;
-			
+
 			console.log("F4 - Grand Total:", this.invoice_doc.grand_total);
 			console.log("F4 - Rounded Total:", this.invoice_doc.rounded_total);
 			console.log("F4 - Using invoiceTotal (grand_total):", invoiceTotal);
-			
+
 			// Set cash payment to the grand_total amount (what customer actually owes)
 			this.invoice_doc.payments.forEach((payment) => {
 				if (payment.mode_of_payment.toLowerCase().includes("cash")) {
@@ -1849,12 +1857,12 @@ export default {
 		},
 		handleCreditSaleToggle() {
 			console.log("Credit sale toggled:", this.is_credit_sale);
-			
+
 			if (this.invoice_doc) {
 				this.invoice_doc.is_credit_sale = this.is_credit_sale;
 				console.log("Invoice credit sale flag set to:", this.invoice_doc.is_credit_sale);
 			}
-			
+
 			if (this.is_credit_sale && this.invoice_doc && this.invoice_doc.payments) {
 				this.invoice_doc.payments.forEach((payment) => {
 					payment.amount = 0;
@@ -1865,7 +1873,6 @@ export default {
 				console.log("All payment amounts cleared for credit sale");
 			}
 		},
-
 	},
 	// Lifecycle hook: created
 	created() {
@@ -1921,12 +1928,12 @@ export default {
 					this.is_credit_return = false;
 				}
 				this.loyalty_amount = 0;
-				
+
 				// Focus on cash payment field after a short delay
 				setTimeout(() => {
 					this.focusCashPaymentField();
 				}, 120);
-				
+
 				if (invoice_doc.customer) {
 					this.get_addresses();
 				}
@@ -1998,25 +2005,25 @@ export default {
 				console.log("F4 event received in Payments.vue - calling setCashPaymentAndPrint");
 				this.setCashPaymentAndPrint();
 			});
-			
+
 			// Global error handler to ensure loading state is reset
-			window.addEventListener('error', (event) => {
-				console.error('Global error caught:', event.error);
+			window.addEventListener("error", (event) => {
+				console.error("Global error caught:", event.error);
 				if (this.loading) {
-					console.log('Resetting loading state due to global error');
+					console.log("Resetting loading state due to global error");
 					this.loading = false;
 				}
 			});
-			
+
 			// Handle unhandled promise rejections
-			window.addEventListener('unhandledrejection', (event) => {
-				console.error('Unhandled promise rejection:', event.reason);
+			window.addEventListener("unhandledrejection", (event) => {
+				console.error("Unhandled promise rejection:", event.reason);
 				if (this.loading) {
-					console.log('Resetting loading state due to unhandled promise rejection');
+					console.log("Resetting loading state due to unhandled promise rejection");
 					this.loading = false;
 				}
 			});
-			
+
 			// Expose reset method globally for debugging
 			window.resetPOSLoading = () => {
 				if (this && this.forceResetLoading) {
@@ -2037,14 +2044,16 @@ export default {
 		this.eventBus.off("submit_with_print");
 		this.eventBus.off("set_cash_payment_and_print");
 	},
-	
+
 	/**
 	 * Focus on the cash payment field when payment page opens
 	 */
 	focusCashPaymentField(attempt = 0) {
 		try {
 			// Find the cash payment field by looking for input with cash payment mode
-			const cashPaymentInput = document.querySelector('input[data-mode-of-payment*="cash" i], input[data-mode-of-payment*="Cash" i]');
+			const cashPaymentInput = document.querySelector(
+				'input[data-mode-of-payment*="cash" i], input[data-mode-of-payment*="Cash" i]',
+			);
 			if (cashPaymentInput) {
 				cashPaymentInput.focus();
 				cashPaymentInput.select();
@@ -2066,7 +2075,7 @@ export default {
 			console.warn("Could not focus on cash payment field:", error);
 		}
 	},
-	
+
 	// Lifecycle hook: unmounted
 	unmounted() {
 		// Remove keyboard shortcut listener
@@ -2125,6 +2134,4 @@ export default {
 ::v-deep(.v-theme--dark) .dark-field .v-field__overlay {
 	background-color: #1e1e1e !important;
 }
-
-
 </style>

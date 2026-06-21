@@ -1,6 +1,29 @@
 <template>
-	<div class="my-0 py-0 overflow-y-auto items-table-container" :style="{ height: 'calc(100% - 80px)', maxHeight: 'calc(100% - 80px)' }" @dragover="onDragOverFromSelector($event)" @drop="onDropFromSelector($event)" @dragenter="onDragEnterFromSelector" @dragleave="onDragLeaveFromSelector">
-		<v-data-table-virtual :headers="headers" :items="items" :theme="$theme.current" :expanded="expanded" show-expand item-value="posa_row_id" class="modern-items-table elevation-2" :items-per-page="itemsPerPage" density="compact" hide-default-footer :single-expand="true" :header-props="headerProps" :row-props="getRowProps" @update:expanded="$emit('update:expanded', $event)" :search="itemSearch">
+	<div
+		class="my-0 py-0 overflow-y-auto items-table-container"
+		:style="{ height: 'calc(100% - 80px)', maxHeight: 'calc(100% - 80px)' }"
+		@dragover="onDragOverFromSelector($event)"
+		@drop="onDropFromSelector($event)"
+		@dragenter="onDragEnterFromSelector"
+		@dragleave="onDragLeaveFromSelector"
+	>
+		<v-data-table-virtual
+			:headers="headers"
+			:items="items"
+			:theme="$theme.current"
+			:expanded="expanded"
+			show-expand
+			item-value="posa_row_id"
+			class="modern-items-table elevation-2"
+			:items-per-page="itemsPerPage"
+			density="compact"
+			hide-default-footer
+			:single-expand="true"
+			:header-props="headerProps"
+			:row-props="getRowProps"
+			@update:expanded="$emit('update:expanded', $event)"
+			:search="itemSearch"
+		>
 			<!-- Serial number column -->
 			<template v-slot:item.si_no="{ item }">
 				<span>{{ getRowSerial(item) }}</span>
@@ -45,7 +68,7 @@
 					:disabled="!canEditUom(item)"
 					@change="onUomChange(item, $event.target.value)"
 				>
-					<option v-for="u in (item.item_uoms || [])" :key="u.uom" :value="u.uom">
+					<option v-for="u in item.item_uoms || []" :key="u.uom" :value="u.uom">
 						{{ u.uom }}
 					</option>
 				</select>
@@ -123,7 +146,11 @@
 
 			<!-- Offer checkbox column -->
 			<template v-slot:item.posa_is_offer="{ item }">
-				<v-checkbox-btn v-model="item.posa_is_offer" class="center" @change="toggleOffer(item)"></v-checkbox-btn>
+				<v-checkbox-btn
+					v-model="item.posa_is_offer"
+					class="center"
+					@change="toggleOffer(item)"
+				></v-checkbox-btn>
 			</template>
 
 			<!-- Expanded row content using Vuetify's built-in system -->
@@ -133,15 +160,37 @@
 						<!-- Action buttons -->
 						<div class="action-panel">
 							<div class="action-button-group">
-								<v-btn :disabled="!!item.posa_is_replace" icon="mdi-trash-can-outline" size="large" color="error" variant="tonal" class="item-action-btn delete-btn" @click.stop="removeItem(item)">
+								<v-btn
+									:disabled="!!item.posa_is_replace"
+									icon="mdi-trash-can-outline"
+									size="large"
+									color="error"
+									variant="tonal"
+									class="item-action-btn delete-btn"
+									@click.stop="removeItem(item)"
+								>
 									<v-icon size="large">mdi-trash-can-outline</v-icon>
 									<span class="action-label">{{ __("Remove") }}</span>
 								</v-btn>
-								<v-btn :disabled="!!item.posa_is_replace" size="large" color="blue" variant="tonal" class="item-action-btn plus-btn" @click.stop="openItemHistory(item)">
+								<v-btn
+									:disabled="!!item.posa_is_replace"
+									size="large"
+									color="blue"
+									variant="tonal"
+									class="item-action-btn plus-btn"
+									@click.stop="openItemHistory(item)"
+								>
 									<v-icon size="large">mdi-history</v-icon>
 									<span class="action-label">{{ __("History") }}</span>
 								</v-btn>
-								<v-btn :disabled="!!item.posa_is_replace" size="large" color="indigo" variant="tonal" class="item-action-btn plus-btn" @click.stop="openItemWarehouseStock(item)">
+								<v-btn
+									:disabled="!!item.posa_is_replace"
+									size="large"
+									color="indigo"
+									variant="tonal"
+									class="item-action-btn plus-btn"
+									@click.stop="openItemWarehouseStock(item)"
+								>
 									<v-icon size="large">mdi-warehouse</v-icon>
 									<span class="action-label">{{ __("Stock") }}</span>
 								</v-btn>
@@ -152,7 +201,7 @@
 						<div class="item-details-form">
 							<div class="form-row" v-if="item.has_batch_no">
 								<div class="form-field">
-										<v-select
+									<v-select
 										density="compact"
 										variant="outlined"
 										color="primary"
@@ -183,31 +232,123 @@
 							</div>
 							<div class="form-row">
 								<div class="form-field" v-if="isFieldVisible('exp_item_code')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Item Code')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.item_code" disabled prepend-inner-icon="mdi-barcode"></v-text-field>
+									<v-text-field
+										density="compact"
+										variant="outlined"
+										color="primary"
+										:label="frappe._('Item Code')"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field"
+										hide-details
+										v-model="item.item_code"
+										disabled
+										prepend-inner-icon="mdi-barcode"
+									></v-text-field>
 								</div>
 								<div class="form-field" v-if="isFieldVisible('exp_price_list_rate')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Price list Rate')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatCurrency(item.price_list_rate)" :disabled="!pos_profile.posa_allow_price_list_rate_change" :prefix="safeCurrencySymbol(pos_profile.currency)" @change="changePriceListRate(item)"></v-text-field>
+									<v-text-field
+										density="compact"
+										variant="outlined"
+										color="primary"
+										:label="frappe._('Price list Rate')"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field"
+										hide-details
+										:model-value="formatCurrency(item.price_list_rate)"
+										:disabled="!pos_profile.posa_allow_price_list_rate_change"
+										:prefix="safeCurrencySymbol(pos_profile.currency)"
+										@change="changePriceListRate(item)"
+									></v-text-field>
 								</div>
 								<div class="form-field" v-if="isFieldVisible('exp_available_qty')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Available QTY')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatFloat(item.actual_qty)" disabled></v-text-field>
+									<v-text-field
+										density="compact"
+										variant="outlined"
+										color="primary"
+										:label="frappe._('Available QTY')"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field"
+										hide-details
+										:model-value="formatFloat(item.actual_qty)"
+										disabled
+									></v-text-field>
 								</div>
 								<div class="form-field" v-if="isFieldVisible('exp_group')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Group')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.item_group" disabled></v-text-field>
+									<v-text-field
+										density="compact"
+										variant="outlined"
+										color="primary"
+										:label="frappe._('Group')"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field"
+										hide-details
+										v-model="item.item_group"
+										disabled
+									></v-text-field>
 								</div>
 							</div>
 							<div class="form-row">
 								<div class="form-field" v-if="isFieldVisible('exp_stock_qty')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Stock QTY')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatFloat(item.stock_qty)" disabled></v-text-field>
+									<v-text-field
+										density="compact"
+										variant="outlined"
+										color="primary"
+										:label="frappe._('Stock QTY')"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field"
+										hide-details
+										:model-value="formatFloat(item.stock_qty)"
+										disabled
+									></v-text-field>
 								</div>
 								<div class="form-field" v-if="isFieldVisible('exp_stock_uom')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Stock UOM')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.stock_uom" disabled></v-text-field>
+									<v-text-field
+										density="compact"
+										variant="outlined"
+										color="primary"
+										:label="frappe._('Stock UOM')"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field"
+										hide-details
+										v-model="item.stock_uom"
+										disabled
+									></v-text-field>
 								</div>
 								<div class="form-field" v-if="isFieldVisible('exp_warehouse')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Warehouse')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details v-model="item.warehouse" disabled prepend-inner-icon="mdi-warehouse"></v-text-field>
+									<v-text-field
+										density="compact"
+										variant="outlined"
+										color="primary"
+										:label="frappe._('Warehouse')"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field"
+										hide-details
+										v-model="item.warehouse"
+										disabled
+										prepend-inner-icon="mdi-warehouse"
+									></v-text-field>
 								</div>
 								<div class="form-field" v-if="isFieldVisible('exp_price_list_rate_bottom')">
-									<v-text-field density="compact" variant="outlined" color="primary" :label="frappe._('Price List Rate Change')" :bg-color="isDarkTheme ? '#1E1E1E' : 'white'" class="dark-field" hide-details :model-value="formatCurrency(item.price_list_rate || 0)" :disabled="!pos_profile.posa_allow_price_list_rate_change" prepend-inner-icon="mdi-format-list-numbered" @change="changePriceListRate(item)"></v-text-field>
-									<v-btn v-if="pos_profile.posa_allow_price_list_rate_change" size="x-small" class="ml-1" @click.stop="changePriceListRate(item)">{{ __("Change") }}</v-btn>
+									<v-text-field
+										density="compact"
+										variant="outlined"
+										color="primary"
+										:label="frappe._('Price List Rate Change')"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field"
+										hide-details
+										:model-value="formatCurrency(item.price_list_rate || 0)"
+										:disabled="!pos_profile.posa_allow_price_list_rate_change"
+										prepend-inner-icon="mdi-format-list-numbered"
+										@change="changePriceListRate(item)"
+									></v-text-field>
+									<v-btn
+										v-if="pos_profile.posa_allow_price_list_rate_change"
+										size="x-small"
+										class="ml-1"
+										@click.stop="changePriceListRate(item)"
+										>{{ __("Change") }}</v-btn
+									>
 								</div>
 							</div>
 						</div>
@@ -216,34 +357,21 @@
 			</template>
 
 			<template v-slot:item.data-table-expand="{ item, internalItem, isExpanded, toggleExpand }">
-				<v-btn
-					icon
-					variant="text"
-					density="compact"
-					@click.stop="toggleExpand(internalItem)"
-				>
-					<v-icon>{{ isExpanded(internalItem) ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
+				<v-btn icon variant="text" density="compact" @click.stop="toggleExpand(internalItem)">
+					<v-icon>{{ isExpanded(internalItem) ? "mdi-chevron-up" : "mdi-chevron-down" }}</v-icon>
 				</v-btn>
 			</template>
 		</v-data-table-virtual>
 		<v-dialog v-model="showItemHistoryDialog" width="900">
 			<v-card>
-
-				<v-card-title class="text-h6">
-					Item History
-				</v-card-title>
+				<v-card-title class="text-h6"> Item History </v-card-title>
 
 				<v-card-text>
-					<div>
-						<b>Customer Name:</b> {{ customer }}
-					</div>
+					<div><b>Customer Name:</b> {{ customer }}</div>
 
-					<div>
-						<b>Item Name:</b> {{ selectedItem?.item_name }}
-					</div>
+					<div><b>Item Name:</b> {{ selectedItem?.item_name }}</div>
 
 					<div v-if="itemHistory.length">
-
 						<b>Last Purchase History:</b>
 
 						<v-table density="compact">
@@ -277,28 +405,18 @@
 				<v-card-actions>
 					<v-spacer></v-spacer>
 
-					<v-btn color="red" @click="showItemHistoryDialog = false">
-						Close
-					</v-btn>
+					<v-btn color="red" @click="showItemHistoryDialog = false"> Close </v-btn>
 				</v-card-actions>
-
 			</v-card>
 		</v-dialog>
 		<v-dialog v-model="showWarehouseStockDialog" width="700">
 			<v-card>
-
-				<v-card-title class="text-h6">
-					Warehouse Stock
-				</v-card-title>
+				<v-card-title class="text-h6"> Warehouse Stock </v-card-title>
 
 				<v-card-text>
-					<div>
-						<b>Item Name:</b> {{ selectedStockItem?.item_name }}
-					</div>
+					<div><b>Item Name:</b> {{ selectedStockItem?.item_name }}</div>
 
-					<div class="mt-2">
-						<b>Item Code:</b> {{ selectedStockItem?.item_code }}
-					</div>
+					<div class="mt-2"><b>Item Code:</b> {{ selectedStockItem?.item_code }}</div>
 
 					<div v-if="warehouseStockLoading" class="mt-3 text-medium-emphasis">
 						Loading warehouse stock...
@@ -322,19 +440,14 @@
 							</tbody>
 						</v-table>
 					</div>
-					<div v-else class="mt-3 text-medium-emphasis">
-						No warehouses found to display stock.
-					</div>
+					<div v-else class="mt-3 text-medium-emphasis">No warehouses found to display stock.</div>
 				</v-card-text>
 
 				<v-card-actions>
 					<v-spacer></v-spacer>
 
-					<v-btn color="red" @click="showWarehouseStockDialog = false">
-						Close
-					</v-btn>
+					<v-btn color="red" @click="showWarehouseStockDialog = false"> Close </v-btn>
 				</v-card-actions>
-
 			</v-card>
 		</v-dialog>
 	</div>
@@ -591,7 +704,10 @@ export default {
 			return item.batch_no_data.map((batch) => {
 				const parts = [batch.batch_no];
 				if (batch.batch_qty !== undefined && batch.batch_qty !== null) {
-					const qty = typeof this.formatFloat === "function" ? this.formatFloat(batch.batch_qty) : batch.batch_qty;
+					const qty =
+						typeof this.formatFloat === "function"
+							? this.formatFloat(batch.batch_qty)
+							: batch.batch_qty;
 					parts.push(`${__("QTY")}: ${qty}`);
 				}
 				if (batch.expiry_date) {
@@ -675,37 +791,34 @@ export default {
 			this.calcPrices(item, item.rate, { target: { id: "rate", value: item.rate } });
 		},
 		openItemHistory(item) {
-
-			console.log("Item clicked:", item)
-			console.log("Invoice Doc:", this.invoice_doc)
+			console.log("Item clicked:", item);
+			console.log("Invoice Doc:", this.invoice_doc);
 
 			// store selected item
-			this.selectedItem = item
+			this.selectedItem = item;
 
 			// clear previous history
-			this.itemHistory = []
+			this.itemHistory = [];
 
 			// open dialog
-			this.showItemHistoryDialog = true
+			this.showItemHistoryDialog = true;
 
 			// call history function (we will create next)
-			this.loadItemHistory()
+			this.loadItemHistory();
 
-			console.log("Dialog status:", this.showItemHistoryDialog)
+			console.log("Dialog status:", this.showItemHistoryDialog);
 		},
 		loadItemHistory() {
-
-			console.log("Loading history for item:", this.selectedItem)
+			console.log("Loading history for item:", this.selectedItem);
 
 			frappe.call({
 				method: "posawesome.posawesome.api.api.item_history",
 				args: {
 					item_code: this.selectedItem.item_code,
-					customer: this.customer
+					customer: this.customer,
 				},
 				callback: (r) => {
-
-					console.log("History Response:", r)
+					console.log("History Response:", r);
 
 					if (r.message) {
 						const historyRows = Array.isArray(r.message) ? [...r.message] : [];
@@ -730,13 +843,11 @@ export default {
 						historyRows.sort((a, b) => parseRowTime(b) - parseRowTime(a));
 						this.itemHistory = historyRows;
 					}
-
 				},
 				error: (err) => {
-					console.error("History API Error:", err)
-				}
-			})
-
+					console.error("History API Error:", err);
+				},
+			});
 		},
 		openItemWarehouseStock(item) {
 			this.selectedStockItem = item;

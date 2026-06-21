@@ -205,12 +205,16 @@ export default {
 					if (r.message) {
 						const html_content = r.message;
 						// Open in new window for preview
-						const previewWindow = window.open('', "Cashier Shift Report Preview", "width=400,height=600");
+						const previewWindow = window.open(
+							"",
+							"Cashier Shift Report Preview",
+							"width=400,height=600",
+						);
 						previewWindow.document.open();
 						previewWindow.document.write(html_content);
 						previewWindow.document.close();
 					}
-				}
+				},
 			});
 		},
 	},
@@ -229,7 +233,7 @@ export default {
 			this.dialog_data = data;
 			// Initialize differences for all payment methods
 			if (this.dialog_data.payment_reconciliation) {
-				this.dialog_data.payment_reconciliation.forEach(item => {
+				this.dialog_data.payment_reconciliation.forEach((item) => {
 					this.updateDifference(item);
 				});
 			}
@@ -248,9 +252,9 @@ export default {
 			// Only add expected amount and difference columns if not hidden
 			if (!this.pos_profile.hide_expected_amount) {
 				// Check if headers already exist to avoid duplicates
-				const hasExpectedAmount = this.headers.some(h => h.value === 'expected_amount');
-				const hasDifference = this.headers.some(h => h.value === 'difference');
-				
+				const hasExpectedAmount = this.headers.some((h) => h.value === "expected_amount");
+				const hasDifference = this.headers.some((h) => h.value === "difference");
+
 				if (!hasExpectedAmount) {
 					this.headers.push({
 						title: __("Expected Amount"),

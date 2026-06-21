@@ -172,8 +172,6 @@ export default {
 		}
 	},
 
-
-
 	shortRecallTodaysInvoices(e) {
 		if (e.key === "End") {
 			e.preventDefault();
@@ -196,7 +194,7 @@ export default {
 			if (this.cashDrawerOpening) {
 				this.eventBus.emit("show_message", {
 					title: __("Cash drawer is already opening..."),
-					color: "warning"
+					color: "warning",
 				});
 				return;
 			}
@@ -213,11 +211,15 @@ export default {
 				const counter = result.message.counter || 1;
 				this.eventBus.emit("show_message", {
 					title: __("Opening cash drawer... Counter: {0}", [counter]),
-					color: "info"
+					color: "info",
 				});
 
 				// Create a minimal print window for cash drawer with strict controls
-				const printWindow = window.open("", "_blank", "width=1,height=1,scrollbars=no,resizable=no,toolbar=no,menubar=no,location=no,status=no");
+				const printWindow = window.open(
+					"",
+					"_blank",
+					"width=1,height=1,scrollbars=no,resizable=no,toolbar=no,menubar=no,location=no,status=no",
+				);
 
 				// Add additional safeguards to prevent long page issues
 				printWindow.document.write(`
@@ -249,7 +251,7 @@ export default {
 				printWindow.document.close();
 
 				// Wait for content to load, then print and close immediately
-				printWindow.addEventListener('load', () => {
+				printWindow.addEventListener("load", () => {
 					// Set a timeout to ensure content is fully rendered
 					setTimeout(() => {
 						try {
@@ -283,21 +285,20 @@ export default {
 				setTimeout(() => {
 					this.eventBus.emit("show_message", {
 						title: __("Cash drawer opened successfully! Counter: {0}", [counter]),
-						color: "success"
+						color: "success",
 					});
 				}, 1000);
-
 			} else {
 				this.eventBus.emit("show_message", {
 					title: __("Failed to open cash drawer"),
-					color: "error"
+					color: "error",
 				});
 			}
 		} catch (error) {
 			console.error("Cash drawer error:", error);
 			this.eventBus.emit("show_message", {
 				title: __("Error opening cash drawer"),
-				color: "error"
+				color: "error",
 			});
 		} finally {
 			// Reset the flag after a delay to prevent rapid clicking
@@ -328,7 +329,8 @@ export default {
 
 	shortEditQuantityF7(e) {
 		// Check for F7 key more robustly
-		const isF7 = e.key === "F7" ||
+		const isF7 =
+			e.key === "F7" ||
 			e.keyCode === 118 ||
 			e.which === 118 ||
 			(e.type === "keydown" && e.code === "F7");
@@ -336,16 +338,17 @@ export default {
 		if (isF7) {
 			// Don't prevent if user is typing in an input field (unless it's a special case)
 			const activeElement = document.activeElement;
-			const isInputFocused = activeElement && (
-				activeElement.tagName === "INPUT" ||
-				activeElement.tagName === "TEXTAREA" ||
-				activeElement.isContentEditable ||
-				(activeElement.tagName === "DIV" && activeElement.getAttribute("contenteditable") === "true")
-			);
+			const isInputFocused =
+				activeElement &&
+				(activeElement.tagName === "INPUT" ||
+					activeElement.tagName === "TEXTAREA" ||
+					activeElement.isContentEditable ||
+					(activeElement.tagName === "DIV" &&
+						activeElement.getAttribute("contenteditable") === "true"));
 
 			// Allow F7 to work even when inputs are focused (for better UX)
 			// But prevent it if user is actively editing in a prompt/dialog
-			if (isInputFocused && activeElement.closest('.frappe-dialog')) {
+			if (isInputFocused && activeElement.closest(".frappe-dialog")) {
 				return; // Don't interfere with dialog inputs
 			}
 
@@ -400,8 +403,8 @@ export default {
 					},
 					{ key: "F6", description: "Quick cash payment → submit → print" },
 					{ key: "Home", description: "Open cash drawer" },
-					{ key: "End", description: "Recall today's invoices with Return/Print options" }
-				]
+					{ key: "End", description: "Recall today's invoices with Return/Print options" },
+				],
 			},
 			{
 				category: "📝 Item Management",
@@ -410,23 +413,23 @@ export default {
 					{ key: "F7", description: "Edit quantity of first item" },
 					{ key: "Delete", description: "Delete first item from invoice" },
 					{ key: "Ctrl+Z", description: "Remove last added item from cart" },
-					{ key: "Ctrl+A", description: "Toggle expand/collapse first item details" }
-				]
+					{ key: "Ctrl+A", description: "Toggle expand/collapse first item details" },
+				],
 			},
 			{
 				category: "💰 Payment & Invoice",
 				shortcuts: [
 					{ key: "Ctrl+E", description: "Focus discount field" },
-					{ key: "Ctrl+X", description: "Submit payment (when in payment screen)" }
-				]
+					{ key: "Ctrl+X", description: "Submit payment (when in payment screen)" },
+				],
 			},
 			{
 				category: "💾 Invoice Management",
 				shortcuts: [
 					{ key: "Hold Button", description: "Save current invoice as draft and clear" },
-					{ key: "Release Button", description: "Load previously saved draft invoices" }
-				]
-			}
+					{ key: "Release Button", description: "Load previously saved draft invoices" },
+				],
+			},
 		];
 
 		let helpContent = `
@@ -437,14 +440,14 @@ export default {
 				</div>
 		`;
 
-		shortcuts.forEach(category => {
+		shortcuts.forEach((category) => {
 			helpContent += `
 				<div style="margin-bottom: 25px; background: #f8f9fa; border-radius: 8px; padding: 15px; border-left: 4px solid #667eea;">
 					<h3 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">${category.category}</h3>
 					<div style="display: grid; gap: 8px;">
 			`;
 
-			category.shortcuts.forEach(shortcut => {
+			category.shortcuts.forEach((shortcut) => {
 				helpContent += `
 					<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: white; border-radius: 6px; border: 1px solid #e9ecef;">
 						<span style="font-weight: bold; color: #495057; min-width: 120px; text-align: center; padding: 4px 8px; background: #e9ecef; border-radius: 4px; font-family: 'Courier New', monospace;">${shortcut.key}</span>
@@ -504,7 +507,7 @@ export default {
 			{ key: "Ctrl+Z", description: "Remove last added item" },
 			{ key: "Ctrl+A", description: "Toggle first item details" },
 			{ key: "Ctrl+E", description: "Focus discount field" },
-			{ key: "Ctrl+X", description: "Submit payment" }
+			{ key: "Ctrl+X", description: "Submit payment" },
 		];
 
 		let printContent = `
@@ -527,7 +530,7 @@ export default {
 				</div>
 		`;
 
-		shortcuts.forEach(shortcut => {
+		shortcuts.forEach((shortcut) => {
 			printContent += `
 				<div class="shortcut">
 					<span class="key">${shortcut.key}</span>
@@ -553,13 +556,11 @@ export default {
 			</html>
 		`;
 
-		const printWindow = window.open('', '_blank');
+		const printWindow = window.open("", "_blank");
 		printWindow.document.write(printContent);
 		printWindow.document.close();
 		printWindow.print();
 	},
-
-
 
 	async recallTodaysInvoices() {
 		try {
@@ -619,7 +620,9 @@ export default {
 				return;
 			}
 
-			const normalizedTerm = String(term || "").trim().toLowerCase();
+			const normalizedTerm = String(term || "")
+				.trim()
+				.toLowerCase();
 			const entries = wrapper.querySelectorAll(".posa-recall-entry");
 			let visibleCount = 0;
 
@@ -838,6 +841,7 @@ export default {
 				title: __("Printing invoice"),
 				color: "success",
 			});
+			this.eventBus.emit("refocus_item_search");
 		} catch (error) {
 			console.error("Error printing invoice:", error);
 			this.eventBus.emit("show_message", {
@@ -872,7 +876,7 @@ export default {
 				format: print_format,
 				no_letterhead: letter_head,
 				// Include all the invoice data needed for the template
-				invoice_data: invoice
+				invoice_data: invoice,
 			};
 
 			console.log("Opening SALES POS print window...");
@@ -1065,7 +1069,9 @@ export default {
 				<td></td>
 				<td>${this.formatCurrency(invoice.total)}</td>
 			</tr>
-			${invoice.discount_amount ? `
+			${
+				invoice.discount_amount
+					? `
 			<tr>
 				<td>Discount</td>
 				<td>تخفيض</td>
@@ -1073,7 +1079,9 @@ export default {
 				<td></td>
 				<td>${this.formatCurrency(invoice.discount_amount)}</td>
 			</tr>
-			` : ""}
+			`
+					: ""
+			}
 			<tr class="net-amount">
 				<td>Net Amount</td>
 				<td colspan="3">
@@ -1113,7 +1121,7 @@ export default {
 
 	/**
 	 * F6 Shortcut: Direct cash payment and print
-	 * 
+	 *
 	 * This method handles the complete invoice submission process:
 	 * 1. Validates all required data (items, customer, POS shift, profile)
 	 * 2. Uses the same invoice processing as show_payment() for consistency
@@ -1231,7 +1239,10 @@ export default {
 			invoice_doc.base_total = this.Total * (1 / this.exchange_rate || 1);
 			invoice_doc.base_grand_total = this.subtotal * (1 / this.exchange_rate || 1);
 			if (this.pos_profile.disable_rounded_total) {
-				invoice_doc.base_rounded_total = this.flt(invoice_doc.base_grand_total, this.currency_precision);
+				invoice_doc.base_rounded_total = this.flt(
+					invoice_doc.base_grand_total,
+					this.currency_precision,
+				);
 			} else {
 				invoice_doc.base_rounded_total = this.roundAmount(invoice_doc.base_grand_total);
 			}
@@ -1283,8 +1294,8 @@ export default {
 
 			// Set up cash payment for the full amount based on server-calculated totals
 			if (invoice_doc.payments && invoice_doc.payments.length) {
-				const cashPayment = invoice_doc.payments.find(p =>
-					p.mode_of_payment && p.mode_of_payment.toLowerCase().includes("cash")
+				const cashPayment = invoice_doc.payments.find(
+					(p) => p.mode_of_payment && p.mode_of_payment.toLowerCase().includes("cash"),
 				);
 
 				if (cashPayment) {
@@ -1314,7 +1325,10 @@ export default {
 					console.log("- grand_total (server):", invoice_doc.grand_total);
 					console.log("- cash_payment:", finalPaymentAmount);
 					console.log("- expected_outstanding:", expectedOutstanding);
-					console.log("- Should be 0 or negative (change):", expectedOutstanding <= 0 ? "✅" : "❌");
+					console.log(
+						"- Should be 0 or negative (change):",
+						expectedOutstanding <= 0 ? "✅" : "❌",
+					);
 				}
 			}
 
@@ -1325,7 +1339,12 @@ export default {
 			console.log("- disable_rounded_total:", this.pos_profile.disable_rounded_total);
 			console.log("- write_off_amount:", invoice_doc.write_off_amount);
 			console.log("- paid_amount:", invoice_doc.paid_amount);
-			console.log("- cash payment amount:", invoice_doc.payments ? invoice_doc.payments.find(p => p.default)?.amount : "No cash payment");
+			console.log(
+				"- cash payment amount:",
+				invoice_doc.payments
+					? invoice_doc.payments.find((p) => p.default)?.amount
+					: "No cash payment",
+			);
 
 			// Submit the invoice directly without opening payment dialog
 			frappe.call({
@@ -1337,9 +1356,9 @@ export default {
 						credit_change: 0,
 						redeemed_customer_credit: 0,
 						customer_credit_dict: [],
-						is_cashback: true
+						is_cashback: true,
 					},
-					invoice: invoice_doc
+					invoice: invoice_doc,
 				},
 				callback: (r) => {
 					this.isPaymentSubmitting = false;
@@ -1380,9 +1399,8 @@ export default {
 						title: __("Error submitting invoice"),
 						color: "error",
 					});
-				}
+				},
 			});
-
 		} catch (error) {
 			this.isPaymentSubmitting = false;
 			this.setSubmitActionLoading(false);
@@ -1396,11 +1414,9 @@ export default {
 		}
 	},
 
-
-
 	/**
 	 * F6 Shortcut: Direct submit and print current invoice
-	 * 
+	 *
 	 * This method handles the complete invoice submission process:
 	 * 1. Validates all required data (items, customer, POS shift, profile)
 	 * 2. Creates invoice document with current items and amounts
@@ -1415,7 +1431,6 @@ export default {
 		}
 
 		try {
-
 			// Validate required data
 			if (!this.items || this.items.length === 0) {
 				this.eventBus.emit("show_message", {
@@ -1478,7 +1493,7 @@ export default {
 
 			// Calculate totals from current items
 			const netTotal = this.items.reduce((sum, item) => {
-				return sum + (item.amount || (item.rate * item.qty) || 0);
+				return sum + (item.amount || item.rate * item.qty || 0);
 			}, 0);
 
 			// Add delivery charges if applicable
@@ -1497,9 +1512,9 @@ export default {
 			const invoiceDoc = {
 				doctype: "Sales Invoice",
 				customer: this.customer,
-				items: this.items.map(item => ({
+				items: this.items.map((item) => ({
 					...item,
-					doctype: "Sales Invoice Item"
+					doctype: "Sales Invoice Item",
 				})),
 				net_total: netTotal,
 				total: totalWithDelivery,
@@ -1519,8 +1534,12 @@ export default {
 				is_pos: 1,
 				posa_pos_opening_shift: this.pos_opening_shift?.name,
 				pos_profile: this.pos_profile?.name,
-				posting_date: this.posting_date_display ? this.formatDateForBackend(this.posting_date_display) : frappe.datetime.nowdate(),
-				due_date: this.posting_date_display ? this.formatDateForBackend(this.posting_date_display) : frappe.datetime.nowdate(),
+				posting_date: this.posting_date_display
+					? this.formatDateForBackend(this.posting_date_display)
+					: frappe.datetime.nowdate(),
+				due_date: this.posting_date_display
+					? this.formatDateForBackend(this.posting_date_display)
+					: frappe.datetime.nowdate(),
 				update_stock: 1,
 				ignore_pricing_rule: 1,
 				posa_is_printed: 1,
@@ -1529,19 +1548,19 @@ export default {
 				discount_amount: this.discount_amount || 0,
 				base_discount_amount: this.discount_amount || 0,
 				additional_discount_percentage: this.additional_discount_percentage || 0,
-				additional_discount_amount: this.additional_discount_amount || 0
+				additional_discount_amount: this.additional_discount_amount || 0,
 			};
 
 			// Set up payments - cash payment for the full amount
 			if (this.pos_profile && this.pos_profile.payments) {
-				invoiceDoc.payments = this.pos_profile.payments.map(payment => ({
+				invoiceDoc.payments = this.pos_profile.payments.map((payment) => ({
 					...payment,
 					amount: 0,
-					base_amount: 0
+					base_amount: 0,
 				}));
 
-				const cashPayment = invoiceDoc.payments.find(p =>
-					p.mode_of_payment && p.mode_of_payment.toLowerCase().includes("cash")
+				const cashPayment = invoiceDoc.payments.find(
+					(p) => p.mode_of_payment && p.mode_of_payment.toLowerCase().includes("cash"),
 				);
 				if (cashPayment) {
 					cashPayment.amount = roundedTotal;
@@ -1556,8 +1575,6 @@ export default {
 				invoiceDoc.base_delivery_charges = this.delivery_charges_rate;
 			}
 
-
-
 			// Submit the invoice directly
 			frappe.call({
 				method: "posawesome.posawesome.api.invoices.submit_invoice",
@@ -1568,9 +1585,9 @@ export default {
 						credit_change: 0,
 						redeemed_customer_credit: 0,
 						customer_credit_dict: [],
-						is_cashback: true
+						is_cashback: true,
 					},
-					invoice: invoiceDoc
+					invoice: invoiceDoc,
 				},
 				callback: (r) => {
 					this.isPaymentSubmitting = false;
@@ -1611,9 +1628,8 @@ export default {
 						title: __("Error submitting invoice"),
 						color: "error",
 					});
-				}
+				},
 			});
-
 		} catch (error) {
 			this.isPaymentSubmitting = false;
 			this.setSubmitActionLoading(false);
@@ -1662,7 +1678,7 @@ export default {
 			return;
 		}
 
-		const defaultQty = this.isReturnInvoice ? Math.abs(item.qty || 1) : (item.qty || 1);
+		const defaultQty = this.isReturnInvoice ? Math.abs(item.qty || 1) : item.qty || 1;
 
 		const dialog = new frappe.ui.Dialog({
 			title: __("Update Quantity"),
@@ -1748,7 +1764,7 @@ export default {
 		dialog.fields_dict.keypad.$wrapper.on("click", ".key", (e) => {
 			const key = (e.currentTarget && e.currentTarget.innerText) || "";
 			const field = dialog.get_field("qty");
-			
+
 			if (key === "C") {
 				field.set_value("");
 				dialog._pendingDecimal = false;

@@ -24,7 +24,7 @@ function renderOfflineTemplate(invoice, posProfile) {
 
 			const walker = doc.createTreeWalker(parent, NodeFilter.SHOW_TEXT, null, false);
 			let node;
-			while (node = walker.nextNode()) {
+			while ((node = walker.nextNode())) {
 				if (node.nodeValue.includes(search)) {
 					node.nodeValue = node.nodeValue.split(search).join(replace);
 				}
@@ -39,29 +39,35 @@ function renderOfflineTemplate(invoice, posProfile) {
 				Number(oldValue).toFixed(3),
 				Number(oldValue).toFixed(2),
 				Number(oldValue).toFixed(0),
-				String(oldValue)
+				String(oldValue),
 			];
 
 			const walker = doc.createTreeWalker(parent, NodeFilter.SHOW_TEXT, null, false);
 			let node;
-			while (node = walker.nextNode()) {
+			while ((node = walker.nextNode())) {
 				for (const fmt of formats) {
 					const index = node.nodeValue.indexOf(fmt);
 					if (index !== -1) {
 						// Boundary check: ensure it is not part of a larger number
-						const charBefore = index > 0 ? node.nodeValue[index - 1] : '';
-						const charAfter = index + fmt.length < node.nodeValue.length ? node.nodeValue[index + fmt.length] : '';
+						const charBefore = index > 0 ? node.nodeValue[index - 1] : "";
+						const charAfter =
+							index + fmt.length < node.nodeValue.length
+								? node.nodeValue[index + fmt.length]
+								: "";
 
 						const isDigitBefore = /\d/.test(charBefore);
 						const isDigitAfter = /\d/.test(charAfter);
 
 						if (!isDigitBefore && !isDigitAfter) {
 							let newFmt = String(newValue);
-							if (fmt.includes('.')) {
-								const decimals = fmt.split('.')[1].length;
+							if (fmt.includes(".")) {
+								const decimals = fmt.split(".")[1].length;
 								newFmt = Number(newValue).toFixed(decimals);
 							}
-							node.nodeValue = node.nodeValue.substring(0, index) + newFmt + node.nodeValue.substring(index + fmt.length);
+							node.nodeValue =
+								node.nodeValue.substring(0, index) +
+								newFmt +
+								node.nodeValue.substring(index + fmt.length);
 							break;
 						}
 					}
@@ -71,7 +77,11 @@ function renderOfflineTemplate(invoice, posProfile) {
 
 		// 1. Replace metadata / details at the top/document level
 		replaceTextInDOM(doc.body, templateDoc.name, invoice.name);
-		replaceTextInDOM(doc.body, templateDoc.customer_name, invoice.customer_name || invoice.customer || "");
+		replaceTextInDOM(
+			doc.body,
+			templateDoc.customer_name,
+			invoice.customer_name || invoice.customer || "",
+		);
 		replaceTextInDOM(doc.body, templateDoc.customer, invoice.customer || "");
 
 		if (templateDoc.posting_date) {
@@ -80,7 +90,11 @@ function renderOfflineTemplate(invoice, posProfile) {
 				const date = new Date(dateStr);
 				return date.toLocaleDateString();
 			};
-			replaceTextInDOM(doc.body, formatDateStr(templateDoc.posting_date), formatDateStr(invoice.posting_date));
+			replaceTextInDOM(
+				doc.body,
+				formatDateStr(templateDoc.posting_date),
+				formatDateStr(invoice.posting_date),
+			);
 			replaceTextInDOM(doc.body, templateDoc.posting_date, invoice.posting_date);
 		}
 
@@ -108,7 +122,9 @@ function renderOfflineTemplate(invoice, posProfile) {
 				// Identify all rows representing items of the template invoice
 				const itemRowsToDelete = [];
 				for (const child of parentTable.children) {
-					const hasItemCode = templateDoc.items.some(item => child.textContent.includes(item.item_code));
+					const hasItemCode = templateDoc.items.some((item) =>
+						child.textContent.includes(item.item_code),
+					);
 					if (hasItemCode) {
 						itemRowsToDelete.push(child);
 					}
@@ -117,14 +133,18 @@ function renderOfflineTemplate(invoice, posProfile) {
 				const rowTemplate = templateRow.cloneNode(true);
 
 				// Generate new rows for the offline invoice
-				invoice.items.forEach(newItem => {
+				invoice.items.forEach((newItem) => {
 					const clonedRow = rowTemplate.cloneNode(true);
 					const tempItem = templateDoc.items[0];
 
 					// Replace values inside the cloned row
 					replaceTextInDOM(clonedRow, tempItem.item_code, newItem.item_code);
 					if (tempItem.item_name) {
-						replaceTextInDOM(clonedRow, tempItem.item_name, newItem.item_name || newItem.item_code);
+						replaceTextInDOM(
+							clonedRow,
+							tempItem.item_name,
+							newItem.item_name || newItem.item_code,
+						);
 					}
 
 					replaceNumericValueInDOM(clonedRow, tempItem.qty, newItem.qty);
@@ -136,13 +156,13 @@ function renderOfflineTemplate(invoice, posProfile) {
 				});
 
 				// Clean up template invoice rows
-				itemRowsToDelete.forEach(row => row.remove());
+				itemRowsToDelete.forEach((row) => row.remove());
 			}
 		}
 
 		// 3. Replace Financial Totals
-		const numericFields = ['total', 'grand_total', 'paid_amount', 'change_amount', 'discount_amount'];
-		numericFields.forEach(field => {
+		const numericFields = ["total", "grand_total", "paid_amount", "change_amount", "discount_amount"];
+		numericFields.forEach((field) => {
 			const oldValue = templateDoc[field];
 			const newValue = invoice[field];
 			if (oldValue !== undefined && newValue !== undefined) {
@@ -183,7 +203,7 @@ export default function generateOfflineInvoiceHTML(invoice, posProfile = null, c
 		invoice.paid_amount = invoice.payments.reduce((total, payment) => {
 			return total + (parseFloat(payment.amount) || 0);
 		}, 0);
-		console.log('Calculated paid_amount from payments:', invoice.paid_amount);
+		console.log("Calculated paid_amount from payments:", invoice.paid_amount);
 	}
 
 	// Calculate change_amount if paid_amount > grand_total and not already set
@@ -192,7 +212,7 @@ export default function generateOfflineInvoiceHTML(invoice, posProfile = null, c
 		const grand = parseFloat(invoice.grand_total) || 0;
 		if (paid > grand) {
 			invoice.change_amount = paid - grand;
-			console.log('Calculated change_amount:', invoice.change_amount);
+			console.log("Calculated change_amount:", invoice.change_amount);
 		}
 	}
 
@@ -201,33 +221,33 @@ export default function generateOfflineInvoiceHTML(invoice, posProfile = null, c
 	const letterHead = posProfile?.letter_head;
 	const terms = posProfile?.tc_name || invoice.terms || "";
 
-	if (customFormat && typeof customFormat === 'function') {
+	if (customFormat && typeof customFormat === "function") {
 		return customFormat(invoice, posProfile);
 	}
 
 	const printFormat = posProfile?.print_format;
 
 	// Debug logging
-	console.log('POS Profile:', posProfile);
-	console.log('Print Format from POS Profile:', printFormat);
-	console.log('Invoice:', invoice);
+	console.log("POS Profile:", posProfile);
+	console.log("Print Format from POS Profile:", printFormat);
+	console.log("Invoice:", invoice);
 
 	// TEMPORARY TEST: Force custom format for testing
 	// Remove this after testing
 	const forceCustomFormat = true; // Set to false to disable
 
 	if (forceCustomFormat) {
-		console.log('TEST MODE: Forcing custom POS Print format');
+		console.log("TEST MODE: Forcing custom POS Print format");
 		return generatePOSPrintFormat(invoice, posProfile);
 	}
 
 	// Check for any print format configuration
 	if (printFormat) {
-		console.log('Using custom POS Print format');
+		console.log("Using custom POS Print format");
 		return generatePOSPrintFormat(invoice, posProfile);
 	}
 
-	console.log('Using default format');
+	console.log("Using default format");
 
 	const itemsRows = (invoice.items || [])
 		.map((it) => {
@@ -404,7 +424,7 @@ function generatePOSPrintFormat(invoice, posProfile) {
 		invoice.paid_amount = invoice.payments.reduce((total, payment) => {
 			return total + (parseFloat(payment.amount) || 0);
 		}, 0);
-		console.log('POS Print - Calculated paid_amount from payments:', invoice.paid_amount);
+		console.log("POS Print - Calculated paid_amount from payments:", invoice.paid_amount);
 	}
 
 	// Calculate change_amount if paid_amount > grand_total and not already set
@@ -413,7 +433,7 @@ function generatePOSPrintFormat(invoice, posProfile) {
 		const grand = parseFloat(invoice.grand_total) || 0;
 		if (paid > grand) {
 			invoice.change_amount = paid - grand;
-			console.log('POS Print - Calculated change_amount:', invoice.change_amount);
+			console.log("POS Print - Calculated change_amount:", invoice.change_amount);
 		}
 	}
 
@@ -448,7 +468,7 @@ function generatePOSPrintFormat(invoice, posProfile) {
 
 	const paymentMethods = (invoice.payments || [])
 		.map((payment) => `Payment Method: ${payment.mode_of_payment}`)
-		.join('<br>');
+		.join("<br>");
 
 	const html = `<!DOCTYPE html>
 <html>
@@ -579,9 +599,10 @@ function generatePOSPrintFormat(invoice, posProfile) {
 		</div>
 		<div class="address">
 		</div>
-		${invoice.status === 'Paid' ?
-			'<div class="invoice"><b> INVOICE</b></div>' :
-			'<div class="invoice"><b> INVOICE</b></div>'
+		${
+			invoice.status === "Paid"
+				? '<div class="invoice"><b> INVOICE</b></div>'
+				: '<div class="invoice"><b> INVOICE</b></div>'
 		}
 		<div class="bill-details">
 			<div class="flex justify-between">
@@ -619,13 +640,17 @@ function generatePOSPrintFormat(invoice, posProfile) {
 				<td width="40%">المجموع</td>
 				<td width="25%" class="amount-column">${formatCurrency(invoice.total, invoice.currency)}</td>
 			</tr>
-			${invoice.discount_amount && parseFloat(invoice.discount_amount) > 0 ? `
+			${
+				invoice.discount_amount && parseFloat(invoice.discount_amount) > 0
+					? `
 			<tr>
 				<td>Discount</td>
 				<td>تخفيض</td>
 				<td class="amount-column">${formatCurrency(invoice.discount_amount, invoice.currency)}</td>
 			</tr>
-			` : ""}
+			`
+					: ""
+			}
 			<tr class="net-amount">
 				<td>Net Amount</td>
 				<td>المجموع الإجمالي</td>
@@ -636,11 +661,15 @@ function generatePOSPrintFormat(invoice, posProfile) {
 				<td>المبلغ المدفوع</td>
 				<td class="amount-column">${formatCurrency(invoice.paid_amount, invoice.currency)}</td>
 			</tr>
-			${(parseFloat(invoice.paid_amount) > parseFloat(invoice.grand_total)) ? `
+			${
+				parseFloat(invoice.paid_amount) > parseFloat(invoice.grand_total)
+					? `
 			<tr class="net-amount">
 				<td colspan="3" style="font-size:16px; text-align: center;"><b>Change Amount: ${formatCurrency(parseFloat(invoice.paid_amount) - parseFloat(invoice.grand_total), invoice.currency)}</b></td>
 			</tr>
-			` : ""}
+			`
+					: ""
+			}
 		</table>
 		
 		${paymentMethods}<br>
