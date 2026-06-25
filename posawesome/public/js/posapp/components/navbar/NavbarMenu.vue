@@ -130,6 +130,55 @@
 					</template>
 				</v-list-item>
 
+				<!-- Petty Cash Actions (Mobile Only) -->
+				<v-list-item @click="$emit('show-petty-cash-pay-in')" class="menu-item-compact success-action responsive-show-only">
+					<template v-slot:prepend>
+						<div class="menu-icon-wrapper-compact success-icon">
+							<v-icon color="white" size="16">mdi-cash-plus</v-icon>
+						</div>
+					</template>
+					<div class="menu-content-compact">
+						<v-list-item-title class="menu-item-title-compact">{{
+							__("Pay In")
+						}}</v-list-item-title>
+						<v-list-item-subtitle class="menu-item-subtitle-compact">{{
+							__("Record petty cash incoming")
+						}}</v-list-item-subtitle>
+					</div>
+				</v-list-item>
+
+				<v-list-item @click="$emit('show-petty-cash-pay-out')" class="menu-item-compact warning-action responsive-show-only">
+					<template v-slot:prepend>
+						<div class="menu-icon-wrapper-compact warning-icon">
+							<v-icon color="white" size="16">mdi-cash-minus</v-icon>
+						</div>
+					</template>
+					<div class="menu-content-compact">
+						<v-list-item-title class="menu-item-title-compact">{{
+							__("Pay Out")
+						}}</v-list-item-title>
+						<v-list-item-subtitle class="menu-item-subtitle-compact">{{
+							__("Record petty cash outgoing")
+						}}</v-list-item-subtitle>
+					</div>
+				</v-list-item>
+
+				<v-list-item @click="$emit('open-cash-drawer')" class="menu-item-compact primary-action responsive-show-only">
+					<template v-slot:prepend>
+						<div class="menu-icon-wrapper-compact primary-icon">
+							<v-icon color="white" size="16">mdi-cash-register</v-icon>
+						</div>
+					</template>
+					<div class="menu-content-compact">
+						<v-list-item-title class="menu-item-title-compact">{{
+							__("Open Cash Drawer")
+						}}</v-list-item-title>
+						<v-list-item-subtitle class="menu-item-subtitle-compact">{{
+							__("Trigger physical drawer open")
+						}}</v-list-item-subtitle>
+					</div>
+				</v-list-item>
+
 				<v-divider class="menu-section-divider-compact"></v-divider>
 
 				<v-list-item @click="$emit('show-about')" class="menu-item-compact neutral-action">
@@ -234,6 +283,9 @@ export default {
 		"logout",
 		"show-shortcuts",
 		"recall-invoices",
+		"show-petty-cash-pay-in",
+		"show-petty-cash-pay-out",
+		"open-cash-drawer",
 	],
 };
 </script>
@@ -387,6 +439,11 @@ export default {
 	box-shadow: 0 2px 6px rgba(211, 47, 47, 0.2);
 }
 
+.success-icon {
+	background: linear-gradient(135deg, #4caf50 0%, #81c784 100%);
+	box-shadow: 0 2px 6px rgba(76, 175, 80, 0.2);
+}
+
 .warning-icon {
 	background: linear-gradient(135deg, #ff9800 0%, #ffc107 100%);
 	box-shadow: 0 2px 6px rgba(255, 152, 0, 0.2);
@@ -443,6 +500,15 @@ export default {
 
 .danger-action:hover::before {
 	background: linear-gradient(135deg, rgba(211, 47, 47, 0.05) 0%, rgba(244, 67, 54, 0.08) 100%) !important;
+}
+
+.success-action:hover .success-icon {
+	transform: scale(1.1) rotate(5deg);
+	box-shadow: 0 3px 8px rgba(76, 175, 80, 0.25);
+}
+
+.success-action:hover::before {
+	background: linear-gradient(135deg, rgba(76, 175, 80, 0.05) 0%, rgba(129, 199, 132, 0.08) 100%) !important;
 }
 
 .warning-action:hover .warning-icon {
@@ -627,6 +693,12 @@ export default {
 :deep(.v-theme--dark) .danger-icon {
 	background: linear-gradient(135deg, #ef5350 0%, #f44336 100%);
 	box-shadow: 0 2px 6px rgba(239, 83, 80, 0.3);
+}
+
+:deep(.dark-theme) .success-icon,
+:deep(.v-theme--dark) .success-icon {
+	background: linear-gradient(135deg, #81c784 0%, #4caf50 100%);
+	box-shadow: 0 2px 6px rgba(129, 199, 132, 0.3);
 }
 
 :deep(.dark-theme) .warning-icon,

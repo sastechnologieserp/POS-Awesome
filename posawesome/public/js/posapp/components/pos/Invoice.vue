@@ -477,8 +477,11 @@ export default {
 				this.summaryActionLoadingType = "";
 			}
 		},
-		handleShowPaymentAction() {
-			return this.runSummaryAction("pay", () => this.show_payment());
+		async handleShowPaymentAction() {
+			return this.runSummaryAction("pay", async () => {
+				await new Promise((resolve) => setTimeout(resolve, 50));
+				return this.show_payment();
+			});
 		},
 		handlePrintDraftAction() {
 			return this.runSummaryAction("print-draft", () => this.print_draft_invoice());
