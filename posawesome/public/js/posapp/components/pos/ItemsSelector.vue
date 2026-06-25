@@ -1274,7 +1274,7 @@ export default {
 			const scaleData = vm.parseScaleBarcode(vm.search);
 
 			if (scaleData) {
-				const item = vm.items.find((it) => it.item_code.endsWith(scaleData.item_code));
+				const item = vm.items.find((it) => it.item_code === scaleData.item_code);
 				if (item) {
 					let qty = 1,
 						rate = item.rate;
@@ -1883,7 +1883,7 @@ export default {
 		async processScannedItem(scannedCode) {
 			const scaleData = this.parseScaleBarcode(scannedCode);
 			if (scaleData) {
-				const item = this.items.find((it) => it.item_code.endsWith(scaleData.item_code));
+				const item = this.items.find((it) => it.item_code === scaleData.item_code);
 				if (item) {
 					let qty = 1,
 						rate = item.rate;
