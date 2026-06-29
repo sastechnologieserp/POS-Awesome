@@ -640,6 +640,24 @@ def make_closing_shift_from_opening(opening_shift):
 				)
 			)
 
+	# Adjust Cash expected amount for Petty Cash Pay In and Pay Out
+	petty_cash_data = get_petty_cash_entries_for_shift(opening_shift.get("name"))
+	pay_in_amount = flt(petty_cash_data.get("pay_in_total", 0) or 0)
+	pay_out_amount = flt(petty_cash_data.get("pay_out_total", 0) or 0)
+
+	cash_mode_of_payment = frappe.get_value(
+		"POS Profile",
+		opening_shift.get("pos_profile"),
+		"posa_cash_mode_of_payment",
+	)
+	if not cash_mode_of_payment:
+		cash_mode_of_payment = "Cash"
+
+	for payment in payments:
+		if payment.mode_of_payment == cash_mode_of_payment:
+			payment.expected_amount += (pay_in_amount - pay_out_amount)
+			break
+
 	closing_shift.set("pos_transactions", pos_transactions)
 	closing_shift.set("payment_reconciliation", payments)
 	closing_shift.set("taxes", taxes)
@@ -1223,7 +1241,7 @@ def get_petty_cash_entries_for_shift(pos_opening_shift):
 	try:
 		# Get petty cash entries for the shift period
 		petty_cash_entries = frappe.get_all(
-			"POS Petty Cash Entry",
+			"Petty Cash",
 			filters={
 				"pos_shift": pos_opening_shift,
 				"docstatus": 1  # Submitted entries only

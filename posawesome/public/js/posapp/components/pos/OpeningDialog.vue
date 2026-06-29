@@ -288,7 +288,8 @@ export default {
 		},
 
 		print_last_closing_shift() {
-			this.eventBus.emit("print_last_closing_shift", this.pos_profile || null);
+			const profileObj = (this.pos_profiles_data || []).find(p => p.name === this.pos_profile) || null;
+			this.eventBus.emit("print_last_closing_shift", profileObj);
 		},
 	},
 

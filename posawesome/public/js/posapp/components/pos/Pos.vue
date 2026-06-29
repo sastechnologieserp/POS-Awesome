@@ -267,6 +267,7 @@ export default {
 
 						// Clear the cached opening shift data
 						this.pos_opening_shift = null;
+						const active_profile = this.pos_profile;
 						this.pos_profile = null;
 
 						// Clear from local storage
@@ -278,7 +279,7 @@ export default {
 						});
 
 						// Auto-print the cashier shift report
-						this.print_cashier_shift_report(r.message);
+						this.print_cashier_shift_report(r.message, active_profile);
 
 						this.check_opening_entry();
 					} else {
@@ -319,7 +320,7 @@ export default {
 						});
 						return;
 					}
-					this.print_cashier_shift_report(closing_shift_name);
+					this.print_cashier_shift_report(closing_shift_name, pos_profile);
 				})
 				.catch((e) => {
 					console.error("Failed to load last closing shift", e);
@@ -330,7 +331,7 @@ export default {
 				});
 		},
 
-		print_cashier_shift_report(closing_shift_name) {
+		print_cashier_shift_report(closing_shift_name, pos_profile = null) {
 			// Get the HTML content directly from backend
 			frappe.call({
 				method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.direct_print_cashier_shift_report",
@@ -341,23 +342,75 @@ export default {
 					if (r.message) {
 						const html_content = r.message;
 
-						// Create a new window with the HTML content
-						const printWindow = window.open(
-							"",
-							"_blank",
-							"width=" + screen.width + ",height=" + screen.height,
-						);
-						printWindow.document.open();
-						printWindow.document.write(html_content);
-						printWindow.document.close(); // Wait for content to load then print
-						printWindow.onload = function () {
-							printWindow.print();
-						};
+						const profile = pos_profile || this.pos_profile;
+						const silent_print = profile && profile.posa_silent_print;
 
-						// Fallback if onload doesn't work
-						setTimeout(() => {
-							printWindow.print();
-						}, 1000);
+						if (silent_print) {
+							// Show in the same tab as iframe
+							const iframeId = "posa-closing-shift-print-frame";
+							const existingFrame = document.getElementById(iframeId);
+							if (existingFrame) {
+								existingFrame.remove();
+							}
+
+							const iframe = document.createElement("iframe");
+							iframe.id = iframeId;
+							iframe.style.position = "fixed";
+							iframe.style.right = "0";
+							iframe.style.bottom = "0";
+							iframe.style.width = "0";
+							iframe.style.height = "0";
+							iframe.style.border = "0";
+
+							document.body.appendChild(iframe);
+							const win = iframe.contentWindow;
+							if (win) {
+								let printed = false;
+								win.document.open();
+								win.document.write(html_content);
+								win.document.close();
+								win.focus();
+								
+								iframe.onload = function () {
+									if (!printed) {
+										printed = true;
+										win.print();
+										setTimeout(() => iframe.remove(), 60000);
+									}
+								};
+								
+								// Fallback if onload doesn't trigger
+								setTimeout(() => {
+									if (!printed && document.getElementById(iframeId)) {
+										printed = true;
+										win.print();
+										setTimeout(() => iframe.remove(), 60000);
+									}
+								}, 1000);
+							}
+						} else {
+							// Open the print in the new tab in same window
+							const printWindow = window.open("", "_blank");
+							if (printWindow) {
+								let printed = false;
+								printWindow.document.open();
+								printWindow.document.write(html_content);
+								printWindow.document.close();
+								printWindow.onload = function () {
+									if (!printed) {
+										printed = true;
+										printWindow.print();
+									}
+								};
+								// Fallback if onload doesn't work
+								setTimeout(() => {
+									if (!printed) {
+										printed = true;
+										printWindow.print();
+									}
+								}, 1000);
+							}
+						}
 					}
 				},
 			});
