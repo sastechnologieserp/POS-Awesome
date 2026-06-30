@@ -233,6 +233,7 @@ export default {
 			cancel_dialog: false, // Cancel dialog visibility
 			float_precision: 6, // Float precision for calculations
 			currency_precision: 6, // Currency precision for display
+			smallest_currency_fraction_value: 0,
 			new_line: false, // Add new line for item
 			delivery_charges: [], // List of delivery charges
 			delivery_charges_rate: 0, // Selected delivery charge rate
@@ -999,14 +1000,43 @@ export default {
 				return result;
 			}
 
-			// For precision 3, round to nearest 0.005 increment
+			// If smallest_currency_fraction_value is available, use standard ERPNext rounding logic
+			if (this.smallest_currency_fraction_value) {
+				const fraction = this.smallest_currency_fraction_value;
+				const precision = this.currency_precision;
+				
+				// Clean float representation
+				const cleanAmount = Number(amount.toFixed(precision));
+				
+				// remainder(value, fraction, precision)
+				const multiplier = Math.pow(10, precision);
+				const v_mult = Math.round(cleanAmount * multiplier);
+				const f_mult = Math.round(fraction * multiplier);
+				const rem_mult = v_mult % f_mult;
+				const remainder_val = Number((rem_mult / multiplier).toFixed(precision));
+
+				let roundedValue = cleanAmount;
+				if (remainder_val > (fraction / 2)) {
+					roundedValue += (fraction - remainder_val);
+				} else {
+					roundedValue -= remainder_val;
+				}
+
+				const result = Number(roundedValue.toFixed(precision));
+				console.log("roundAmount (smallest fraction):", amount, "->", cleanAmount, "->", result);
+				return result;
+			}
+
+			// Fallback: For precision 3, round to nearest 0.005 increment
 			if (this.currency_precision === 3) {
+				// First round the amount to 3 decimal places to eliminate float representation/multiplication issues
+				const cleanAmount = Number(amount.toFixed(3));
 				// Round to nearest 0.005 (200 increments per unit)
 				const multiplier = 200;
-				const roundedAmount = Math.round(amount * multiplier) / multiplier;
+				const roundedAmount = Math.round(cleanAmount * multiplier) / multiplier;
 				// Don't use flt here as it applies banker's rounding which undoes our work
 				const result = Number(roundedAmount.toFixed(3));
-				console.log("roundAmount (precision 3):", amount, "->", roundedAmount, "->", result);
+				console.log("roundAmount (precision 3):", amount, "->", cleanAmount, "->", roundedAmount, "->", result);
 				return result;
 			}
 
@@ -1107,6 +1137,7 @@ export default {
 			this.customer = data.pos_profile.customer;
 			this.pos_opening_shift = data.pos_opening_shift;
 			this.stock_settings = data.stock_settings;
+			this.smallest_currency_fraction_value = data.smallest_currency_fraction_value || 0;
 			const prec = parseInt(data.pos_profile.posa_decimal_precision);
 			if (!isNaN(prec)) {
 				this.float_precision = prec;

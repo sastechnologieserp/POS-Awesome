@@ -15,7 +15,7 @@ export default {
 			// For returns, use absolute value for correct calculation
 			const qty = this.isReturnInvoice ? Math.abs(flt(item.qty)) : flt(item.qty);
 			const rate = flt(item.rate);
-			sum += qty * rate;
+			sum = flt(sum + flt(qty * rate, 3), 3);
 		});
 		// Use roundAmount for consistency with individual item rounding
 		return this.roundAmount ? this.roundAmount(sum) : this.flt(sum, this.currency_precision);
@@ -28,7 +28,7 @@ export default {
 			// For returns, use absolute value for correct calculation
 			const qty = this.isReturnInvoice ? Math.abs(flt(item.qty)) : flt(item.qty);
 			const rate = flt(item.rate);
-			sum += qty * rate;
+			sum = flt(sum + flt(qty * rate, 3), 3);
 		});
 
 		// Subtract additional discount
