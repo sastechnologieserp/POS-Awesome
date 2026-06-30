@@ -1027,44 +1027,10 @@ export default {
 				return result;
 			}
 
-			// Fallback: For precision 3, round to nearest 0.005 increment
-			if (this.currency_precision === 3) {
-				// First round the amount to 3 decimal places to eliminate float representation/multiplication issues
-				const cleanAmount = Number(amount.toFixed(3));
-				// Round to nearest 0.005 (200 increments per unit)
-				const multiplier = 200;
-				const roundedAmount = Math.round(cleanAmount * multiplier) / multiplier;
-				// Don't use flt here as it applies banker's rounding which undoes our work
-				const result = Number(roundedAmount.toFixed(3));
-				console.log("roundAmount (precision 3):", amount, "->", cleanAmount, "->", roundedAmount, "->", result);
-				return result;
-			}
-
-			// For other precisions, round to the nearest smallest currency unit
-			// For most currencies, this is 0.01 (2 decimal places)
-			let smallestUnit = 0.01; // Default to 2 decimal places
-
-			// Check if we're dealing with KWD (Kuwaiti Dinar) which uses 3 decimal places
-			if (this.pos_profile.currency === "KWD" || this.selected_currency === "KWD") {
-				smallestUnit = 0.001;
-			}
-			// Check if we're dealing with currencies that use 3 decimal places
-			else if (this.currency_precision >= 3) {
-				smallestUnit = 0.01; // Use 0.01 (cent) rounding for 3+ decimal currencies
-			}
-
-			// Special handling for KWD: round to nearest 0.001
-			if (this.pos_profile.currency === "KWD" || this.selected_currency === "KWD") {
-				// For KWD, round to 3 decimal places
-				const roundedAmount = Math.round(amount * 1000) / 1000;
-				return this.flt(roundedAmount, 3);
-			}
-
-			// Round to the nearest smallest currency unit
-			const multiplier = 1 / smallestUnit;
-			const roundedAmount = Math.round(amount * multiplier) / multiplier;
-
-			return this.flt(roundedAmount, this.currency_precision);
+			// If smallest fraction is 0, round to the nearest integer (same as ERPNext rounded(value) -> integer)
+			const result = Math.round(amount);
+			console.log("roundAmount (fraction 0):", amount, "->", result);
+			return result;
 		},
 
 		// Increase quantity of an item (handles return logic)
