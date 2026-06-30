@@ -233,6 +233,7 @@ export default {
 			cancel_dialog: false, // Cancel dialog visibility
 			float_precision: 6, // Float precision for calculations
 			currency_precision: 6, // Currency precision for display
+			smallest_currency_fraction_value: 0,
 			new_line: false, // Add new line for item
 			delivery_charges: [], // List of delivery charges
 			delivery_charges_rate: 0, // Selected delivery charge rate
@@ -999,42 +1000,37 @@ export default {
 				return result;
 			}
 
-			// For precision 3, round to nearest 0.005 increment
-			if (this.currency_precision === 3) {
-				// Round to nearest 0.005 (200 increments per unit)
-				const multiplier = 200;
-				const roundedAmount = Math.round(amount * multiplier) / multiplier;
-				// Don't use flt here as it applies banker's rounding which undoes our work
-				const result = Number(roundedAmount.toFixed(3));
-				console.log("roundAmount (precision 3):", amount, "->", roundedAmount, "->", result);
+			// If smallest_currency_fraction_value is available, use standard ERPNext rounding logic
+			if (this.smallest_currency_fraction_value) {
+				const fraction = this.smallest_currency_fraction_value;
+				const precision = this.currency_precision;
+				
+				// Clean float representation
+				const cleanAmount = Number(amount.toFixed(precision));
+				
+				// remainder(value, fraction, precision)
+				const multiplier = Math.pow(10, precision);
+				const v_mult = Math.round(cleanAmount * multiplier);
+				const f_mult = Math.round(fraction * multiplier);
+				const rem_mult = v_mult % f_mult;
+				const remainder_val = Number((rem_mult / multiplier).toFixed(precision));
+
+				let roundedValue = cleanAmount;
+				if (remainder_val > (fraction / 2)) {
+					roundedValue += (fraction - remainder_val);
+				} else {
+					roundedValue -= remainder_val;
+				}
+
+				const result = Number(roundedValue.toFixed(precision));
+				console.log("roundAmount (smallest fraction):", amount, "->", cleanAmount, "->", result);
 				return result;
 			}
 
-			// For other precisions, round to the nearest smallest currency unit
-			// For most currencies, this is 0.01 (2 decimal places)
-			let smallestUnit = 0.01; // Default to 2 decimal places
-
-			// Check if we're dealing with KWD (Kuwaiti Dinar) which uses 3 decimal places
-			if (this.pos_profile.currency === "KWD" || this.selected_currency === "KWD") {
-				smallestUnit = 0.001;
-			}
-			// Check if we're dealing with currencies that use 3 decimal places
-			else if (this.currency_precision >= 3) {
-				smallestUnit = 0.01; // Use 0.01 (cent) rounding for 3+ decimal currencies
-			}
-
-			// Special handling for KWD: round to nearest 0.001
-			if (this.pos_profile.currency === "KWD" || this.selected_currency === "KWD") {
-				// For KWD, round to 3 decimal places
-				const roundedAmount = Math.round(amount * 1000) / 1000;
-				return this.flt(roundedAmount, 3);
-			}
-
-			// Round to the nearest smallest currency unit
-			const multiplier = 1 / smallestUnit;
-			const roundedAmount = Math.round(amount * multiplier) / multiplier;
-
-			return this.flt(roundedAmount, this.currency_precision);
+			// If smallest fraction is 0, round to the nearest integer (same as ERPNext rounded(value) -> integer)
+			const result = Math.round(amount);
+			console.log("roundAmount (fraction 0):", amount, "->", result);
+			return result;
 		},
 
 		// Increase quantity of an item (handles return logic)
@@ -1107,6 +1103,7 @@ export default {
 			this.customer = data.pos_profile.customer;
 			this.pos_opening_shift = data.pos_opening_shift;
 			this.stock_settings = data.stock_settings;
+			this.smallest_currency_fraction_value = data.smallest_currency_fraction_value || 0;
 			const prec = parseInt(data.pos_profile.posa_decimal_precision);
 			if (!isNaN(prec)) {
 				this.float_precision = prec;

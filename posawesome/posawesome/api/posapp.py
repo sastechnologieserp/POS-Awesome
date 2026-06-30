@@ -138,6 +138,10 @@ def update_opening_shift_data(data, pos_profile):
 	allow_negative_stock = frappe.get_value("Stock Settings", None, "allow_negative_stock")
 	data["stock_settings"] = {}
 	data["stock_settings"].update({"allow_negative_stock": allow_negative_stock})
+	
+	# Fetch smallest currency fraction value
+	currency = data["pos_profile"].currency
+	data["smallest_currency_fraction_value"] = flt(frappe.db.get_value("Currency", currency, "smallest_currency_fraction_value"))
 
 
 @frappe.whitelist()
