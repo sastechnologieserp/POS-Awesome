@@ -16,7 +16,7 @@ frappe.ui.form.on("POS Closing Shift", {
 			};
 		});
 
-		frm.set_query("pos_opening_shift", function (doc) {
+		frm.set_query("pos_opening_shift", function () {
 			return { filters: { status: "Open", docstatus: 1 } };
 		});
 
@@ -128,13 +128,20 @@ function add_to_pos_transaction(d, frm) {
 }
 
 function add_to_pos_payments(d, frm) {
-	frm.add_child("pos_payments", {
+	const child = {
 		payment_entry: d.name,
 		posting_date: d.posting_date,
 		paid_amount: d.paid_amount,
-		customer: d.party,
+		party_type: d.party_type,
+		party: d.party,
 		mode_of_payment: d.mode_of_payment,
-	});
+	};
+
+	if (d.party_type === "Customer") {
+		child.customer = d.party;
+	}
+
+	frm.add_child("pos_payments", child);
 }
 
 async function add_to_payments(d, frm, conversion_rate) {
@@ -165,13 +172,16 @@ async function add_to_payments(d, frm, conversion_rate) {
 function add_pos_payment_to_payments(p, frm) {
 	const payment = frm.doc.payment_reconciliation.find((pay) => pay.mode_of_payment === p.mode_of_payment);
 	if (payment) {
-		let amount = get_base_value(p, "paid_amount", "base_paid_amount");
-		payment.expected_amount += flt(amount);
+		let amount = Math.abs(get_base_value(p, "paid_amount", "base_paid_amount"));
+		const multiplier = p.payment_type === "Pay" ? -1 : 1;
+		payment.expected_amount += flt(multiplier * amount);
 	} else {
 		frm.add_child("payment_reconciliation", {
 			mode_of_payment: p.mode_of_payment,
 			opening_amount: 0,
-			expected_amount: get_base_value(p, "paid_amount", "base_paid_amount"),
+			expected_amount:
+				Math.abs(get_base_value(p, "paid_amount", "base_paid_amount")) *
+				(p.payment_type === "Pay" ? -1 : 1),
 		});
 	}
 }
@@ -250,7 +260,7 @@ const get_cash_mode_of_payment = async (frm) => {
 };
 
 const get_conversion_rate = (doc) =>
-	doc.conversion_rate || doc.exchange_rate || doc.target_exchange_rate || doc.plc_conversion_rate || 1;
+	doc.conversion_rate || doc.source_exchange_rate || doc.target_exchange_rate || doc.exchange_rate || 1;
 
 const get_base_value = (doc, field, base_field, conversion_rate) => {
 	const base_fieldname = base_field || `base_${field}`;
@@ -267,9 +277,9 @@ const get_base_value = (doc, field, base_field, conversion_rate) => {
 	if (!conversion_rate) {
 		conversion_rate =
 			doc.conversion_rate ||
-			doc.exchange_rate ||
+			doc.source_exchange_rate ||
 			doc.target_exchange_rate ||
-			doc.plc_conversion_rate ||
+			doc.exchange_rate ||
 			1;
 	}
 
