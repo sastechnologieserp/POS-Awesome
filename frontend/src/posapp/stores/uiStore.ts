@@ -39,6 +39,9 @@ export const useUIStore = defineStore("ui", () => {
   const isLoading = ref(false);
   const loadingText = ref("Loading...");
 
+  // ERPNext Rounding method support
+  const smallestCurrencyFractionValue = ref(0);
+
   // Freeze Dialog State (Blocking UI)
   const isFrozen = ref(false);
   const freezeTitle = ref("");
@@ -171,11 +174,14 @@ export const useUIStore = defineStore("ui", () => {
     companyDoc.value = doc;
   }
 
-  function setRegisterData(data: { pos_profile?: POSProfile; stock_settings?: any; company?: any; pos_opening_shift?: any }) {
+  function setRegisterData(data: { pos_profile?: POSProfile; stock_settings?: any; company?: any; pos_opening_shift?: any; smallest_currency_fraction_value?: number }) {
     if (data.pos_profile) posProfile.value = data.pos_profile;
     if (data.stock_settings) stockSettings.value = data.stock_settings;
     if (data.company) companyDoc.value = data.company;
     if (data.pos_opening_shift) posOpeningShift.value = data.pos_opening_shift;
+    if (data.smallest_currency_fraction_value !== undefined) {
+      smallestCurrencyFractionValue.value = data.smallest_currency_fraction_value || 0;
+    }
   }
 
   const lastInvoiceId = ref<string | null>(null);
@@ -318,6 +324,7 @@ export const useUIStore = defineStore("ui", () => {
     stockSettings,
     companyDoc,
     posOpeningShift,
+    smallestCurrencyFractionValue,
     lastInvoiceId,
     offers,
     applicableOffers,

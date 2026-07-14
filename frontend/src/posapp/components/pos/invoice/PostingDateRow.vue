@@ -1,6 +1,6 @@
 <template>
 	<v-sheet
-		v-if="pos_profile?.posa_allow_change_posting_date"
+		v-if="pos_profile?.posa_allow_change_posting_date || pos_profile?.posa_show_customer_balance || pos_profile?.posa_enable_price_list_dropdown"
 		class="pos-header-bar px-4 py-3 mb-2"
 		rounded="lg"
 		elevation="1"
@@ -8,6 +8,7 @@
 		<v-row align="center" dense>
 			<!-- Posting Date -->
 			<v-col
+				v-if="pos_profile?.posa_allow_change_posting_date"
 				cols="12"
 				:sm="showPriceList ? 6 : 6"
 				:md="showPriceList ? 4 : 5"

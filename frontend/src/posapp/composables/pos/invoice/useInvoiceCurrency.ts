@@ -403,6 +403,26 @@ export function useInvoiceCurrency() {
 		) {
 			return flt(amount, 2);
 		}
+
+		const fraction = uiStore.smallestCurrencyFractionValue;
+		if (fraction) {
+			const precision = currency_precision.value;
+			const cleanAmount = Number(amount.toFixed(precision));
+			const multiplier = Math.pow(10, precision);
+			const v_mult = Math.round(cleanAmount * multiplier);
+			const f_mult = Math.round(fraction * multiplier);
+			const rem_mult = v_mult % f_mult;
+			const remainder_val = Number((rem_mult / multiplier).toFixed(precision));
+
+			let roundedValue = cleanAmount;
+			if (remainder_val > (fraction / 2)) {
+				roundedValue += (fraction - remainder_val);
+			} else {
+				roundedValue -= remainder_val;
+			}
+			return Number(roundedValue.toFixed(precision));
+		}
+
 		return Math.round(amount);
 	};
 

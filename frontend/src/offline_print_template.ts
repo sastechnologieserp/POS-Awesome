@@ -51,122 +51,196 @@ function computePaidAmount(doc: any) {
 	return sign * paidAmount;
 }
 
+function formatCurrency(amount: any, currency = "USD") {
+	if (amount === null || amount === undefined) return "0.000";
+	const num = parseFloat(amount);
+	if (isNaN(num)) return "0.000";
+	return Number(num).toFixed(3);
+}
+
 function defaultOfflineHTML(invoice: any, terms = "") {
 	if (!invoice) return "";
 
 	const itemsRows = (invoice.items || [])
 		.map((it: any) => {
 			const sn = it.serial_no
-				? `<div class="serial">SR.No: ${it.serial_no.replace(/\n/g, ", ")}</div>`
+				? `<br><b>SR.No:</b><br>${it.serial_no.replace(/\n/g, ", ")}`
 				: "";
-			const marker =
-				invoice.posa_show_custom_name_marker_on_print &&
-				it.name_overridden
+			const nameMarker =
+				invoice.posa_show_custom_name_marker_on_print && it.name_overridden
 					? " (custom)"
 					: "";
+			const nameStr =
+				it.item_name && it.item_name !== it.item_code
+					? `<br>${it.item_name}${nameMarker}`
+					: "";
 			return `<tr>
-                <td>${it.item_code}${
-					it.item_name && it.item_name !== it.item_code
-						? `<div class="item-name">${it.item_name}${marker}</div>`
-						: ""
-				}${sn}</td>
-                <td class="qty">${it.qty} ${it.uom || ""}</td>
-                <td class="rate">${it.rate}</td>
-                <td class="amount">${it.amount}</td>
-            </tr>`;
+				<td>${it.item_code}${nameStr}${sn}</td>
+				<td class="text-right">${it.qty} ${it.uom || ""}<br>@ ${formatCurrency(it.rate, invoice.currency)}</td>
+				<td class="text-right amount-cell">${formatCurrency(it.amount, invoice.currency)}</td>
+			</tr>`;
 		})
 		.join("");
 
 	const taxesRows = (invoice.taxes || [])
 		.map(
 			(row: any) => `<tr>
-                <td style="width:60%">${row.description}@${row.rate}%</td>
-                <td style="width:40%; text-align:right;">${row.tax_amount}</td>
-            </tr>`,
+				<td class="text-right" style="width:70%">${row.description}@${row.rate}%</td>
+				<td class="text-right amount-cell">${formatCurrency(row.tax_amount, invoice.currency)}</td>
+			</tr>`,
 		)
 		.join("");
 
 	const discountRow = invoice.discount_amount
 		? `<tr>
-                <td style="width:60%">Discount</td>
-                <td style="width:40%; text-align:right;">${invoice.discount_amount}</td>
-            </tr>`
+				<td class="text-right" style="width:75%">Discount / تخفيض</td>
+				<td class="text-right amount-cell">${formatCurrency(invoice.discount_amount, invoice.currency)}</td>
+			</tr>`
 		: "";
 
 	const changeRow = invoice.change_amount
 		? `<tr>
-                <td style="width:60%">Change Amount</td>
-                <td style="width:40%; text-align:right;">${invoice.change_amount}</td>
-            </tr>`
+				<td class="text-right" style="width:75%">Change Amount / المبلغ المتبقي</td>
+				<td class="text-right amount-cell">${formatCurrency(invoice.change_amount, invoice.currency)}</td>
+			</tr>`
 		: "";
 
-	const termsSection = terms
-		? `<div class="terms"><strong>Terms & Conditions</strong><div>${terms}</div></div>`
-		: "";
+	const qtyTotal = (invoice.items || []).reduce(
+		(sum: number, item: any) => sum + (parseFloat(item.qty) || 0),
+		0,
+	);
+
+	const formatDate = (dateStr: string) => {
+		if (!dateStr) return "";
+		const date = new Date(dateStr);
+		return date.toLocaleDateString();
+	};
 
 	const paidAmount = computePaidAmount(invoice);
 
 	return `<!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>Invoice ${invoice.name || ""}</title>
-    <style>
-        body { font-family: Arial, sans-serif; width: 80mm; margin: 0 auto; padding: 5mm; }
-        .header { text-align: center; }
-        .header h2 { margin: 0; }
-        .info { margin-bottom: 4px; }
-        .info div { font-size: 12px; line-height: 1.2; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { font-size: 12px; padding: 4px 0; border-bottom: 1px dashed #ccc; }
-        th { text-align: left; }
-        td.qty, td.rate, td.amount { text-align: right; }
-        table.totals td { border-bottom: none; }
-        .terms { margin-top: 8px; font-size: 10px; }
-        .footer { text-align: center; margin-top: 8px; font-size: 11px; }
-    </style>
+	<meta charset="utf-8">
+	<title>Invoice ${invoice.name || ""}</title>
+	<style>
+		.print-format table, .print-format tr,
+		.print-format td, .print-format div, .print-format p {
+			font-family: Monospace;
+			line-height: 200%;
+			vertical-align: middle;
+		}
+		@media screen {
+			.print-format {
+				width: 4in;
+				padding: 0.25in;
+				min-height: 8in;
+			}
+		}
+		@media print {
+			.print-format {
+				width: 4in;
+				padding: 0.25in;
+				min-height: 8in;
+			}
+		}
+		.text-right { text-align: right; }
+		.text-center { text-align: center; }
+		.table { width: 100%; border-collapse: collapse; }
+		.table th, .table td { padding: 2px; }
+		.no-border { border: none; }
+		.cart { margin-bottom: 10px; }
+		hr { border: none; border-top: 1px solid #ccc; margin: 10px 0; }
+		.company-header { font-weight: bold; margin-bottom: 10px; }
+		.customer-info { margin-bottom: 10px; }
+		.items-table { margin-bottom: 15px; }
+		.totals-table { margin-bottom: 10px; }
+		.footer { margin-top: 15px; }
+		.amount-cell { font-weight: bold; font-size: 11px; }
+	</style>
 </head>
-<body>
-    <div class="header">
-        <h2>${invoice.company || "Invoice"}</h2>
-        <p><strong>${invoice.is_duplicate ? "Duplicate" : "Original"}</strong></p>
-    </div>
-    <div class="info">
-        <div><strong>Invoice:</strong> ${invoice.name || ""}</div>
-        <div><strong>Date:</strong> ${invoice.posting_date || ""} ${invoice.posting_time || ""}</div>
-        <div><strong>Customer:</strong> ${invoice.customer_name || invoice.customer || ""}</div>
-        <div><strong>Mobile:</strong> ${invoice.contact_mobile || ""}</div>
-        <div><strong>Additional Note:</strong> ${invoice.posa_notes || ""}</div>
-        ${invoice.posa_authorization_code ? `<div><strong>Authorization Code:</strong> ${invoice.posa_authorization_code}</div>` : ""}
-    </div>
-    <table class="items">
-        <thead>
-            <tr>
-                <th style="width:40%">Item</th>
-                <th style="width:20%; text-align:right;">Qty</th>
-                <th style="width:20%; text-align:right;">Rate</th>
-                <th style="width:20%; text-align:right;">Amt</th>
-            </tr>
-        </thead>
-        <tbody>${itemsRows}</tbody>
-    </table>
-    <table class="totals">
-        <tbody>
-            ${taxesRows}
-            ${discountRow}
-            <tr>
-                <td style="width:60%"><strong>Total</strong></td>
-                <td style="width:40%; text-align:right;">${invoice.grand_total}</td>
-            </tr>
-            <tr>
-                <td style="width:60%">Paid</td>
-                <td style="width:40%; text-align:right;">${paidAmount}</td>
-            </tr>
-            ${changeRow}
-        </tbody>
-    </table>
-    ${termsSection}
-    <div class="footer">Thank you, please visit again.</div>
+<body class="print-format">
+	<div class="company-header text-center">
+		<b>${invoice.company || "Invoice"}</b><br>
+		<small style="font-size: 10px;">نعم الطازج</small><br>
+		POS No / رقم النقطة: ${invoice.pos_profile || "POS"}
+	</div>
+	
+	<div class="customer-info">
+		<p>
+			<b>Customer / العميل:</b> ${invoice.customer_name || invoice.customer || ""}<br>
+			<b>Mobile / الجوال:</b> ${invoice.contact_mobile || ""}<br>
+			<b>Date / التاريخ:</b> ${formatDate(invoice.posting_date)}<br>
+			<b>Time / الوقت:</b> ${invoice.posting_time || ""}<br>
+			<b>Receipt No / رقم الإيصال:</b> ${invoice.name || ""}<br>
+			<b>Status / الحالة:</b> ${invoice.status || ""}
+		</p>
+	</div>
+
+	${invoice.posa_notes ? `<p><b>Additional Note / ملاحظة إضافية:</b> ${invoice.posa_notes}</p>` : ""}
+
+	<hr>
+	
+	<div class="items-table">
+		<table class="table table-condensed cart no-border">
+			<thead>
+				<tr>
+					<th width="50%">Item / الصنف</th>
+					<th width="25%" class="text-right">Qty / الكمية</th>
+					<th width="25%" class="text-right">Amount / المبلغ</th>
+				</tr>
+			</thead>
+			<tbody>${itemsRows}</tbody>
+		</table>
+	</div>
+
+	<div class="totals-table">
+		<table class="table table-condensed no-border">
+			<tbody>
+				<tr>
+					<td class="text-right" style="width: 70%">
+						Net Total / المجموع الصافي
+					</td>
+					<td class="text-right amount-cell">
+						${formatCurrency(invoice.total ?? invoice.grand_total, invoice.currency)}
+					</td>
+				</tr>
+				${taxesRows}
+				${discountRow}
+				<tr>
+					<td class="text-right" style="width: 75%">
+						<b>Grand Total / المجموع الإجمالي</b>
+					</td>
+					<td class="text-right amount-cell">
+						${formatCurrency(invoice.grand_total, invoice.currency)}
+					</td>
+				</tr>
+				<tr>
+					<td class="text-right" style="width: 75%">
+						<b>Paid Amount / المبلغ المدفوع</b>
+					</td>
+					<td class="text-right amount-cell">
+						${formatCurrency(paidAmount, invoice.currency)}
+					</td>
+				</tr>
+				${changeRow}
+				<tr>
+					<td class="text-right" style="width: 75%">
+						<b>Qty Total / إجمالي الكمية</b>
+					</td>
+					<td class="text-right">
+						${qtyTotal}
+					</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+
+	<hr>
+	<div class="footer">
+		${terms ? `<p>${terms}</p>` : ""}
+		<p class="text-center">Thank you, please visit again.<br>شكراً لك، يرجى زيارتنا مرة أخرى.</p>
+	</div>
 </body>
 </html>`;
 }

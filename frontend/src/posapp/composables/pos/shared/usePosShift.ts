@@ -218,6 +218,88 @@ export function usePosShift(openDialog?: () => void) {
 			});
 	}
 
+	function print_cashier_shift_report(closing_shift_name: string, profile: any) {
+		frappe.call({
+			method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.direct_print_cashier_shift_report",
+			args: {
+				closing_shift_name: closing_shift_name,
+			},
+			callback: (r: any) => {
+				if (r.message) {
+					const html_content = r.message;
+					const silent_print = profile && profile.posa_silent_print;
+
+					if (silent_print) {
+						// Show in the same tab as iframe
+						const iframeId = "posa-closing-shift-print-frame";
+						const existingFrame = document.getElementById(iframeId);
+						if (existingFrame) {
+							existingFrame.remove();
+						}
+
+						const iframe = document.createElement("iframe");
+						iframe.id = iframeId;
+						iframe.style.position = "fixed";
+						iframe.style.right = "0";
+						iframe.style.bottom = "0";
+						iframe.style.width = "0";
+						iframe.style.height = "0";
+						iframe.style.border = "0";
+
+						document.body.appendChild(iframe);
+						const win = iframe.contentWindow;
+						if (win) {
+							let printed = false;
+							win.document.open();
+							win.document.write(html_content);
+							win.document.close();
+							win.focus();
+							
+							iframe.onload = function () {
+								if (!printed) {
+									printed = true;
+									win.print();
+									setTimeout(() => iframe.remove(), 60000);
+								}
+							};
+							
+							// Fallback if onload doesn't trigger
+							setTimeout(() => {
+								if (!printed && document.getElementById(iframeId)) {
+									printed = true;
+									win.print();
+									setTimeout(() => iframe.remove(), 60000);
+								}
+							}, 1000);
+						}
+					} else {
+						// Open the print in the new tab in same window
+						const printWindow = window.open("", "_blank");
+						if (printWindow) {
+							let printed = false;
+							printWindow.document.open();
+							printWindow.document.write(html_content);
+							printWindow.document.close();
+							printWindow.onload = function () {
+								if (!printed) {
+									printed = true;
+									printWindow.print();
+								}
+							};
+							// Fallback if onload doesn't work
+							setTimeout(() => {
+								if (!printed) {
+									printed = true;
+									printWindow.print();
+								}
+							}, 1000);
+						}
+					}
+				}
+			},
+		});
+	}
+
 	function submit_closing_pos(data: any) {
 		console.log("Submitting closing shift", data);
 		frappe
@@ -230,6 +312,9 @@ export function usePosShift(openDialog?: () => void) {
 			.then((r: any) => {
 				console.log("Submit result", r);
 				if (r.message) {
+					const currentProfile = pos_profile.value;
+					const closedShiftName = r.message.name;
+
 					pos_profile.value = null;
 					pos_opening_shift.value = null;
 					uiStore.posOpeningShift = null;
@@ -240,6 +325,10 @@ export function usePosShift(openDialog?: () => void) {
 						color: "success",
 					});
 					check_opening_entry();
+
+					if (closedShiftName) {
+						print_cashier_shift_report(closedShiftName, currentProfile);
+					}
 				}
 			})
 			.catch((err: unknown) => {

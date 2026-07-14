@@ -453,8 +453,7 @@ export default {
 				}
 				silentPrint(url, printOptions);
 			} else {
-				const printWindow = window.open(url, "_blank");
-				watchPrintWindow(printWindow, printOptions);
+				silentPrint(url, printOptions);
 			}
 		};
 

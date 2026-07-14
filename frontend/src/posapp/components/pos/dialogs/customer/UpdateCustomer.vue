@@ -134,29 +134,12 @@
 									density="compact"
 									auto-select-first
 									color="primary"
-									:label="frappe._('Customer Group') + ' *'"
+									:label="frappe._('Customer Group')"
 									v-model="group"
 									:items="groups"
 									class="pos-themed-input"
 									:no-data-text="__('Group not found')"
 									hide-details
-									required
-								>
-								</v-autocomplete>
-							</v-col>
-							<v-col cols="6" v-if="!hideNonEssential">
-								<v-autocomplete
-									clearable
-									density="compact"
-									auto-select-first
-									color="primary"
-									:label="frappe._('Territory') + ' *'"
-									v-model="territory"
-									:items="territorys"
-									class="pos-themed-input"
-									:no-data-text="__('Territory not found')"
-									hide-details
-									required
 								>
 								</v-autocomplete>
 							</v-col>
@@ -251,7 +234,7 @@ export default {
 		mobile_no: "",
 		address_line1: "",
 		city: "",
-		country: "Pakistan",
+		country: "",
 		email_id: "",
 		referral_code: "",
 		birthday: "",
@@ -438,7 +421,7 @@ export default {
 			this.mobile_no = "";
 			this.address_line1 = "";
 			this.city = "";
-			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Pakistan";
+			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "";
 			this.email_id = "";
 			this.referral_code = "";
 			this.birthday = "";
@@ -521,15 +504,7 @@ export default {
 				return;
 			}
 
-			if (!this.group) {
-				frappe.throw(__("Customer group is required"));
-				return;
-			}
-
-			if (!this.territory) {
-				frappe.throw(__("Customer territory is required"));
-				return;
-			}
+			// Group and territory validations removed per customization request
 
 			// Format birthday to YYYY-MM-DD if it exists and is in another format
 			let formatted_birthday = null;
@@ -714,7 +689,7 @@ export default {
 						this.country =
 							data.country ||
 							(this.pos_profile && this.pos_profile.posa_default_country) ||
-							"Pakistan";
+							"";
 						this.tax_id = data.tax_id;
 						this.mobile_no = data.mobile_no;
 						this.email_id = data.email_id;
@@ -739,7 +714,7 @@ export default {
 			(profile) => {
 				if (profile) {
 					this.pos_profile = profile;
-					this.country = (profile && profile.posa_default_country) || "Pakistan";
+					this.country = (profile && profile.posa_default_country) || "";
 				}
 			},
 			{ deep: true, immediate: true },
@@ -748,11 +723,11 @@ export default {
 		/*
 		this.eventBus.on("register_pos_profile", (data) => {
 			this.pos_profile = data.pos_profile;
-			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Pakistan";
+			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "";
 		});
 		this.eventBus.on("payments_register_pos_profile", (data) => {
 			this.pos_profile = data.pos_profile;
-			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "Pakistan";
+			this.country = (this.pos_profile && this.pos_profile.posa_default_country) || "";
 		});
 		*/
 		this.getCustomerGroups();

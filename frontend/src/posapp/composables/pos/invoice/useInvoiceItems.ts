@@ -167,7 +167,21 @@ export function useInvoiceItems(invoiceType: Ref<string>) {
 					available_columns.value
 						.filter((col) => {
 							if (col.required) return true;
-							if (col.key === "price_list_rate") return true;
+							if (
+								col.key === "price_list_rate" &&
+								pos_profile.value?.posa_display_price_list_rate
+							)
+								return true;
+							if (
+								col.key === "uom" &&
+								pos_profile.value?.posa_display_uom
+							)
+								return true;
+							if (
+								col.key === "posa_is_offer" &&
+								pos_profile.value?.posa_display_offer_column
+							)
+								return true;
 							if (
 								col.key === "discount_percentage" &&
 								pos_profile.value?.posa_display_discount_percentage

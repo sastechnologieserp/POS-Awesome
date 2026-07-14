@@ -109,3 +109,11 @@ def update_opening_shift_data(data, pos_profile):
     allow_negative_stock = cint(frappe.db.get_single_value("Stock Settings", "allow_negative_stock") or 0)
     data["stock_settings"] = {}
     data["stock_settings"].update({"allow_negative_stock": bool(allow_negative_stock)})
+
+    from frappe.utils import flt
+    currency = data["pos_profile"].currency if data.get("pos_profile") else None
+    if currency:
+        data["smallest_currency_fraction_value"] = flt(frappe.db.get_value("Currency", currency, "smallest_currency_fraction_value"))
+    else:
+        data["smallest_currency_fraction_value"] = 0.0
+
