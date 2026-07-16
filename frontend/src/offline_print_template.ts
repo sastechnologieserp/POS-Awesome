@@ -2,6 +2,7 @@ import {
 	getPrintTemplate,
 	getTermsAndConditions,
 	memoryInitPromise,
+	getOpeningStorage,
 } from "./offline/index";
 import nunjucks from "nunjucks";
 
@@ -245,10 +246,207 @@ function defaultOfflineHTML(invoice: any, terms = "") {
 </html>`;
 }
 
+function renderOfflineTemplate(invoice: any, posProfile: any) {
+	const printFormat = posProfile?.print_format_for_online || posProfile?.print_format || "Standard";
+	const templateHtml = localStorage.getItem(`posa_print_template_html_${printFormat}`);
+	const templateDocStr = localStorage.getItem(`posa_print_template_doc_${printFormat}`);
+
+	if (!templateHtml || !templateDocStr) {
+		console.log(`No cached print template found for ${printFormat}.`);
+		return null;
+	}
+
+	try {
+		const templateDoc = JSON.parse(templateDocStr);
+		const parser = new DOMParser();
+		const doc = parser.parseFromString(templateHtml, "text/html");
+
+		// Helper to replace raw text nodes
+		const replaceTextInDOM = (parent: any, searchStr: string | number, replaceStr: string | number) => {
+			if (!searchStr) return;
+			const search = String(searchStr).trim();
+			const replace = String(replaceStr !== null && replaceStr !== undefined ? replaceStr : "").trim();
+			if (!search) return;
+
+			const walker = doc.createTreeWalker(parent, NodeFilter.SHOW_TEXT, null);
+			let node;
+			while ((node = walker.nextNode())) {
+				if (node.nodeValue && node.nodeValue.includes(search)) {
+					node.nodeValue = node.nodeValue.split(search).join(replace);
+				}
+			}
+		};
+
+		// Helper to replace numeric values with boundary checks
+		const replaceNumericValueInDOM = (parent: any, oldValue: number, newValue: number) => {
+			if (oldValue === undefined || oldValue === null || oldValue === 0) return;
+
+			const formats = [
+				Number(oldValue).toFixed(3),
+				Number(oldValue).toFixed(2),
+				Number(oldValue).toFixed(0),
+				String(oldValue),
+			];
+
+			const walker = doc.createTreeWalker(parent, NodeFilter.SHOW_TEXT, null);
+			let node;
+			while ((node = walker.nextNode())) {
+				const val = node.nodeValue;
+				if (!val) continue;
+				for (const fmt of formats) {
+					const index = val.indexOf(fmt);
+					if (index !== -1) {
+						// Boundary check: ensure it is not part of a larger number
+						const charBefore = index > 0 ? val[index - 1] : "";
+						const charAfter =
+							index + fmt.length < val.length
+								? val[index + fmt.length]
+								: "";
+
+						const isDigitBefore = /\d/.test(charBefore);
+						const isDigitAfter = /\d/.test(charAfter);
+
+						if (!isDigitBefore && !isDigitAfter) {
+							let newFmt = String(newValue);
+							if (fmt.includes(".")) {
+								const parts = fmt.split(".");
+								const decimals = parts[1] ? parts[1].length : 0;
+								newFmt = Number(newValue).toFixed(decimals);
+							}
+							node.nodeValue =
+								val.substring(0, index) +
+								newFmt +
+								val.substring(index + fmt.length);
+							break;
+						}
+					}
+				}
+			}
+		};
+
+		// 1. Replace metadata / details at the top/document level
+		replaceTextInDOM(doc.body, templateDoc.name, invoice.name);
+		replaceTextInDOM(
+			doc.body,
+			templateDoc.customer_name,
+			invoice.customer_name || invoice.customer || "",
+		);
+		replaceTextInDOM(doc.body, templateDoc.customer, invoice.customer || "");
+
+		if (templateDoc.posting_date) {
+			const formatDateStr = (dateStr: string) => {
+				if (!dateStr) return "";
+				const date = new Date(dateStr);
+				return date.toLocaleDateString();
+			};
+			replaceTextInDOM(
+				doc.body,
+				formatDateStr(templateDoc.posting_date),
+				formatDateStr(invoice.posting_date),
+			);
+			replaceTextInDOM(doc.body, templateDoc.posting_date, invoice.posting_date);
+		}
+
+		if (templateDoc.posting_time) {
+			replaceTextInDOM(doc.body, templateDoc.posting_time, invoice.posting_time || "");
+		}
+
+		// 2. Replace Items Table Rows
+		if (templateDoc.items && templateDoc.items.length && invoice.items && invoice.items.length) {
+			const firstItemCode = templateDoc.items[0].item_code;
+			let templateRow: any = null;
+
+			// Find row containing the first item code
+			const rows = Array.from(doc.querySelectorAll("tr"));
+			for (const tr of rows) {
+				if (tr.textContent && tr.textContent.includes(firstItemCode)) {
+					templateRow = tr;
+					break;
+				}
+			}
+
+			if (templateRow) {
+				const parentTable = templateRow.parentNode;
+
+				// Identify all rows representing items of the template invoice
+				const itemRowsToDelete: any[] = [];
+				for (const child of parentTable.children) {
+					const hasItemCode = templateDoc.items.some((item: any) =>
+						child.textContent && child.textContent.includes(item.item_code),
+					);
+					if (hasItemCode) {
+						itemRowsToDelete.push(child);
+					}
+				}
+
+				const rowTemplate = templateRow.cloneNode(true);
+
+				// Generate new rows for the offline invoice
+				invoice.items.forEach((newItem: any) => {
+					const clonedRow = rowTemplate.cloneNode(true);
+					const tempItem = templateDoc.items[0];
+
+					// Replace values inside the cloned row
+					replaceTextInDOM(clonedRow, tempItem.item_code, newItem.item_code);
+					if (tempItem.item_name) {
+						replaceTextInDOM(
+							clonedRow,
+							tempItem.item_name,
+							newItem.item_name || newItem.item_code,
+						);
+					}
+
+					replaceNumericValueInDOM(clonedRow, tempItem.qty, newItem.qty);
+					replaceNumericValueInDOM(clonedRow, tempItem.rate, newItem.rate);
+					replaceNumericValueInDOM(clonedRow, tempItem.amount, newItem.amount);
+
+					// Insert before the original elements
+					parentTable.insertBefore(clonedRow, itemRowsToDelete[0]);
+				});
+
+				// Clean up template invoice rows
+				itemRowsToDelete.forEach((row) => row.remove());
+			}
+		}
+
+		// 3. Replace Financial Totals
+		const numericFields = ["total", "grand_total", "paid_amount", "change_amount", "discount_amount"];
+		numericFields.forEach((field) => {
+			const oldValue = templateDoc[field];
+			const newValue = invoice[field];
+			if (oldValue !== undefined && newValue !== undefined) {
+				replaceNumericValueInDOM(doc.body, oldValue, newValue);
+			}
+		});
+
+		return doc.documentElement.outerHTML;
+	} catch (e) {
+		console.error("Error rendering offline print template:", e);
+		return null;
+	}
+}
+
 export default async function renderOfflineInvoiceHTML(invoice: any) {
 	if (!invoice) return "";
 
 	await memoryInitPromise;
+
+	// Try using dynamic DOM parsing on cached print template first (matching version-15)
+	try {
+		let posProfile = null;
+		const openingData = getOpeningStorage();
+		if (openingData && openingData.pos_profile) {
+			posProfile = openingData.pos_profile;
+		}
+		if (posProfile) {
+			const parsedHTML = renderOfflineTemplate(invoice, posProfile);
+			if (parsedHTML) {
+				return parsedHTML;
+			}
+		}
+	} catch (e) {
+		console.warn("Failed to render using cached template, falling back", e);
+	}
 
 	const template = normaliseTemplate(getPrintTemplate());
 	const terms = getTermsAndConditions();

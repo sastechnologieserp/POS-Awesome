@@ -198,3 +198,195 @@ def update_invoice_from_order(data):
     """Backward-compatible facade used by order-to-invoice flow."""
 
     return update_invoice(data)
+
+
+@frappe.whitelist()
+def open_cash_drawer():
+    """
+    Open the cash drawer by sending a minimal receipt format
+    This prevents long page issues by using controlled dimensions
+    """
+    try:
+        # Get current user's POS profile
+        user = frappe.session.user
+        pos_profiles = frappe.get_all("POS Profile", fields=["name"])
+        
+        if not pos_profiles:
+            return {
+                "success": False, 
+                "message": "No POS profiles found."
+            }
+        
+        # Use the first available profile
+        pos_profile = pos_profiles[0].name
+        
+        # Get or create cash drawer counter
+        counter_key = f"cash_drawer_counter_{user}"
+        current_counter = frappe.cache().get_value(counter_key) or 0
+        new_counter = current_counter + 1
+        frappe.cache().set_value(counter_key, new_counter)
+        
+        # Log the attempt
+        frappe.logger().info(f"Opening cash drawer for user: {user}, profile: {pos_profile}, counter: {new_counter}")
+        
+        # Create a minimal, controlled receipt format for cash drawer
+        # This prevents long page issues by using strict dimensions and minimal content
+        receipt_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+                <title>Cash Drawer</title>
+                <meta charset="utf-8">
+                <style>
+                        /* Strict page sizing to prevent long page issues */
+                        @page {{
+                                size: 80mm 80mm;
+                                margin: 0;
+                                padding: 0;
+                        }}
+                        
+                        /* Reset all margins and padding */
+                        * {{
+                                margin: 0;
+                                padding: 0;
+                                box-sizing: border-box;
+                        }}
+                        
+                        html, body {{
+                                width: 80mm;
+                                height: 80mm;
+                                margin: 0;
+                                padding: 0;
+                                overflow: hidden;
+                                font-family: 'Courier New', monospace;
+                                font-size: 10px;
+                                line-height: 1.2;
+                                color: #000;
+                                background: white;
+                        }}
+                        
+                        /* Ensure content fits within strict dimensions */
+                        .receipt-container {{
+                                width: 76mm;
+                                height: 76mm;
+                                margin: 2mm;
+                                padding: 0;
+                                overflow: hidden;
+                        }}
+                        
+                        .header {{
+                                text-align: center;
+                                font-weight: bold;
+                                font-size: 12px;
+                                margin-bottom: 3mm;
+                                border-bottom: 1px solid #000;
+                                padding-bottom: 2mm;
+                        }}
+                        
+                        .content {{
+                                text-align: center;
+                                font-size: 10px;
+                                margin: 3mm 0;
+                        }}
+                        
+                        .counter {{
+                                text-align: center;
+                                font-size: 14px;
+                                font-weight: bold;
+                                margin: 2mm 0;
+                                color: #333;
+                        }}
+                        
+                        .small-text {{
+                                text-align: center;
+                                font-size: 8px;
+                                margin: 2mm 0;
+                                color: #666;
+                                font-style: italic;
+                        }}
+                        
+                        .timestamp {{
+                                text-align: center;
+                                font-size: 8px;
+                                margin-top: 3mm;
+                                border-top: 1px solid #000;
+                                padding-top: 2mm;
+                        }}
+                        
+                        .end-marker {{
+                                text-align: center;
+                                font-size: 10px;
+                                margin-top: 4mm;
+                                font-weight: bold;
+                                color: #000;
+                                border: 2px solid #000;
+                                padding: 2mm;
+                                border-radius: 2mm;
+                        }}
+                        
+                        /* Print media queries to ensure consistent output */
+                        @media print {{
+                                html, body {{
+                                        width: 80mm !important;
+                                        height: 80mm !important;
+                                        margin: 0 !important;
+                                        padding: 0 !important;
+                                        overflow: hidden !important;
+                                }}
+                                
+                                .receipt-container {{
+                                        width: 76mm !important;
+                                        height: 76mm !important;
+                                        margin: 2mm !important;
+                                        padding: 0 !important;
+                                        overflow: hidden !important;
+                                }}
+                                
+                                /* Prevent page breaks */
+                                * {{
+                                        page-break-inside: avoid !important;
+                                        page-break-before: avoid !important;
+                                        page-break-after: avoid !important;
+                                }}
+                        }}
+                </style>
+        </head>
+        <body>
+                <div class="receipt-container">
+                        <div class="header">CASH DRAWER OPENED</div>
+                        <div class="counter">Counter: {new_counter}</div>
+                        <div class="content">
+                                Cash drawer has been opened<br>
+                                by user: {user}<br>
+                                Profile: {pos_profile}
+                        </div>
+                        <div class="small-text">
+                                Thank you for using our POS system<br>
+                                Please ensure cash drawer is properly closed<br>
+                                Keep this receipt for your records
+                        </div>
+                        <div class="timestamp">
+                                {frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")}
+                        </div>
+                        <div class="end-marker">END OF RECEIPT</div>
+                </div>
+        </body>
+        </html>
+        """
+        
+        # Return the controlled receipt content
+        return {
+                "success": True, 
+                "message": "Cash drawer command prepared",
+                "profile": pos_profile,
+                "html_content": receipt_content,
+                "counter": new_counter,
+                "note": "This will print a controlled receipt and trigger cash drawer"
+        }
+        
+    except Exception as e:
+        frappe.logger().error(f"Failed to open cash drawer: {str(e)}")
+        return {
+                "success": False, 
+                "message": f"Failed to open cash drawer: {str(e)}"
+        }

@@ -1,8 +1,13 @@
 <template>
 	<tr class="posa-cart-item-row" v-memo="memoDeps">
 		<template v-for="column in visibleColumns" :key="column.key">
+			<!-- SI No Column -->
+			<td v-if="column.key === 'si_no'" class="text-center" :data-column-key="'si_no'">
+				<span>{{ getRowSerial(item) }}</span>
+			</td>
+
 			<!-- Item Name Column -->
-			<td v-if="column.key === 'item_name'" class="text-start" :data-column-key="'item_name'">
+			<td v-else-if="column.key === 'item_name'" class="text-start" :data-column-key="'item_name'">
 				<div class="d-flex align-center">
 					<span>{{ item.item_name }}</span>
 					<v-chip v-if="item.is_bundle" color="secondary" size="x-small" class="ml-1">
@@ -401,10 +406,18 @@
 
 <script setup>
 import { computed, nextTick, ref } from "vue";
+import { useInvoiceStore } from "../../../stores/invoiceStore";
 
 defineOptions({
 	name: "CartItemRow",
 });
+
+const invoiceStore = useInvoiceStore();
+const getRowSerial = (item) => {
+	if (!item) return "";
+	const index = invoiceStore.items.findIndex((row) => row.posa_row_id === item.posa_row_id);
+	return index >= 0 ? index + 1 : "";
+};
 
 const props = defineProps({
 	item: {

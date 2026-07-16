@@ -16,6 +16,7 @@
 			:dialog="dialog"
 			@close="closeOpeningDialog"
 			@register="handleRegisterPosData"
+			@print-last-closing-shift="print_last_closing_shift"
 		></OpeningDialog>
 		<v-dialog
 			v-if="usePaymentDialog"

@@ -116,6 +116,16 @@
 					</v-btn>
 					<v-btn
 						theme="dark"
+						@click="print_last_closing_shift"
+						class="pos-action-btn print-action-btn"
+						size="large"
+						elevation="2"
+					>
+						<v-icon start>mdi-printer</v-icon>
+						<span>{{ __("Print Last Closing Shift") }}</span>
+					</v-btn>
+					<v-btn
+						theme="dark"
 						:disabled="is_loading"
 						:loading="is_loading"
 						@click="submit_dialog"
@@ -154,7 +164,7 @@ const props = defineProps({
 	dialog: Boolean,
 });
 
-const emit = defineEmits(["close", "register"]);
+const emit = defineEmits(["close", "register", "print-last-closing-shift"]);
 const __ = window.__ || ((text) => text);
 const get_currency_symbol = window.get_currency_symbol;
 const BUILD_VERSION = typeof __BUILD_VERSION__ !== "undefined" ? __BUILD_VERSION__ : null;
@@ -293,6 +303,14 @@ function submit_dialog() {
 function go_desk() {
 	frappe.set_route("/");
 	location.reload();
+}
+
+function print_last_closing_shift() {
+	if (!pos_profile.value) {
+		frappe.msgprint(__("Please select a POS Profile first"));
+		return;
+	}
+	emit("print-last-closing-shift", pos_profile.value);
 }
 
 function logout() {
@@ -681,6 +699,15 @@ onMounted(() => {
 .logout-action-btn:hover {
 	transform: translateY(-2px);
 	box-shadow: 0 6px 20px rgba(21, 101, 192, 0.4);
+}
+
+.print-action-btn {
+	background: linear-gradient(135deg, #7b1fa2 0%, #4a148c 100%) !important;
+}
+
+.print-action-btn:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 6px 20px rgba(123, 31, 162, 0.4);
 }
 
 .submit-action-btn {

@@ -424,3 +424,37 @@ def get_overdue_invoices(pos_opening_shift):
         )
     except Exception as e:
         return []
+
+
+@frappe.whitelist()
+def get_last_closed_shift(pos_profile=None, user=None):
+    """Return the most recent submitted POS Closing Shift name.
+
+    - Defaults to the current session user.
+    - If pos_profile is provided, restrict results to that profile.
+    """
+    import json
+    user = user or frappe.session.user
+    if isinstance(pos_profile, str):
+        try:
+            parsed = json.loads(pos_profile)
+            if isinstance(parsed, dict):
+                pos_profile = parsed.get("name") or parsed.get("pos_profile") or pos_profile
+        except Exception:
+            pass
+    elif isinstance(pos_profile, dict):
+        pos_profile = pos_profile.get("name") or pos_profile.get("pos_profile")
+
+    filters = {"docstatus": 1, "user": user}
+    if pos_profile:
+        filters["pos_profile"] = pos_profile
+
+    rows = frappe.get_all(
+        "POS Closing Shift",
+        filters=filters,
+        pluck="name",
+        order_by="period_end_date desc, creation desc",
+        limit_page_length=1,
+    )
+    return rows[0] if rows else None
+

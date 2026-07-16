@@ -13,6 +13,9 @@
 			@go-desk="goDesk"
 			@show-offline-invoices="showOfflineInvoices = true"
 			@open-employee-switch="openEmployeeSwitch"
+			@show-petty-cash-pay-in="showPettyCashPayIn = true"
+			@show-petty-cash-pay-out="showPettyCashPayOut = true"
+			@open-cash-drawer="openCashDrawerFromNavbar"
 		>
 			<!-- Slot for status indicator -->
 			<template #status-indicator>
@@ -117,6 +120,94 @@
 			<v-card class="pos-themed-card">
 				<v-card-title class="text-h5 pos-text-primary">{{ freezeTitle }}</v-card-title>
 				<v-card-text class="pos-text-secondary">{{ freezeMessage }}</v-card-text>
+			</v-card>
+		</v-dialog>
+
+		<!-- Petty Cash Pay In Dialog -->
+		<v-dialog v-model="showPettyCashPayIn" persistent max-width="400">
+			<v-card class="pos-themed-card">
+				<v-card-title class="text-h5 text-center pos-text-primary">
+					<v-icon color="success" class="mr-2">mdi-cash-plus</v-icon>
+					{{ __("Pay In") }}
+				</v-card-title>
+				<v-card-text>
+					<v-form ref="pettyCashPayInForm">
+						<v-text-field
+							v-model="pettyCashData.amount"
+							:label="__('Amount')"
+							type="number"
+							:rules="[
+								(v) => !!v || __('Amount is required'),
+								(v) => v > 0 || __('Amount must be positive'),
+							]"
+							required
+							prepend-icon="mdi-currency-usd"
+							class="pos-themed-input"
+						></v-text-field>
+						<v-textarea
+							v-model="pettyCashData.note"
+							:label="__('Note')"
+							rows="3"
+							:rules="[(v) => !!v || __('Note is required')]"
+							required
+							prepend-icon="mdi-note-text"
+							class="pos-themed-input"
+						></v-textarea>
+					</v-form>
+				</v-card-text>
+				<v-card-actions>
+					<v-spacer></v-spacer>
+					<v-btn color="grey" @click="closePettyCashPayIn">
+						{{ __("Cancel") }}
+					</v-btn>
+					<v-btn color="success" @click="submitPettyCashPayIn" :loading="pettyCashSubmitting">
+						{{ __("Submit") }}
+					</v-btn>
+				</v-card-actions>
+			</v-card>
+		</v-dialog>
+
+		<!-- Petty Cash Pay Out Dialog -->
+		<v-dialog v-model="showPettyCashPayOut" persistent max-width="400">
+			<v-card class="pos-themed-card">
+				<v-card-title class="text-h5 text-center pos-text-primary">
+					<v-icon color="warning" class="mr-2">mdi-cash-minus</v-icon>
+					{{ __("Pay Out") }}
+				</v-card-title>
+				<v-card-text>
+					<v-form ref="pettyCashPayOutForm">
+						<v-text-field
+							v-model="pettyCashData.amount"
+							:label="__('Amount')"
+							type="number"
+							:rules="[
+								(v) => !!v || __('Amount is required'),
+								(v) => v > 0 || __('Amount must be positive'),
+							]"
+							required
+							prepend-icon="mdi-currency-usd"
+							class="pos-themed-input"
+						></v-text-field>
+						<v-textarea
+							v-model="pettyCashData.note"
+							:label="__('Note')"
+							rows="3"
+							:rules="[(v) => !!v || __('Note is required')]"
+							required
+							prepend-icon="mdi-note-text"
+							class="pos-themed-input"
+						></v-textarea>
+					</v-form>
+				</v-card-text>
+				<v-card-actions>
+					<v-spacer></v-spacer>
+					<v-btn color="grey" @click="closePettyCashPayOut">
+						{{ __("Cancel") }}
+					</v-btn>
+					<v-btn color="warning" @click="submitPettyCashPayOut" :loading="pettyCashSubmitting">
+						{{ __("Submit") }}
+					</v-btn>
+				</v-card-actions>
 			</v-card>
 		</v-dialog>
 
@@ -309,6 +400,14 @@ export default {
 			showAboutDialog: false,
 			showOfflineInvoices: false,
 			settingsPanelOpen: false,
+			showPettyCashPayIn: false,
+			showPettyCashPayOut: false,
+			pettyCashData: {
+				amount: "",
+				note: "",
+			},
+			pettyCashSubmitting: false,
+			cashDrawerOpening: false,
 			lastSyncTotalsSnapshot: { pending: 0, synced: 0, drafted: 0 },
 			syncNotificationPrimed: false,
 			employeeSwitchHandler: null,
@@ -678,6 +777,217 @@ export default {
 		},
 		goDesk() {
 			window.location.href = "/app";
+		},
+		closePettyCashPayIn() {
+			this.showPettyCashPayIn = false;
+			this.resetPettyCashForm();
+		},
+		closePettyCashPayOut() {
+			this.showPettyCashPayOut = false;
+			this.resetPettyCashForm();
+		},
+		resetPettyCashForm() {
+			this.pettyCashData = {
+				amount: "",
+				note: "",
+			};
+			this.pettyCashSubmitting = false;
+		},
+		async submitPettyCashPayIn() {
+			const { valid } = await this.$refs.pettyCashPayInForm.validate();
+			if (!valid) return;
+
+			this.pettyCashSubmitting = true;
+			try {
+				await this.createPettyCashEntry("Pay In");
+				this.showPettyCashPayIn = false;
+				this.toastStore.show({
+					title: this.__("Pay In recorded successfully"),
+					color: "success",
+				});
+			} catch (error) {
+				console.error("Failed to create petty cash entry:", error);
+				this.toastStore.show({
+					title: error.message || this.__("Failed to record Pay In"),
+					color: "error",
+				});
+			} finally {
+				this.pettyCashSubmitting = false;
+			}
+		},
+		async submitPettyCashPayOut() {
+			const { valid } = await this.$refs.pettyCashPayOutForm.validate();
+			if (!valid) return;
+
+			this.pettyCashSubmitting = true;
+			try {
+				await this.createPettyCashEntry("Pay Out");
+				this.showPettyCashPayOut = false;
+				this.toastStore.show({
+					title: this.__("Pay Out recorded successfully"),
+					color: "success",
+				});
+			} catch (error) {
+				console.error("Failed to create petty cash entry:", error);
+				this.toastStore.show({
+					title: error.message || this.__("Failed to record Pay Out"),
+					color: "error",
+				});
+			} finally {
+				this.pettyCashSubmitting = false;
+			}
+		},
+		async createPettyCashEntry(entryType) {
+			const posOpeningShift = this.uiStore.posOpeningShift;
+			const posProfile = this.uiStore.posProfile || this.posProfile;
+
+			// Validate amount
+			const amount = parseFloat(this.pettyCashData.amount);
+			if (isNaN(amount) || amount <= 0) {
+				throw new Error(this.__("Amount must be a positive number"));
+			}
+
+			// Validate note
+			if (!this.pettyCashData.note || !this.pettyCashData.note.trim()) {
+				throw new Error(this.__("Note is required"));
+			}
+
+			const entryData = {
+				date: frappe.datetime.get_today(),
+				entry_type: entryType,
+				pos_shift: posOpeningShift?.name || "",
+				pos_profile: posProfile?.name || "",
+				amount: amount,
+				note: this.pettyCashData.note.trim(),
+				opening_amount: posOpeningShift?.balance_details?.[0]?.opening_amount || 0,
+				closing_amount: posOpeningShift?.balance_details?.[0]?.closing_amount || 0,
+			};
+
+			return new Promise((resolve, reject) => {
+				frappe.call({
+					method: "posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.create_and_submit_petty_cash_entry",
+					args: {
+						entry_data: entryData,
+					},
+					callback: (r) => {
+						if (r.exc) {
+							reject(r.exc);
+						} else if (r.message && r.message.success) {
+							resolve(r.message);
+						} else {
+							reject(new Error(r.message?.message || this.__("Failed to create petty cash entry")));
+						}
+					},
+					error: (err) => {
+						reject(err);
+					},
+				});
+			});
+		},
+		async openCashDrawerFromNavbar() {
+			try {
+				if (this.cashDrawerOpening) {
+					this.toastStore.show({
+						title: this.__("Cash drawer is already opening..."),
+						color: "warning",
+					});
+					return;
+				}
+
+				this.cashDrawerOpening = true;
+
+				const result = await new Promise((resolve, reject) => {
+					frappe.call({
+						method: "posawesome.posawesome.api.invoices.open_cash_drawer",
+						args: {},
+						callback: (r) => {
+							if (r.exc) reject(r.exc);
+							else resolve(r.message);
+						}
+					});
+				});
+
+				if (result && result.success) {
+					const counter = result.counter || 1;
+					this.toastStore.show({
+						title: this.__("Opening cash drawer... Counter: {0}", [counter]),
+						color: "info",
+					});
+
+					const printWindow = window.open(
+						"",
+						"_blank",
+						"width=1,height=1,scrollbars=no,resizable=no,toolbar=no,menubar=no,location=no,status=no",
+					);
+
+					printWindow.document.write(`
+						<!DOCTYPE html>
+						<html>
+						<head>
+							<title>Cash Drawer Print</title>
+							<style>
+								@page {
+									size: 80mm 80mm;
+									margin: 0;
+									padding: 0;
+								}
+								body {
+									margin: 0;
+									padding: 0;
+									width: 80mm;
+									height: 80mm;
+									overflow: hidden;
+								}
+							</style>
+						</head>
+						<body>
+							${result.html_content}
+						</body>
+						</html>
+					`);
+					printWindow.document.close();
+
+					printWindow.addEventListener("load", () => {
+						setTimeout(() => {
+							try {
+								printWindow.focus();
+								printWindow.print();
+								setTimeout(() => {
+									if (!printWindow.closed) {
+										printWindow.close();
+									}
+								}, 500);
+							} catch (printError) {
+								console.warn("Print failed:", printError);
+								if (!printWindow.closed) {
+									printWindow.close();
+								}
+							}
+						}, 200);
+					});
+
+					setTimeout(() => {
+						if (!printWindow.closed) {
+							printWindow.close();
+						}
+					}, 5000);
+
+					setTimeout(() => {
+						this.toastStore.show({
+							title: this.__("Cash drawer opened successfully! Counter: {0}", [counter]),
+							color: "success",
+						});
+					}, 1000);
+				}
+			} catch (e) {
+				console.error(e);
+				this.toastStore.show({
+					title: this.__("Failed to open cash drawer"),
+					color: "error",
+				});
+			} finally {
+				this.cashDrawerOpening = false;
+			}
 		},
 
 		openCloseShift() {

@@ -493,13 +493,39 @@ export function useScanProcessor(context: ScanProcessorContext) {
 			if (!Number.isNaN(parsedPrice)) {
 				priceFromBarcode = parsedPrice;
 			}
-		} else if (
-			typeof scannerInput.scaleBarcodeMatches === "function" &&
-			scannerInput.scaleBarcodeMatches(scannedCode)
-		) {
-			if (context.get_search && context.get_item_qty) {
-				searchCode = context.get_search(scannedCode);
-				qtyFromBarcode = parseFloat(context.get_item_qty(scannedCode));
+		} else {
+			// Client-side fallback for scale barcode (version-15 style)
+			const barcodeStr = String(scannedCode || "").trim();
+			if (barcodeStr.length >= 12 && barcodeStr.startsWith("21")) {
+				const itemCode = barcodeStr.substring(2, 7);
+				const valueStr = barcodeStr.substring(7, 12);
+				const val = parseFloat(valueStr);
+				if (!Number.isNaN(val)) {
+					// 1. Try with leading zeros
+					let candidateItem = barcodeIndex.lookupItemByBarcode(itemCode);
+					// 2. Try without leading zeros
+					if (!candidateItem) {
+						const stripped = itemCode.replace(/^0+/, "");
+						candidateItem = barcodeIndex.lookupItemByBarcode(stripped);
+						if (candidateItem) {
+							searchCode = stripped;
+						} else {
+							searchCode = itemCode;
+						}
+					} else {
+						searchCode = itemCode;
+					}
+					qtyFromBarcode = val / 1000;
+					console.log(`Parsed fallback scale barcode: item_code=${searchCode}, qty=${qtyFromBarcode}`);
+				}
+			} else if (
+				typeof scannerInput.scaleBarcodeMatches === "function" &&
+				scannerInput.scaleBarcodeMatches(scannedCode)
+			) {
+				if (context.get_search && context.get_item_qty) {
+					searchCode = context.get_search(scannedCode);
+					qtyFromBarcode = parseFloat(context.get_item_qty(scannedCode));
+				}
 			}
 		}
 

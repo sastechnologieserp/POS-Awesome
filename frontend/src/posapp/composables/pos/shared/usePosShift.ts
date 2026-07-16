@@ -1,5 +1,6 @@
 import { ref, getCurrentInstance, inject } from "vue";
 import { useToastStore } from "../../../stores/toastStore.js";
+import { prefetchPrintTemplate } from "../../../plugins/print";
 import { useUIStore } from "../../../stores/uiStore.js";
 import { useInvoiceStore } from "../../../stores/invoiceStore";
 import {
@@ -121,6 +122,9 @@ export function usePosShift(openDialog?: () => void) {
 		if (cachedOpening) {
 			applyRegisterData(cachedOpening);
 			console.info("LoadPosProfile (bootstrapped from cache)");
+			if (pos_profile.value) {
+				prefetchPrintTemplate(pos_profile.value).catch(console.error);
+			}
 		}
 		return frappe
 			.call("posawesome.posawesome.api.shifts.check_opening_shift", {
@@ -129,6 +133,9 @@ export function usePosShift(openDialog?: () => void) {
 			.then((r: any) => {
 				if (r.message) {
 					applyRegisterData(r.message);
+					if (pos_profile.value) {
+						prefetchPrintTemplate(pos_profile.value).catch(console.error);
+					}
 					if (pos_profile.value.taxes_and_charges) {
 						frappe.call({
 							method: "frappe.client.get",
@@ -249,50 +256,30 @@ export function usePosShift(openDialog?: () => void) {
 						document.body.appendChild(iframe);
 						const win = iframe.contentWindow;
 						if (win) {
-							let printed = false;
 							win.document.open();
 							win.document.write(html_content);
 							win.document.close();
 							win.focus();
-							
-							iframe.onload = function () {
-								if (!printed) {
-									printed = true;
-									win.print();
-									setTimeout(() => iframe.remove(), 60000);
-								}
-							};
-							
-							// Fallback if onload doesn't trigger
-							setTimeout(() => {
-								if (!printed && document.getElementById(iframeId)) {
-									printed = true;
-									win.print();
-									setTimeout(() => iframe.remove(), 60000);
-								}
-							}, 1000);
+							try {
+								win.print();
+							} catch (err) {
+								console.error("Iframe printing failed", err);
+							}
+							setTimeout(() => iframe.remove(), 60000);
 						}
 					} else {
 						// Open the print in the new tab in same window
 						const printWindow = window.open("", "_blank");
 						if (printWindow) {
-							let printed = false;
 							printWindow.document.open();
 							printWindow.document.write(html_content);
 							printWindow.document.close();
-							printWindow.onload = function () {
-								if (!printed) {
-									printed = true;
-									printWindow.print();
-								}
-							};
-							// Fallback if onload doesn't work
-							setTimeout(() => {
-								if (!printed) {
-									printed = true;
-									printWindow.print();
-								}
-							}, 1000);
+							printWindow.focus();
+							try {
+								printWindow.print();
+							} catch (err) {
+								console.error("Popup printing failed", err);
+							}
 						}
 					}
 				}
@@ -336,11 +323,41 @@ export function usePosShift(openDialog?: () => void) {
 			});
 	}
 
+	function print_last_closing_shift(pos_profile_to_use: any = null) {
+		frappe
+			.call(
+				"posawesome.posawesome.doctype.pos_closing_shift.pos_closing_shift.get_last_closed_shift",
+				{
+					pos_profile: pos_profile_to_use,
+				},
+			)
+			.then((r: any) => {
+				const closing_shift_name = r && r.message;
+				if (!closing_shift_name) {
+					toastStore.show({
+						title: "No previous closing shift found",
+						color: "warning",
+					});
+					return;
+				}
+				print_cashier_shift_report(closing_shift_name, pos_profile_to_use);
+			})
+			.catch((e: any) => {
+				console.error("Failed to load last closing shift", e);
+				toastStore.show({
+					title: "Failed to print last closing shift",
+					color: "error",
+				});
+			});
+	}
+
 	return {
 		pos_profile,
 		pos_opening_shift,
 		check_opening_entry,
 		get_closing_data,
 		submit_closing_pos,
+		print_cashier_shift_report,
+		print_last_closing_shift,
 	};
 }

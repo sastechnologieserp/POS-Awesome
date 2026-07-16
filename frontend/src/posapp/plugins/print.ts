@@ -501,3 +501,90 @@ export function appendDebugPrintParam(
 		return url;
 	}
 }
+
+declare const frappe: any;
+
+export async function prefetchPrintTemplate(posProfile: any) {
+	if (typeof navigator !== "undefined" && !navigator.onLine) return;
+	if (!posProfile) return;
+
+	const printFormat = posProfile.print_format_for_online || posProfile.print_format || "Standard";
+	const noLetterhead = posProfile.letter_head ? 0 : 1;
+
+	// Check if already cached
+	const cachedHtml = localStorage.getItem(`posa_print_template_html_${printFormat}`);
+	const cachedDoc = localStorage.getItem(`posa_print_template_doc_${printFormat}`);
+	if (cachedHtml && cachedDoc) {
+		console.log(`Print template for ${printFormat} is already cached.`);
+		return;
+	}
+
+	console.log(`Pre-fetching print template for format: ${printFormat}`);
+	try {
+		// 1. Get the latest submitted Sales Invoice
+		const response = await new Promise<any>((resolve, reject) => {
+			frappe.call({
+				method: "frappe.client.get_list",
+				args: {
+					doctype: "Sales Invoice",
+					filters: { docstatus: 1, company: posProfile.company },
+					fields: ["name"],
+					limit_page_length: 1,
+					order_by: "creation desc",
+				},
+				callback: (r: any) => {
+					if (r.exc) reject(r.exc);
+					else resolve(r);
+				}
+			});
+		});
+
+		if (!response.message || !response.message.length) {
+			console.log("No submitted Sales Invoices found to use as print template.");
+			return;
+		}
+
+		const invoiceName = response.message[0].name;
+
+		// 2. Fetch the invoice document details
+		const docResponse = await new Promise<any>((resolve, reject) => {
+			frappe.call({
+				method: "frappe.client.get",
+				args: {
+					doctype: "Sales Invoice",
+					name: invoiceName,
+				},
+				callback: (r: any) => {
+					if (r.exc) reject(r.exc);
+					else resolve(r);
+				}
+			});
+		});
+
+		if (!docResponse.message) return;
+		const invoiceDoc = docResponse.message;
+
+		// 3. Fetch the rendered print HTML
+		const baseUrl = frappe.urllib.get_base_url();
+		const params = new URLSearchParams({
+			doctype: "Sales Invoice",
+			name: invoiceName,
+			format: printFormat,
+			no_letterhead: String(noLetterhead),
+			_: String(Date.now()),
+		});
+
+		const printViewUrl = `${baseUrl}/printview?${params.toString()}`;
+		const fetchResponse = await fetch(printViewUrl);
+		if (!fetchResponse.ok) throw new Error("Failed to fetch printview");
+
+		const printHtml = await fetchResponse.text();
+
+		// 4. Save to localStorage
+		localStorage.setItem(`posa_print_template_html_${printFormat}`, printHtml);
+		localStorage.setItem(`posa_print_template_doc_${printFormat}`, JSON.stringify(invoiceDoc));
+		console.log(`Successfully pre-fetched and cached print template for ${printFormat}`);
+	} catch (error) {
+		console.error("Failed to pre-fetch print template:", error);
+	}
+}

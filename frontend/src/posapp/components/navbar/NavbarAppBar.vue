@@ -194,6 +194,41 @@
 						</v-tooltip>
 					</v-btn>
 
+					<!-- Petty Cash Buttons -->
+					<v-btn
+						icon
+						class="mx-1 petty-cash-btn pos-themed-button"
+						@click="$emit('show-petty-cash-pay-in')"
+					>
+						<v-icon color="success">mdi-cash-plus</v-icon>
+						<v-tooltip activator="parent" location="bottom">
+							{{ __("Pay In") }}
+						</v-tooltip>
+					</v-btn>
+
+					<v-btn
+						icon
+						class="mx-1 petty-cash-btn pos-themed-button"
+						@click="$emit('show-petty-cash-pay-out')"
+					>
+						<v-icon color="warning">mdi-cash-minus</v-icon>
+						<v-tooltip activator="parent" location="bottom">
+							{{ __("Pay Out") }}
+						</v-tooltip>
+					</v-btn>
+
+					<!-- Open Cash Drawer Button -->
+					<v-btn
+						icon
+						class="mx-1 petty-cash-btn pos-themed-button"
+						@click="$emit('open-cash-drawer')"
+					>
+						<v-icon color="primary">mdi-cash-register</v-icon>
+						<v-tooltip activator="parent" location="bottom">
+							{{ __("Open Cash Drawer") }}
+						</v-tooltip>
+					</v-btn>
+
 					<!-- Notification bell between offline invoices and menu -->
 					<div class="notification-wrapper">
 						<slot name="notification-bell"></slot>
@@ -392,7 +427,7 @@ export default {
 			}
 		},
 	},
-	emits: ["nav-click", "go-desk", "show-offline-invoices", "open-employee-switch"],
+	emits: ["nav-click", "go-desk", "show-offline-invoices", "open-employee-switch", "show-petty-cash-pay-in", "show-petty-cash-pay-out", "open-cash-drawer"],
 };
 </script>
 

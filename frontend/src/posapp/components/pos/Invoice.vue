@@ -75,7 +75,7 @@
 
 					<div class="invoice-meta-grid">
 						<v-card
-							v-if="pos_profile.posa_allow_change_posting_date"
+							v-if="pos_profile.posa_allow_change_posting_date || pos_profile.posa_show_customer_balance || pos_profile.posa_enable_price_list_dropdown"
 							flat
 							class="invoice-section-card pos-themed-card"
 						>
