@@ -4,3 +4,12 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Ensure Frappe modals and alert dialogs appear above all Vuetify overlays/dialogs */
+.modal-backdrop, .modal-backdrop.show {
+    z-index: 999998 !important;
+}
+.modal, .modal.show, .msgprint, .alert-container, .standard-dialog {
+    z-index: 999999 !important;
+}
+

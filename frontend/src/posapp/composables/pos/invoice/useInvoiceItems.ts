@@ -158,67 +158,19 @@ export function useInvoiceItems(invoiceType: Ref<string>) {
 		selected_columns.value = normalizeSelectedColumns(columns);
 	};
 	const items_headers = computed(() => {
-		return available_columns.value.filter(
-			(col) => selected_columns.value.includes(col.key) || col.required,
-		);
+		return available_columns.value.filter((col) => {
+			if (col.required) return true;
+			if (col.key === "price_list_rate") return !!pos_profile.value?.posa_display_price_list_rate;
+			if (col.key === "uom") return !!pos_profile.value?.posa_display_uom;
+			if (col.key === "posa_is_offer") return !!pos_profile.value?.posa_display_offer_column;
+			if (col.key === "discount_percentage") return !!pos_profile.value?.posa_display_discount_percentage;
+			if (col.key === "discount_amount") return !!pos_profile.value?.posa_display_discount_amount;
+			return false;
+		});
 	});
 
-	const loadColumnPreferences = () => {
-		try {
-			const saved = localStorage.getItem("posawesome_selected_columns");
-			if (saved) {
-				setSelectedColumns(JSON.parse(saved));
-			} else if (pos_profile.value) {
-				// Default selection based on POS Profile
-				setSelectedColumns(
-					available_columns.value
-						.filter((col) => {
-							if (col.required) return true;
-							if (
-								col.key === "price_list_rate" &&
-								pos_profile.value?.posa_display_price_list_rate
-							)
-								return true;
-							if (
-								col.key === "uom" &&
-								pos_profile.value?.posa_display_uom
-							)
-								return true;
-							if (
-								col.key === "posa_is_offer" &&
-								pos_profile.value?.posa_display_offer_column
-							)
-								return true;
-							if (
-								col.key === "discount_percentage" &&
-								pos_profile.value?.posa_display_discount_percentage
-							)
-								return true;
-							if (
-								col.key === "discount_amount" &&
-								pos_profile.value?.posa_display_discount_amount
-							)
-								return true;
-							return false;
-						})
-						.map((col) => col.key),
-				);
-			}
-		} catch (e) {
-			console.error("Failed to load column preferences:", e);
-		}
-	};
-
-	const saveColumnPreferences = () => {
-		try {
-			localStorage.setItem(
-				"posawesome_selected_columns",
-				JSON.stringify(selected_columns.value),
-			);
-		} catch (e) {
-			console.error("Failed to save column preferences:", e);
-		}
-	};
+	const loadColumnPreferences = () => {};
+	const saveColumnPreferences = () => {};
 
 	// --- Quality and Stock Validation ---
 

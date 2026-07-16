@@ -67,6 +67,7 @@ export function buildFinalVisibleColumns(
 
 const calculateColumnWidth = (header: TableHeader, width: number) => {
 	const baseWidths: Record<string, { min: number; max: number; ratio: number }> = {
+		si_no: { min: 40, max: 50, ratio: 0.04 },
 		item_name: { min: 200, max: 250, ratio: 0.3 },
 		qty: { min: 140, max: 160, ratio: 0.12 },
 		rate: { min: 100, max: 130, ratio: 0.12 },
@@ -89,6 +90,7 @@ const calculateColumnWidth = (header: TableHeader, width: number) => {
 
 const calculateMinColumnWidth = (header: TableHeader) => {
 	const minWidths: Record<string, number> = {
+		si_no: 40,
 		item_name: 200,
 		qty: 140,
 		rate: 100,

@@ -7,23 +7,14 @@
 			@keydown.esc.capture.stop.prevent="handleDialogEscape"
 		>
 			<v-card>
-				<v-card-title class="d-flex align-center">
+				<v-card-title>
 					<span v-if="customer_id" class="text-h5 text-primary">{{ __("Update Customer") }}</span>
 					<span v-else class="text-h5 text-primary">{{ __("Create Customer") }}</span>
-					<v-spacer></v-spacer>
-					<v-switch
-						v-model="hideNonEssential"
-						density="compact"
-						inset
-						hide-details
-						color="primary"
-						:label="__('Hide Non Essential Fields')"
-					></v-switch>
 				</v-card-title>
 				<v-card-text class="pa-0">
 					<v-container>
 						<v-row>
-							<v-col cols="12">
+							<v-col cols="12" sm="6">
 								<v-text-field
 									ref="customerNameField"
 									density="compact"
@@ -34,17 +25,7 @@
 									v-model="customer_name"
 								></v-text-field>
 							</v-col>
-							<v-col cols="6">
-								<v-text-field
-									density="compact"
-									color="primary"
-									:label="frappe._('Tax ID')"
-									class="pos-themed-input"
-									hide-details
-									v-model="tax_id"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6">
+							<v-col cols="12" sm="6">
 								<v-text-field
 									density="compact"
 									color="primary"
@@ -54,7 +35,7 @@
 									v-model="mobile_no"
 								></v-text-field>
 							</v-col>
-							<v-col cols="12" v-if="!hideNonEssential">
+							<v-col cols="12">
 								<v-text-field
 									density="compact"
 									color="primary"
@@ -64,8 +45,7 @@
 									v-model="address_line1"
 								></v-text-field>
 							</v-col>
-
-							<v-col cols="12" sm="6" v-if="!hideNonEssential">
+							<v-col cols="12" sm="6">
 								<v-text-field
 									v-model="city"
 									variant="outlined"
@@ -74,8 +54,7 @@
 									class="pos-themed-input"
 								></v-text-field>
 							</v-col>
-
-							<v-col cols="12" sm="6" v-if="!hideNonEssential">
+							<v-col cols="12" sm="6">
 								<v-select
 									v-model="country"
 									:items="countries"
@@ -85,83 +64,115 @@
 									class="pos-themed-input"
 								></v-select>
 							</v-col>
-
-							<v-col cols="6">
-								<v-text-field
-									density="compact"
-									color="primary"
-									:label="frappe._('Email Id')"
-									class="pos-themed-input"
-									hide-details
-									v-model="email_id"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6">
-								<v-select
-									density="compact"
-									:label="__('Gender')"
-									:items="genders"
-									v-model="gender"
-									class="pos-themed-input"
-								></v-select>
-							</v-col>
-							<v-col cols="6">
-								<v-text-field
-									density="compact"
-									color="primary"
-									:label="frappe._('Referral Code')"
-									class="pos-themed-input"
-									hide-details
-									v-model="referral_code"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6">
-								<v-text-field
-									v-model="birthday"
-									:label="frappe._('Birthday (DD-MM-YYYY)')"
-									density="compact"
-									clearable
-									hide-details
-									color="primary"
-									placeholder="DD-MM-YYYY"
-									@update:model-value="formatBirthdayOnInput"
-									class="pos-themed-input"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6" v-if="!hideNonEssential">
-								<v-autocomplete
-									clearable
-									density="compact"
-									auto-select-first
-									color="primary"
-									:label="frappe._('Customer Group')"
-									v-model="group"
-									:items="groups"
-									class="pos-themed-input"
-									:no-data-text="__('Group not found')"
-									hide-details
+							<v-col cols="12">
+								<div
+									class="d-flex align-center"
+									@click="show_other_details = !show_other_details"
+									style="cursor: pointer"
 								>
-								</v-autocomplete>
+									<div class="text-subtitle-1 text-primary">{{ __("Other Details") }}</div>
+									<v-spacer></v-spacer>
+									<v-btn icon variant="text" density="compact" color="primary">
+										<v-icon
+											:icon="show_other_details ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+										></v-icon>
+									</v-btn>
+								</div>
 							</v-col>
-							<v-col cols="6" v-if="loyalty_program">
-								<v-text-field
-									v-model="loyalty_program"
-									:label="frappe._('Loyalty Program')"
-									density="compact"
-									readonly
-									hide-details
-									class="pos-themed-input"
-								></v-text-field>
-							</v-col>
-							<v-col cols="6" v-if="loyalty_points">
-								<v-text-field
-									v-model="loyalty_points"
-									:label="frappe._('Loyalty Points')"
-									density="compact"
-									readonly
-									hide-details
-									class="pos-themed-input"
-								></v-text-field>
+							<v-col cols="12" class="pa-0">
+								<v-expand-transition>
+									<v-row v-show="show_other_details" class="ma-0">
+										<v-col cols="6">
+											<v-text-field
+												density="compact"
+												color="primary"
+												:label="frappe._('Email Id')"
+												class="pos-themed-input"
+												hide-details
+												v-model="email_id"
+											></v-text-field>
+										</v-col>
+										<v-col cols="6">
+											<v-select
+												density="compact"
+												:label="__('Gender')"
+												:items="genders"
+												v-model="gender"
+												class="pos-themed-input"
+											></v-select>
+										</v-col>
+										<v-col cols="6">
+											<v-autocomplete
+												clearable
+												density="compact"
+												auto-select-first
+												color="primary"
+												:label="frappe._('Territory')"
+												v-model="territory"
+												:items="territorys"
+												class="pos-themed-input"
+												:no-data-text="__('Territory not found')"
+												hide-details
+											>
+											</v-autocomplete>
+										</v-col>
+										<v-col cols="6">
+											<v-text-field
+												density="compact"
+												color="primary"
+												:label="frappe._('Tax ID')"
+												class="pos-themed-input"
+												hide-details
+												v-model="tax_id"
+											></v-text-field>
+										</v-col>
+										<v-col cols="6">
+											<v-text-field
+												density="compact"
+												color="primary"
+												:label="frappe._('Referral Code')"
+												class="pos-themed-input"
+												hide-details
+												v-model="referral_code"
+											></v-text-field>
+										</v-col>
+										<v-col cols="6">
+											<v-autocomplete
+												clearable
+												density="compact"
+												auto-select-first
+												color="primary"
+												:label="frappe._('Customer Group')"
+												v-model="group"
+												:items="groups"
+												class="pos-themed-input"
+												:no-data-text="__('Group not found')"
+												hide-details
+											>
+											</v-autocomplete>
+										</v-col>
+										<v-col cols="6" v-if="loyalty_program">
+											<v-text-field
+												v-model="loyalty_program"
+												:label="frappe._('Loyalty Program')"
+												density="compact"
+												readonly
+												hide-details
+												class="pos-themed-input"
+											></v-text-field>
+										</v-col>
+										<v-col cols="6" v-if="loyalty_points">
+											<v-text-field
+												v-model="loyalty_points"
+												:label="frappe._('Loyalty Points')"
+												density="compact"
+												readonly
+												hide-details
+												class="pos-themed-input"
+											></v-text-field>
+										</v-col>
+									</v-row>
+								</v-expand-transition>
 							</v-col>
 						</v-row>
 					</v-container>
@@ -227,6 +238,7 @@ export default {
 	data: () => ({
 		// customerDialog: false, // Moved to store
 		confirmDialog: false,
+		show_other_details: false,
 		pos_profile: "",
 		customer_id: "",
 		customer_name: "",
@@ -248,7 +260,6 @@ export default {
 		gender: "",
 		loyalty_points: null,
 		loyalty_program: null,
-		hideNonEssential: false,
 		countries: [
 			"Afghanistan",
 			"Australia",
@@ -290,11 +301,6 @@ export default {
 		],
 	}),
 	watch: {
-		hideNonEssential(val) {
-			if (typeof localStorage !== "undefined") {
-				localStorage.setItem("posawesome_hide_non_essential_fields", JSON.stringify(val));
-			}
-		},
 		birthday(newVal) {
 			// Check if the user has entered 8 digits without separators (e.g., 04111994)
 			if (newVal && /^\d{8}$/.test(newVal)) {
@@ -334,8 +340,8 @@ export default {
 				try {
 					const parts = this.birthday.split("-");
 					const day = parts[0];
-					const month = parts[1];
-					const year = parts[2];
+					const month = this.birthday.split("-")[1];
+					const year = this.birthday.split("-")[2];
 
 					// Update calendar date when menu opens
 					this.$nextTick(() => {
@@ -432,6 +438,7 @@ export default {
 			this.gender = "";
 			this.loyalty_points = null;
 			this.loyalty_program = null;
+			this.show_other_details = false;
 		},
 		getCustomerGroups() {
 			if (this.groups.length > 0) return;
@@ -497,14 +504,12 @@ export default {
 				}
 			}
 		},
-		async submit_dialog() {
+		submit_dialog() {
 			const vm = this;
 			if (!this.customer_name) {
 				frappe.throw(__("Customer Name is required"));
 				return;
 			}
-
-			// Group and territory validations removed per customization request
 
 			// Format birthday to YYYY-MM-DD if it exists and is in another format
 			let formatted_birthday = null;
@@ -585,10 +590,10 @@ export default {
 			const customersStore = useCustomersStore();
 
 			if (isOffline()) {
-				await saveOfflineCustomer({ args: apiArgs });
+				saveOfflineCustomer({ args: apiArgs });
 				vm.toastStore.show({ title: __("Customer saved offline"), color: "warning" });
 				args.name = this.customer_name;
-				await customersStore.addOrUpdateCustomer({
+				vm.customersStore.addOrUpdateCustomer({
 					name: args.name,
 					customer_name: args.customer_name,
 					mobile_no: args.mobile_no,
@@ -615,7 +620,7 @@ export default {
 						});
 						args.name = r.message.name;
 						frappe.utils.play_sound("submit");
-						await customersStore.addOrUpdateCustomer({
+						await vm.customersStore.addOrUpdateCustomer({
 							name: args.name,
 							customer_name: args.customer_name,
 							mobile_no: args.mobile_no,
@@ -668,12 +673,6 @@ export default {
 		},
 	},
 	created: function () {
-		if (typeof localStorage !== "undefined") {
-			const saved = localStorage.getItem("posawesome_hide_non_essential_fields");
-			if (saved !== null) {
-				this.hideNonEssential = JSON.parse(saved);
-			}
-		}
 		// Watch store state for dialog opening
 		this.$watch(
 			() => this.isUpdateCustomerDialogOpen,
@@ -706,6 +705,7 @@ export default {
 					}
 				}
 			},
+			{ deep: true, immediate: true },
 		);
 
 		// Watch Store for POS Profile

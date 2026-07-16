@@ -99,6 +99,40 @@
 
 			<!-- Desktop: Show all items normally -->
 			<template v-else>
+				<!-- Petty Cash Buttons & Open Cash Drawer (moved before status indicator) -->
+				<v-btn
+					icon
+					class="mx-1 petty-cash-btn pos-themed-button"
+					@click="$emit('show-petty-cash-pay-in')"
+				>
+					<v-icon class="pos-text-primary">mdi-cash-plus</v-icon>
+					<v-tooltip activator="parent" location="bottom">
+						{{ __("Pay In") }}
+					</v-tooltip>
+				</v-btn>
+
+				<v-btn
+					icon
+					class="mx-1 petty-cash-btn pos-themed-button"
+					@click="$emit('show-petty-cash-pay-out')"
+				>
+					<v-icon class="pos-text-primary">mdi-cash-minus</v-icon>
+					<v-tooltip activator="parent" location="bottom">
+						{{ __("Pay Out") }}
+					</v-tooltip>
+				</v-btn>
+
+				<v-btn
+					icon
+					class="mx-1 petty-cash-btn pos-themed-button"
+					@click="$emit('open-cash-drawer')"
+				>
+					<v-icon class="pos-text-primary">mdi-cash-register</v-icon>
+					<v-tooltip activator="parent" location="bottom">
+						{{ __("Open Cash Drawer") }}
+					</v-tooltip>
+				</v-btn>
+
 				<!-- Enhanced connectivity status indicator (kept outside info menu) -->
 				<div class="gadget-wrapper status-gadget">
 					<slot name="status-indicator"></slot>
@@ -194,40 +228,6 @@
 						</v-tooltip>
 					</v-btn>
 
-					<!-- Petty Cash Buttons -->
-					<v-btn
-						icon
-						class="mx-1 petty-cash-btn pos-themed-button"
-						@click="$emit('show-petty-cash-pay-in')"
-					>
-						<v-icon color="success">mdi-cash-plus</v-icon>
-						<v-tooltip activator="parent" location="bottom">
-							{{ __("Pay In") }}
-						</v-tooltip>
-					</v-btn>
-
-					<v-btn
-						icon
-						class="mx-1 petty-cash-btn pos-themed-button"
-						@click="$emit('show-petty-cash-pay-out')"
-					>
-						<v-icon color="warning">mdi-cash-minus</v-icon>
-						<v-tooltip activator="parent" location="bottom">
-							{{ __("Pay Out") }}
-						</v-tooltip>
-					</v-btn>
-
-					<!-- Open Cash Drawer Button -->
-					<v-btn
-						icon
-						class="mx-1 petty-cash-btn pos-themed-button"
-						@click="$emit('open-cash-drawer')"
-					>
-						<v-icon color="primary">mdi-cash-register</v-icon>
-						<v-tooltip activator="parent" location="bottom">
-							{{ __("Open Cash Drawer") }}
-						</v-tooltip>
-					</v-btn>
 
 					<!-- Notification bell between offline invoices and menu -->
 					<div class="notification-wrapper">

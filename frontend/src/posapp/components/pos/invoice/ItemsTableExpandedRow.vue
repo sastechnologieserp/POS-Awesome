@@ -7,6 +7,122 @@
 		>
 			<!-- Item Details Form -->
 			<div class="posa-item-details-form">
+				<!-- Serial Number Section -->
+				<div class="posa-form-section" v-if="item.has_serial_no || item.serial_no">
+					<div class="posa-section-header">
+						<v-icon size="small" class="section-icon">mdi-barcode-scan</v-icon>
+						<span class="posa-section-title">{{ __("Serial Numbers") }}</span>
+					</div>
+					<div class="posa-form-row">
+						<div class="posa-form-field">
+							<v-text-field
+								density="compact"
+								variant="outlined"
+								color="primary"
+								:label="frappe._('Serial No QTY')"
+								class="pos-themed-input"
+								hide-details
+								v-model="item.serial_no_selected_count"
+								type="number"
+								disabled
+								prepend-inner-icon="mdi-counter"
+							></v-text-field>
+						</div>
+					</div>
+					<div class="posa-form-row">
+						<div class="posa-form-field full-width">
+							<v-autocomplete
+								v-model="item.serial_no_selected"
+								:items="getSerialOptions(item)"
+								item-title="serial_no"
+								item-value="serial_no"
+								variant="outlined"
+								density="compact"
+								chips
+								color="primary"
+								class="pos-themed-input"
+								:label="frappe._('Serial No')"
+								multiple
+								@update:model-value="setSerialNo(item)"
+								prepend-inner-icon="mdi-barcode"
+							></v-autocomplete>
+						</div>
+					</div>
+				</div>
+
+				<!-- Batch Number Section -->
+				<div class="posa-form-section" v-if="item.has_batch_no || item.batch_no">
+					<div class="posa-section-header">
+						<v-icon size="small" class="section-icon">mdi-package-variant-closed</v-icon>
+						<span class="posa-section-title">{{ __("Batch Information") }}</span>
+					</div>
+					<div class="posa-form-row">
+						<div class="posa-form-field">
+							<v-text-field
+								density="compact"
+								variant="outlined"
+								color="primary"
+								:label="frappe._('Batch No. Available QTY')"
+								class="pos-themed-input"
+								hide-details
+								:model-value="formatFloat(item.actual_batch_qty)"
+								disabled
+								prepend-inner-icon="mdi-package-variant"
+							></v-text-field>
+						</div>
+						<div class="posa-form-field">
+							<v-text-field
+								density="compact"
+								variant="outlined"
+								color="primary"
+								:label="frappe._('Batch No Expiry Date')"
+								class="pos-themed-input"
+								hide-details
+								v-model="item.batch_no_expiry_date"
+								disabled
+								prepend-inner-icon="mdi-calendar-clock"
+							></v-text-field>
+						</div>
+						<div class="posa-form-field">
+							<v-autocomplete
+								v-model="item.batch_no"
+								:items="getBatchOptions(item)"
+								item-title="batch_no"
+								variant="outlined"
+								density="compact"
+								color="primary"
+								class="pos-themed-input"
+								:label="frappe._('Batch No')"
+								@update:model-value="setBatchQty(item, $event)"
+								hide-details
+								prepend-inner-icon="mdi-package-variant-closed"
+							>
+								<template v-slot:item="{ props, item }">
+									<v-list-item v-bind="props">
+										<v-list-item-title>{{ getRaw(item).batch_no }}</v-list-item-title>
+										<v-list-item-subtitle class="d-flex align-center">
+											<span>{{
+												`Available QTY ${
+													getRaw(item).available_qty ?? getRaw(item).batch_qty
+												} - Expiry Date ${getRaw(item).expiry_date}`
+											}}</span>
+											<v-chip
+												v-if="getRaw(item).is_expired"
+												color="error"
+												size="x-small"
+												variant="flat"
+												class="ml-2"
+											>
+												{{ __("Expired") }}
+											</v-chip>
+										</v-list-item-subtitle>
+									</v-list-item>
+								</template>
+							</v-autocomplete>
+						</div>
+					</div>
+				</div>
+
 				<!-- Basic Information Section -->
 				<div class="posa-form-section">
 					<div class="posa-section-header">
@@ -274,121 +390,7 @@
 					</div>
 				</div>
 
-				<!-- Serial Number Section -->
-				<div class="posa-form-section" v-if="item.has_serial_no || item.serial_no">
-					<div class="posa-section-header">
-						<v-icon size="small" class="section-icon">mdi-barcode-scan</v-icon>
-						<span class="posa-section-title">{{ __("Serial Numbers") }}</span>
-					</div>
-					<div class="posa-form-row">
-						<div class="posa-form-field">
-							<v-text-field
-								density="compact"
-								variant="outlined"
-								color="primary"
-								:label="frappe._('Serial No QTY')"
-								class="pos-themed-input"
-								hide-details
-								v-model="item.serial_no_selected_count"
-								type="number"
-								disabled
-								prepend-inner-icon="mdi-counter"
-							></v-text-field>
-						</div>
-					</div>
-					<div class="posa-form-row">
-						<div class="posa-form-field full-width">
-							<v-autocomplete
-								v-model="item.serial_no_selected"
-								:items="getSerialOptions(item)"
-								item-title="serial_no"
-								item-value="serial_no"
-								variant="outlined"
-								density="compact"
-								chips
-								color="primary"
-								class="pos-themed-input"
-								:label="frappe._('Serial No')"
-								multiple
-								@update:model-value="setSerialNo(item)"
-								prepend-inner-icon="mdi-barcode"
-							></v-autocomplete>
-						</div>
-					</div>
-				</div>
 
-				<!-- Batch Number Section -->
-				<div class="posa-form-section" v-if="item.has_batch_no || item.batch_no">
-					<div class="posa-section-header">
-						<v-icon size="small" class="section-icon">mdi-package-variant-closed</v-icon>
-						<span class="posa-section-title">{{ __("Batch Information") }}</span>
-					</div>
-					<div class="posa-form-row">
-						<div class="posa-form-field">
-							<v-text-field
-								density="compact"
-								variant="outlined"
-								color="primary"
-								:label="frappe._('Batch No. Available QTY')"
-								class="pos-themed-input"
-								hide-details
-								:model-value="formatFloat(item.actual_batch_qty)"
-								disabled
-								prepend-inner-icon="mdi-package-variant"
-							></v-text-field>
-						</div>
-						<div class="posa-form-field">
-							<v-text-field
-								density="compact"
-								variant="outlined"
-								color="primary"
-								:label="frappe._('Batch No Expiry Date')"
-								class="pos-themed-input"
-								hide-details
-								v-model="item.batch_no_expiry_date"
-								disabled
-								prepend-inner-icon="mdi-calendar-clock"
-							></v-text-field>
-						</div>
-						<div class="posa-form-field">
-							<v-autocomplete
-								v-model="item.batch_no"
-								:items="getBatchOptions(item)"
-								item-title="batch_no"
-								variant="outlined"
-								density="compact"
-								color="primary"
-								class="pos-themed-input"
-								:label="frappe._('Batch No')"
-								@update:model-value="setBatchQty(item, $event)"
-								hide-details
-								prepend-inner-icon="mdi-package-variant-closed"
-							>
-								<template v-slot:item="{ props, item }">
-									<v-list-item v-bind="props">
-										<v-list-item-title>{{ getRaw(item).batch_no }}</v-list-item-title>
-										<v-list-item-subtitle class="d-flex align-center">
-											<span>{{
-												`Available QTY ${
-													getRaw(item).available_qty ?? getRaw(item).batch_qty
-												} - Expiry Date ${getRaw(item).expiry_date}`
-											}}</span>
-											<v-chip
-												v-if="getRaw(item).is_expired"
-												color="error"
-												size="x-small"
-												variant="flat"
-												class="ml-2"
-											>
-												{{ __("Expired") }}
-											</v-chip>
-										</v-list-item-subtitle>
-									</v-list-item>
-								</template>
-							</v-autocomplete>
-						</div>
-					</div>
-				</div>
 
 				<!-- Delivery Date Section -->
 				<div

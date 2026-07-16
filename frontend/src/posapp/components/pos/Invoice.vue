@@ -154,15 +154,7 @@
 							<InvoiceItemsActionToolbar
 								ref="actionToolbar"
 								:itemSearch="itemSearch"
-								:availableColumns="available_columns"
-								:selectedColumns="selected_columns"
 								@update:itemSearch="itemSearch = $event"
-								@update:selectedColumns="
-									(cols) => {
-										setSelectedColumns(cols);
-										saveColumnPreferences();
-									}
-								"
 							/>
 
 							<ItemsTable

@@ -259,12 +259,31 @@ export function usePosShift(openDialog?: () => void) {
 							win.document.open();
 							win.document.write(html_content);
 							win.document.close();
-							win.focus();
-							try {
-								win.print();
-							} catch (err) {
-								console.error("Iframe printing failed", err);
-							}
+
+							const triggerPrint = () => {
+								win.focus();
+								try {
+									win.print();
+								} catch (err) {
+									console.error("Iframe printing failed", err);
+								}
+							};
+
+							let printTriggered = false;
+							iframe.onload = () => {
+								if (!printTriggered) {
+									printTriggered = true;
+									triggerPrint();
+								}
+							};
+
+							setTimeout(() => {
+								if (!printTriggered) {
+									printTriggered = true;
+									triggerPrint();
+								}
+							}, 1000);
+
 							setTimeout(() => iframe.remove(), 60000);
 						}
 					} else {
@@ -274,12 +293,30 @@ export function usePosShift(openDialog?: () => void) {
 							printWindow.document.open();
 							printWindow.document.write(html_content);
 							printWindow.document.close();
-							printWindow.focus();
-							try {
-								printWindow.print();
-							} catch (err) {
-								console.error("Popup printing failed", err);
-							}
+
+							const triggerPrint = () => {
+								printWindow.focus();
+								try {
+									printWindow.print();
+								} catch (err) {
+									console.error("Popup printing failed", err);
+								}
+							};
+
+							let printTriggered = false;
+							printWindow.onload = () => {
+								if (!printTriggered) {
+									printTriggered = true;
+									triggerPrint();
+								}
+							};
+
+							setTimeout(() => {
+								if (!printTriggered) {
+									printTriggered = true;
+									triggerPrint();
+								}
+							}, 1000);
 						}
 					}
 				}
