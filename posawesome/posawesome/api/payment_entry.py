@@ -10,7 +10,10 @@ from erpnext.accounts.doctype.journal_entry.journal_entry import (
 	get_default_bank_cash_account,
 )
 from erpnext.setup.utils import get_exchange_rate
-from erpnext.accounts.doctype.bank_account.bank_account import get_party_bank_account
+try:
+	from erpnext.accounts.doctype.bank_account.bank_account import get_party_bank_account
+except ImportError:
+	from erpnext.accounts.party import get_party_bank_account
 from posawesome.posawesome.api.m_pesa import submit_mpesa_payment
 from erpnext.accounts.utils import (
 	QueryPaymentLedger,
