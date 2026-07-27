@@ -1134,22 +1134,30 @@ export default {
 				return;
 			}
 
-			let invoice_doc;
-			if (
-				this.invoiceType === "Order" &&
-				this.pos_profile.posa_create_only_sales_order &&
-				!this.new_delivery_date &&
-				!this.invoice_doc.posa_delivery_date
-			) {
-				invoice_doc = this.get_invoice_doc();
-			} else if (this.invoice_doc.doctype == "Sales Order" && this.invoiceType === "Invoice") {
-				invoice_doc = await this.process_invoice_from_order();
+			let invoice_doc = {};
+			if (!this.pos_profile.posa_direct_save_on_pay) {
+				if (this.invoice_doc.doctype == "Sales Order" && this.invoiceType === "Invoice") {
+					invoice_doc = await this.get_invoice_from_order_doc();
+				} else {
+					invoice_doc = this.get_invoice_doc();
+				}
 			} else {
-				invoice_doc = this.process_invoice();
-			}
+				if (
+					this.invoiceType === "Order" &&
+					this.pos_profile.posa_create_only_sales_order &&
+					!this.new_delivery_date &&
+					!this.invoice_doc.posa_delivery_date
+				) {
+					invoice_doc = this.get_invoice_doc();
+				} else if (this.invoice_doc.doctype == "Sales Order" && this.invoiceType === "Invoice") {
+					invoice_doc = await this.process_invoice_from_order();
+				} else {
+					invoice_doc = this.process_invoice();
+				}
 
-			if (!invoice_doc) {
-				return;
+				if (!invoice_doc) {
+					return;
+				}
 			}
 
 			// Update invoice_doc with current currency info

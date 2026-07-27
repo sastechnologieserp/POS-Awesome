@@ -166,8 +166,17 @@ def update_invoice(data):
 		except Exception as e:
 			frappe.log_error(f"Failed to create customer {customer_name}: {e}")
 
+	# Preserve payments entered on frontend
+	original_payments = [p.as_dict() for p in invoice_doc.payments] if invoice_doc.payments else []
+
 	# Set missing values first
 	invoice_doc.set_missing_values()
+
+	# Restore payments if they were cleared
+	if original_payments:
+		invoice_doc.set("payments", [])
+		for p in original_payments:
+			invoice_doc.append("payments", p)
 
 	# Ensure selected currency is preserved after set_missing_values
 	if selected_currency:
