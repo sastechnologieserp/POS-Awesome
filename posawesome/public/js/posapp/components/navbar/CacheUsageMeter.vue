@@ -17,9 +17,56 @@
 			<div class="cache-tooltip-content">
 				<div class="cache-tooltip-title">{{ __("Cache Usage") }}</div>
 				<div class="cache-tooltip-detail" v-if="!cacheUsageLoading">
-					<div>{{ __("Total Size") }}: {{ formatBytes(cacheUsageDetails.total) }}</div>
-					<div>{{ __("IndexedDB") }}: {{ formatBytes(cacheUsageDetails.indexedDB) }}</div>
-					<div>{{ __("localStorage") }}: {{ formatBytes(cacheUsageDetails.localStorage) }}</div>
+					<div v-if="cacheUsageDetails && cacheUsageDetails.quota">
+						{{ __("Storage") }}:
+						{{ formatBytes(cacheUsageDetails.usage || 0) }}
+						{{ __("of") }}
+						{{ formatBytes(cacheUsageDetails.quota || 0) }}
+						<span v-if="cacheUsageDetails.free !== null">
+							({{ __("Free") }} {{ formatBytes(cacheUsageDetails.free || 0) }})
+						</span>
+						<v-progress-linear
+							:model-value="percent(cacheUsageDetails.usage || 0, cacheUsageDetails.quota || 0)"
+							height="6"
+							rounded
+							class="mt-1"
+							:color="cacheUsageColor"
+						></v-progress-linear>
+					</div>
+					<div class="mt-2">{{ __("Total Cache") }}: {{ formatBytes(cacheUsageDetails.total) }}</div>
+					<v-progress-linear
+						v-if="cacheUsageDetails && cacheUsageDetails.quota"
+						:model-value="percent(cacheUsageDetails.total || 0, cacheUsageDetails.quota || 0)"
+						height="6"
+						rounded
+						class="mt-1"
+						color="primary"
+					></v-progress-linear>
+					<div class="mt-2">
+						{{ __("IndexedDB") }}: {{ formatBytes(cacheUsageDetails.indexedDB) }}
+					</div>
+					<v-progress-linear
+						v-if="cacheUsageDetails && cacheUsageDetails.quota"
+						:model-value="percent(cacheUsageDetails.indexedDB || 0, cacheUsageDetails.quota || 0)"
+						height="6"
+						rounded
+						class="mt-1"
+						color="info"
+					></v-progress-linear>
+					<div class="mt-2">
+						{{ __("localStorage") }}: {{ formatBytes(cacheUsageDetails.localStorage) }}
+						<span v-if="cacheUsageDetails && cacheUsageDetails.localStorageQuota">
+							({{ __("of") }} {{ formatBytes(cacheUsageDetails.localStorageQuota) }})
+						</span>
+					</div>
+					<v-progress-linear
+						v-if="cacheUsageDetails && cacheUsageDetails.localStorageQuota"
+						:model-value="percent(cacheUsageDetails.localStorage || 0, cacheUsageDetails.localStorageQuota || 0)"
+						height="6"
+						rounded
+						class="mt-1"
+						color="warning"
+					></v-progress-linear>
 				</div>
 				<div class="cache-tooltip-detail" v-else>
 					{{ __("Calculating...") }}
@@ -51,6 +98,10 @@ export default {
 				total: 0,
 				indexedDB: 0,
 				localStorage: 0,
+				usage: null,
+				quota: null,
+				free: null,
+				localStorageQuota: null,
 			}),
 		},
 	},
@@ -65,6 +116,10 @@ export default {
 	methods: {
 		refreshCacheUsage() {
 			this.$emit("refresh");
+		},
+		percent(value, total) {
+			if (!total || total <= 0) return 0;
+			return Math.min(100, Math.round((value / total) * 100));
 		},
 		formatBytes(bytes) {
 			if (bytes === 0) return "0 Bytes";
