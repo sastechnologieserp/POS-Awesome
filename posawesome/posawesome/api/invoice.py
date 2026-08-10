@@ -15,6 +15,15 @@ from posawesome.posawesome.doctype.delivery_charges.delivery_charges import (
 )
 
 
+def before_insert(doc, method=None):
+	custom_id = doc.get("id") or (frappe.form_dict and frappe.form_dict.get("id"))
+	if custom_id:
+		doc.name = custom_id
+		doc.flags.name_set = True
+	elif doc.name and not doc.name.startswith("new-sales-invoice"):
+		doc.flags.name_set = True
+
+
 def validate(doc, method):
 	validate_shift(doc)
 	set_patient(doc)

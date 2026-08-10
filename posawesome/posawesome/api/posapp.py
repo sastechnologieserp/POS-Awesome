@@ -684,7 +684,11 @@ def validate_return_items(original_invoice_name, return_items):
 @frappe.whitelist()
 def update_invoice(data):
 	data = json.loads(data)
-	if data.get("name"):
+	if isinstance(data, dict):
+		if data.get("id") and not data.get("name"):
+			data["name"] = data.get("id")
+
+	if data.get("name") and frappe.db.exists("Sales Invoice", data.get("name")):
 		invoice_doc = frappe.get_doc("Sales Invoice", data.get("name"))
 		invoice_doc.update(data)
 	else:
@@ -732,6 +736,9 @@ def update_invoice(data):
 				if active_shift:
 					data["posa_pos_opening_shift"] = active_shift[0][0]
 		invoice_doc = frappe.get_doc(data)
+		if isinstance(data, dict) and data.get("name"):
+			invoice_doc.name = data.get("name")
+			invoice_doc.flags.name_set = True
 
 	# Set currency from data before set_missing_values
 	# Validate return items if this is a return invoice
@@ -873,6 +880,9 @@ def update_invoice(data):
 def submit_invoice(invoice, data):
 	data = json.loads(data)
 	invoice = json.loads(invoice)
+	if isinstance(invoice, dict):
+		if invoice.get("id") and not invoice.get("name"):
+			invoice["name"] = invoice.get("id")
 	invoice_name = invoice.get("name")
 	if not invoice_name or not frappe.db.exists("Sales Invoice", invoice_name):
 		created = update_invoice(json.dumps(invoice))
