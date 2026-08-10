@@ -52,6 +52,9 @@
 					@logout="logOut"
 					@show-shortcuts="handleShowShortcuts"
 					@recall-invoices="handleRecallInvoices"
+					@show-petty-cash-pay-in="showPettyCashPayIn = true"
+					@show-petty-cash-pay-out="showPettyCashPayOut = true"
+					@open-cash-drawer="openCashDrawerFromNavbar"
 				/>
 			</template>
 		</NavbarAppBar>
