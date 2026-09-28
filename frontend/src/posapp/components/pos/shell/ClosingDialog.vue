@@ -39,6 +39,7 @@
 								:headers="headers"
 								:items-per-page="itemsPerPage"
 								:company-currency-symbol="companyCurrencySymbol"
+								:currency-symbol="currencySymbol"
 								:format-currency="formatCurrency"
 								:format-float="formatFloat"
 							/>
@@ -139,19 +140,31 @@ export default {
 				sortable: true,
 			},
 			{
+				title: __("Currency"),
+				value: "currency",
+				align: "start",
+				sortable: true,
+			},
+			{
 				title: __("Opening Amount"),
 				align: "end",
 				sortable: true,
-				value: "opening_amount",
+				value: "opening_amount_in_currency",
 			},
 			{
 				title: __("Closing Amount"),
-				value: "closing_amount",
+				value: "closing_amount_in_currency",
 				align: "end",
 				sortable: true,
 			},
 		];
 		const extendedHeaders = [
+			{
+				title: __("Expected Amount"),
+				value: "expected_amount_in_currency",
+				align: "end",
+				sortable: false,
+			},
 			{
 				title: __("Expected Amount (In Company Currency)"),
 				value: "expected_amount",
@@ -159,8 +172,14 @@ export default {
 				sortable: false,
 			},
 			{
+				title: __("Difference (Tender Currency)"),
+				value: "difference_in_currency",
+				align: "end",
+				sortable: false,
+			},
+			{
 				title: __("Difference (In Company Currency)"),
-				value: "difference",
+				value: "company_difference",
 				align: "end",
 				sortable: false,
 			},

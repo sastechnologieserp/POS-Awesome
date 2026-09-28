@@ -809,10 +809,10 @@
 			<div class="table-section mt-4">
 				<div class="table-header mb-2">
 					<h5 class="text-subtitle-1 text-grey-darken-2 mb-1">
-						{{ __("Payments by Mode of Payment") }}
+						{{ __("Physical Tender Totals by Currency") }}
 					</h5>
 					<p class="text-body-2 text-grey">
-						{{ __("Grouped totals for each payment method and currency") }}
+						{{ __("Original tender received for each payment method and currency") }}
 					</p>
 				</div>
 

@@ -8,6 +8,7 @@ import {
 	isEditableElement,
 	moveFocusByArrow,
 	resolveKeyboardNavigationRoot,
+	shouldRedirectPosTabToItemSearch,
 } from "../src/posapp/utils/keyboardNavigation";
 
 const setRect = (element: HTMLElement, rect: Partial<DOMRect>) => {
@@ -148,5 +149,39 @@ describe("keyboardNavigation", () => {
 		setRect(paymentRoot, { left: 0, top: 0, width: 400, height: 300 });
 
 		expect(resolveKeyboardNavigationRoot(posRoot)).toBe(paymentRoot);
+	});
+
+	it("keeps native Tab navigation inside an open POS overlay", () => {
+		const overlayContent = document.createElement("div");
+		const firstField = document.createElement("input");
+		overlayContent.className = "v-overlay__content";
+		overlayContent.appendChild(firstField);
+		document.body.appendChild(overlayContent);
+
+		let shouldRedirect = true;
+		firstField.addEventListener("keydown", (event) => {
+			shouldRedirect = shouldRedirectPosTabToItemSearch(event);
+		});
+		firstField.dispatchEvent(keydown("Tab"));
+
+		expect(shouldRedirect).toBe(false);
+	});
+
+	it("does not redirect Tab when a visible overlay owns focus", () => {
+		const overlayContent = document.createElement("div");
+		overlayContent.className = "v-overlay__content";
+		document.body.appendChild(overlayContent);
+		setRect(overlayContent, { left: 10, top: 10, width: 300, height: 200 });
+
+		expect(shouldRedirectPosTabToItemSearch(keydown("Tab"))).toBe(false);
+	});
+
+	it("preserves the Classic POS Tab shortcut when no overlay is open", () => {
+		expect(shouldRedirectPosTabToItemSearch(keydown("Tab"))).toBe(true);
+		expect(
+			shouldRedirectPosTabToItemSearch(keydown("Tab"), {
+				counterGridActive: true,
+			}),
+		).toBe(false);
 	});
 });

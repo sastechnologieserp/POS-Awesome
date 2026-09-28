@@ -187,3 +187,127 @@ Verification:
 - `yarn vitest run tests/bootstrapWarningVisibility.spec.ts`
 - `yarn type-check`
 - Headless Chrome check with `aqib@ai.ai`: products rendered and `Stock Confidence Offline` was not visible while online.
+
+## 2026-07-10 Invoice Items Keyboard Grid Navigation
+
+Decision:
+
+- POS operators need keyboard-only control of the invoice items table without changing the existing `Tab` behavior that returns focus to item search.
+- `Alt/Option+ArrowRight` now enters the invoice items table on the latest cart row in row-selection mode.
+- A plain `ArrowRight` then enters cell mode; arrow keys move the solid focus box across editable/action cells and between rows.
+- `Enter` activates the selected cell using the existing row editors/actions, so pricing, discount, UOM, totals, payload, offline sync, and printing logic remain unchanged.
+
+Implementation notes:
+
+- The table derives navigable cells from the currently rendered responsive columns.
+- Navigable cells are quantity, UOM, discount %, discount amount, rate, offer action, delete action, and expand action when visible.
+- Read-only name, price-list-rate, and amount cells are skipped.
+- Quantity now renders as a direct numeric input instead of the previous minus/value/plus counter, while still using the same cart quantity update path.
+
+Verification:
+
+- `yarn vitest run tests/cartFieldFocus.spec.ts tests/invoiceShortcuts.spec.ts tests/keyboardNavigation.spec.ts`
+- `yarn lint`
+- `yarn build`
+
+## 2026-07-15 Counter Grid Exact Entry Fast Path
+
+Implemented:
+
+- Counter Grid now attempts an exact in-memory item-code or barcode lookup before opening the item-search dialog.
+- Unique ordinary items use the existing `ItemsSelector.add_item()` pipeline, preserving cart validation, item-detail preparation, customer/POS Profile pricing, stock policy, pricing rules, and quantity-focus behavior.
+- Ambiguous matches, variants/templates, batch items, serial items, alternate-barcode UOMs, unavailable stock, unknown queries, and not-yet-ready catalogs retain the established search-dialog flow.
+- Repeated Enter events are guarded while a direct addition is pending.
+- Counter Grid E2E helpers now accept both the direct path and the safety fallback; a dedicated shell scenario asserts that an exact safe item does not open the dialog.
+
+Verification:
+
+- `48` targeted unit tests passed across direct-entry resolution, template selection, entry row, shared item addition, and item-store loading.
+- `34` targeted unit tests passed across rugged visual contracts, direct-entry resolution, selector search, entry row, and shared item addition.
+- `vue-tsc --noEmit`
+- Production Vite build and Chrome 109 CSS audit passed.
+- Targeted ESLint and `git diff --check` passed.
+- Playwright listed all `32` configured scenarios successfully; credentialed live E2E was not run in this Windows shell.
+
+## 2026-07-15 Counter Grid Operational Health Strip
+
+Implemented:
+
+- Replaced the static Counter Grid footer with a compact operational health strip for connectivity, queued sales, pricing readiness, stock confidence, and catalog lifecycle.
+- The strip reads the existing offline-sync and item stores, so it does not create a parallel source of truth for network, cache, or sync state.
+- Pricing and stock use the policy-backed capability summaries first, with sync-resource lifecycle states as a safe fallback.
+- Warehouse and selling price list continue to come from the active POS Profile.
+- Every health chip opens the existing Offline Status panel for detailed errors, timestamps, and recovery actions.
+- Responsive behavior preserves all five health indicators at certified Counter Grid widths while hiding secondary context when space is constrained.
+
+Verification:
+
+- `11` targeted unit and visual-contract tests passed.
+- `vue-tsc --noEmit`
+- Targeted ESLint passed.
+- Playwright compiled and listed all `11` Counter Grid shell scenarios, including the health-panel interaction.
+- Production Vite build and Chrome 109 CSS audit passed.
+- `git diff --check` passed.
+
+## 2026-07-15 Counter Grid Fast Tender Shortcuts
+
+Implemented:
+
+- Counter Grid payment dialogs now expose payment-method accelerators in the same order configured by the active POS Profile.
+- `Ctrl/Command+1` through `Ctrl/Command+9` selects the corresponding visible tender and applies the existing exact/full-amount behavior.
+- `Ctrl/Command+Enter` uses the existing invoice submission flow; adding `Shift` uses the existing submit-and-print flow.
+- Tender and submit buttons display their accelerator hints and expose matching `aria-keyshortcuts` metadata.
+- M-Pesa modes keep their established payment-dialog behavior, while returns continue to use the shared negative-refund handling.
+- Classic and compact payment screens retain their existing behavior because the new accelerators are enabled only for Counter Grid.
+
+Verification:
+
+- `78` linked payment initialization, methods, invoice shortcut, submission, printing, and option tests passed.
+- `10` focused Counter Grid payment, health, and payment-method tests passed after the final UI changes.
+- `vue-tsc --noEmit`
+- Targeted ESLint passed.
+- Playwright compiled and listed all `12` Counter Grid shell scenarios.
+- Production Vite build and Chrome 109 CSS audit passed.
+- Credentialed live E2E was not run in this Windows shell.
+
+## 2026-07-15 Slow Startup Recovery
+
+Issue:
+
+- On a busy server, the terminal unlock dialog could remain on `Loading authorized cashiers...` while the product-catalog progress stayed at `0%` for an extended period.
+- The requests eventually completed, confirming server latency rather than a permanent frontend deadlock, but both UI surfaces had unbounded waiting behavior.
+
+Fix:
+
+- Authorized-cashier and authoritative terminal-state requests now have a 20-second client deadline.
+- A timed-out cashier request fails closed and exposes the existing Retry action; terminal security is never bypassed.
+- Slow product-catalog hydration stops holding the startup progress surface after a 20-second grace period.
+- The authoritative catalog load continues in the background, and the operator receives an informational status message.
+- Normal fast loads cancel their deadlines and retain the existing behavior.
+
+Verification:
+
+- `48` linked loading, cashier store/dialog, navbar, and item-store tests passed.
+- `vue-tsc --noEmit`
+- Targeted ESLint passed.
+- Production Vite build and Chrome 109 CSS audit passed.
+
+## 2026-07-15 Slow Startup Live E2E and TypeDoc CI
+
+Implemented:
+
+- Added an ambient Vue module shim that works with TypeDoc's plain TypeScript program on Linux CI.
+- Kept Vue component-property globals in `env.d.ts` and documented TypeDoc's intentionally internal referenced types.
+- Added shared Frappe login support for live E2E through either an ignored local session ID or local username/password variables.
+- Added opt-in live startup recovery scenarios that delay the real cashier and catalog endpoints in the browser.
+- The cashier scenario verifies the 20-second error state, authoritative fail-closed terminal state, Retry, and successful unlock recovery.
+- The catalog scenario verifies the startup overlay releases while the authoritative catalog request is still active.
+- Live credentials remain in ignored `frontend/.env.local`; only placeholder variable names are documented.
+
+Verification:
+
+- `typedoc --options typedoc.json --emit none`
+- `vue-tsc --noEmit`
+- Targeted ESLint passed with no errors.
+- Playwright compiled and listed both startup recovery scenarios.
+- Credentialed live execution is pending deployment of the current frontend build to the target server.

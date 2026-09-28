@@ -271,7 +271,7 @@ export function useClosingShift(eventBus: any) {
 			dialog_data.value.payments ||
 			[];
 		const invalid = payments.some((p: any) =>
-			isNaN(parseFloat(p.closing_amount)),
+			isNaN(parseFloat(p.closing_amount_in_currency ?? p.closing_amount)),
 		);
 		if (invalid) {
 			return false;

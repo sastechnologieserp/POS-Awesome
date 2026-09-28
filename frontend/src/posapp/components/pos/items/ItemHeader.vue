@@ -6,7 +6,7 @@
 				:cols="posProfile.posa_input_qty ? 8 : 12"
 				:sm="posProfile.posa_input_qty ? 9 : 12"
 			>
-				<div class="search-field-shell">
+				<div class="search-field-shell" @keydown.capture="handleSearchKeydownCapture">
 					<v-text-field
 						density="compact"
 						clearable
@@ -14,9 +14,21 @@
 						variant="solo"
 						color="primary"
 						class="pos-themed-input"
-						:label="frappe._('Search, scan or browse item')"
+						:label="
+							searchCombobox
+								? __('Search saleable items')
+								: frappe._('Search, scan or browse item')
+						"
 						hide-details
 						data-pos-keyboard-target="item-search"
+						data-testid="pos-item-search"
+						v-search-combobox="{
+							enabled: searchCombobox,
+							expanded: searchExpanded,
+							controls: searchControls,
+							activeDescendant: searchActiveDescendant,
+							label: __('Search saleable items'),
+						}"
 						:model-value="searchInput"
 						@update:model-value="
 							(val) => {
@@ -24,7 +36,6 @@
 								$emit('search-input', val);
 							}
 						"
-						@keydown.enter="$emit('enter')"
 						@keydown="handleSearchKeydown"
 						@click:clear="$emit('clear-search')"
 						@click:prepend-inner="$emit('focus')"
@@ -80,6 +91,7 @@
 							color="info"
 							bg-color="rgba(15, 23, 42, 0.08)"
 							data-test="item-search-sync-bar"
+							:aria-label="__('Item sync progress')"
 						/>
 						<div class="search-sync-progress__meta">
 							<span class="search-sync-progress__label">
@@ -168,6 +180,39 @@
 <script setup>
 import { computed, ref } from "vue";
 
+const syncSearchCombobox = (root, state) => {
+	const input = root?.matches?.("input") ? root : root?.querySelector?.("input");
+	if (!input) return;
+	const attributes = [
+		"role",
+		"aria-label",
+		"aria-autocomplete",
+		"aria-expanded",
+		"aria-controls",
+		"aria-activedescendant",
+	];
+	if (!state?.enabled) {
+		attributes.forEach((attribute) => input.removeAttribute(attribute));
+		return;
+	}
+	input.setAttribute("role", "combobox");
+	input.setAttribute("aria-label", state.label || "Search saleable items");
+	input.setAttribute("aria-autocomplete", "list");
+	input.setAttribute("aria-expanded", String(Boolean(state.expanded)));
+	if (state.controls) input.setAttribute("aria-controls", state.controls);
+	else input.removeAttribute("aria-controls");
+	if (state.activeDescendant) {
+		input.setAttribute("aria-activedescendant", state.activeDescendant);
+	} else {
+		input.removeAttribute("aria-activedescendant");
+	}
+};
+
+const vSearchCombobox = {
+	mounted: (element, binding) => syncSearchCombobox(element, binding.value),
+	updated: (element, binding) => syncSearchCombobox(element, binding.value),
+};
+
 const props = defineProps({
 	searchInput: { type: String, default: "" },
 	qtyInput: { type: [String, Number], default: 1 },
@@ -180,6 +225,10 @@ const props = defineProps({
 	syncProgress: { type: Number, default: 0 },
 	syncItemsCount: { type: Number, default: 0 },
 	context: { type: String, default: "pos" },
+	searchCombobox: { type: Boolean, default: false },
+	searchExpanded: { type: Boolean, default: false },
+	searchControls: { type: String, default: "" },
+	searchActiveDescendant: { type: String, default: "" },
 });
 
 const emit = defineEmits([
@@ -236,10 +285,25 @@ const handleSearchEscape = (event) => {
 };
 
 const handleSearchKeydown = (event) => {
+	if (event?.__posaSearchKeyHandled) {
+		return;
+	}
 	if (event?.key === "Escape") {
 		handleSearchEscape(event);
 		return;
 	}
+	if (event?.key === "Enter") {
+		emit("enter", event);
+		return;
+	}
+	emit("search-keydown", event);
+};
+
+const handleSearchKeydownCapture = (event) => {
+	if (event?.key !== "ArrowDown" && event?.key !== "ArrowUp") {
+		return;
+	}
+	event.__posaSearchKeyHandled = true;
 	emit("search-keydown", event);
 };
 
@@ -294,7 +358,7 @@ defineExpose({
 .search-sync-progress__value {
 	font-size: 0.7rem;
 	line-height: 1.2;
-	color: color-mix(in srgb, var(--pos-primary, #2563eb) 78%, #0f172a 22%);
+	color: var(--pos-primary-variant);
 }
 
 .search-sync-progress__label {
@@ -358,6 +422,12 @@ defineExpose({
 
 :deep(.sticky-header .v-field) {
 	border-radius: 16px;
+}
+
+.search-field-shell :deep(.v-label),
+.search-field-shell :deep(.v-field-label) {
+	color: var(--pos-primary-variant) !important;
+	opacity: 1;
 }
 
 @media (max-width: 768px) {

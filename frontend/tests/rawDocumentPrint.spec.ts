@@ -89,6 +89,35 @@ describe("rawDocumentPrint", () => {
 		expect(raw).toContain(longName.slice(32));
 	});
 
+	it("prints original tender and settlement currencies for Payment Entry", () => {
+		const raw = buildEscPosDocument(
+			{
+				doctype: "Payment Entry",
+				name: "ACC-PAY-0001",
+				company: "Demo Company",
+				payment_type: "Receive",
+				mode_of_payment: "Cash",
+				posa_payment_currency: "PKR",
+				posa_original_amount: 29.93,
+				posa_invoice_currency: "USD",
+				paid_amount: 0.105,
+				paid_from_account_currency: "USD",
+				received_amount: 29.93,
+				paid_to_account_currency: "PKR",
+			},
+			{
+				doctype: "Payment Entry",
+				name: "ACC-PAY-0001",
+				profile: { posa_raw_print_width: 42 },
+			},
+		);
+
+		expect(raw).toContain("Tender");
+		expect(raw).toContain("PKR 29.93");
+		expect(raw).toContain("Settlement");
+		expect(raw).toContain("USD 0.10");
+	});
+
 	it("preserves localized receipt text and translates raw receipt labels", () => {
 		(globalThis as any).__ = vi.fn((text: string) => {
 			if (text === "Grand Total") return "Total général";

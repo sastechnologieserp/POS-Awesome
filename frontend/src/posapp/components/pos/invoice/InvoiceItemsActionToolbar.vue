@@ -10,10 +10,11 @@
 			class="item-search-field pos-themed-input"
 			:label="__('Search items or barcode')"
 			prepend-inner-icon="mdi-magnify"
-			hide-details
-			clearable
-			autocomplete="off"
-		></v-text-field>
+				hide-details
+				clearable
+				autocomplete="off"
+				data-pos-arrow-enters-invoice-grid
+			></v-text-field>
 		<v-btn
 			density="compact"
 			variant="text"

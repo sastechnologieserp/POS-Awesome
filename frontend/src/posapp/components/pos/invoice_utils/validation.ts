@@ -1,3 +1,5 @@
+import { validateCartBatchSerialAssignments } from "../../../composables/pos/shared/batchSerialValidation";
+
 declare const __: (_text: string, _args?: any[]) => string;
 declare const frappe: any;
 
@@ -137,6 +139,31 @@ export async function validate(context: any) {
 			return false;
 		}
 	}
+	const requiresStockAssignment = !["Order", "Quotation"].includes(
+		context.invoiceType || "Invoice",
+	);
+	if (requiresStockAssignment) {
+		const assignmentIssues = validateCartBatchSerialAssignments(
+			context.items,
+			{ isReturnInvoice: Boolean(context.isReturnInvoice) },
+		);
+		if (assignmentIssues.length) {
+			const issue = assignmentIssues[0];
+			context.toastStore.show({
+				title: __("Batch or serial selection required"),
+				message: issue?.message || "",
+				color: "error",
+			});
+			if (issue?.item?.posa_row_id) {
+				context.eventBus?.emit?.(
+					"open_batch_serial_selector",
+					issue.item.posa_row_id,
+				);
+			}
+			return false;
+		}
+	}
+
 	return true;
 }
 

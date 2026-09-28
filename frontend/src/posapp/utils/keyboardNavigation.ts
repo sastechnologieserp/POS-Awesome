@@ -75,6 +75,40 @@ export const isElementVisible = (element: HTMLElement) => {
 	return Boolean(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
 };
 
+const getVisibleOverlayContents = (root: ParentNode = document) =>
+	Array.from(
+		root.querySelectorAll<HTMLElement>(".v-overlay__content"),
+	).filter(isElementVisible);
+
+export const hasVisibleOverlay = (root: ParentNode = document) =>
+	getVisibleOverlayContents(root).length > 0;
+
+export const shouldRedirectPosTabToItemSearch = (
+	event: KeyboardEvent,
+	options: {
+		counterGridActive?: boolean;
+		root?: ParentNode;
+	} = {},
+) => {
+	if (
+		options.counterGridActive ||
+		event.defaultPrevented ||
+		event.key !== "Tab" ||
+		event.altKey ||
+		event.ctrlKey ||
+		event.metaKey
+	) {
+		return false;
+	}
+
+	const target = event.target;
+	if (target instanceof Element && target.closest(".v-overlay__content")) {
+		return false;
+	}
+
+	return !hasVisibleOverlay(options.root);
+};
+
 const normalizeTarget = (element: Element) => {
 	if (!(element instanceof HTMLElement)) {
 		return null;
@@ -173,9 +207,7 @@ export const resolveKeyboardNavigationRoot = (
 	defaultRoot: HTMLElement | null | undefined,
 	activeElement: Element | null = document.activeElement,
 ) => {
-	const visibleOverlays = Array.from(
-		document.querySelectorAll<HTMLElement>(".v-overlay__content"),
-	).filter(isElementVisible);
+	const visibleOverlays = getVisibleOverlayContents();
 	const overlayRoots = Array.from(
 		document.querySelectorAll<HTMLElement>(".v-overlay__content [data-pos-keyboard-root]"),
 	).filter(isElementVisible);

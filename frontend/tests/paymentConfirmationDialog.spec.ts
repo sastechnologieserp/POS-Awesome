@@ -112,4 +112,23 @@ describe("PaymentConfirmationDialog", () => {
 			wrapper.find('[data-test="payment-confirmation-tender"]').exists(),
 		).toBe(false);
 	});
+
+	it("shows live change for Alt+X and Alt+P payment confirmation", async () => {
+		const wrapper = mountDialog({
+			amount: 125,
+			formatCurrency: (amount: number) => `Rs ${amount.toFixed(2)}`,
+		});
+
+		expect(wrapper.get('[data-test="payment-confirmation-change"]').text()).toContain(
+			"Rs 0.00",
+		);
+
+		await wrapper
+			.get('[data-test="payment-confirmation-amount-input"]')
+			.setValue("150");
+
+		expect(wrapper.get('[data-test="payment-confirmation-change"]').text()).toContain(
+			"Rs 25.00",
+		);
+	});
 });

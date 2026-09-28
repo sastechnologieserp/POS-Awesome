@@ -3,11 +3,33 @@ import pathlib
 import sys
 import types
 import unittest
+from datetime import datetime
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
+_ORIGINAL_MODULES = dict(sys.modules)
+
+
+def tearDownModule():
+    managed_prefixes = ("frappe", "erpnext", "posawesome")
+    for name in list(sys.modules):
+        if name.startswith(managed_prefixes) and name not in _ORIGINAL_MODULES:
+            sys.modules.pop(name, None)
+    for name, module in _ORIGINAL_MODULES.items():
+        if name.startswith(managed_prefixes):
+            sys.modules[name] = module
 
 
 def _install_frappe_stub():
+    class FrappeDict(dict):
+        def __getattr__(self, key):
+            try:
+                return self[key]
+            except KeyError:
+                raise AttributeError(key)
+
+        def __setattr__(self, key, value):
+            self[key] = value
+
     frappe_module = types.ModuleType("frappe")
     frappe_module._ = lambda text: text
     frappe_module.throw = lambda message: (_ for _ in ()).throw(Exception(message))
@@ -15,14 +37,21 @@ def _install_frappe_stub():
     frappe_module.db = types.SimpleNamespace(
         has_column=lambda *args, **kwargs: False,
         exists=lambda *args, **kwargs: False,
+        get_value=lambda *args, **kwargs: None,
     )
     frappe_module.get_list = lambda *args, **kwargs: []
+    frappe_module.get_all = lambda *args, **kwargs: []
     frappe_module.get_doc = lambda *args, **kwargs: None
     frappe_module.get_cached_value = lambda *args, **kwargs: None
+    frappe_module.get_meta = lambda *args, **kwargs: types.SimpleNamespace(has_field=lambda field: False)
+    frappe_module._dict = lambda value=None, **kwargs: FrappeDict(value or {}, **kwargs)
     sys.modules["frappe"] = frappe_module
 
     frappe_utils = types.ModuleType("frappe.utils")
     frappe_utils.cint = lambda value: int(value or 0)
+    frappe_utils.flt = lambda value, *_args, **_kwargs: float(value or 0)
+    frappe_utils.get_datetime = lambda value=None: value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
+    frappe_utils.now_datetime = lambda: datetime(2026, 7, 10, 12, 0, 0)
     sys.modules["frappe.utils"] = frappe_utils
 
     tax_contracts_name = "posawesome.posawesome.api.tax_contracts"
@@ -63,6 +92,8 @@ def _install_frappe_stub():
     invoice_processing_creation.submit_in_background_job = lambda *args, **kwargs: None
     invoice_processing_creation.repair_invoice_submission = lambda *args, **kwargs: None
     invoice_processing_creation.validate_cart_items = lambda *args, **kwargs: None
+    invoice_processing_creation._reapply_incoming_payment_amounts = lambda *args, **kwargs: None
+    invoice_processing_creation.trusted_invoice_shift_reassignment = lambda *args, **kwargs: None
     sys.modules["posawesome.posawesome.api.invoice_processing.creation"] = invoice_processing_creation
 
     invoice_processing_returns = types.ModuleType("posawesome.posawesome.api.invoice_processing.returns")
@@ -81,6 +112,7 @@ def _install_frappe_stub():
 
     utils_module = types.ModuleType("posawesome.posawesome.api.utils")
     utils_module.log_perf_event = lambda *args, **kwargs: None
+    utils_module.assert_pos_profile_write_allowed = lambda *args, **kwargs: None
     sys.modules["posawesome.posawesome.api.utils"] = utils_module
 
     erpnext_compat_module = types.ModuleType("posawesome.posawesome.api.erpnext_compat")
@@ -152,6 +184,128 @@ class TestInvoicesApi(unittest.TestCase):
                 "docstatus": 0,
             },
         )
+
+    def test_list_submitted_invoices_marks_recent_normal_invoice_editable(self):
+        captured = {}
+
+        def fake_get_list(doctype, **kwargs):
+            captured["doctype"] = doctype
+            captured["kwargs"] = kwargs
+            return [
+                {
+                    "name": "SINV-0001",
+                    "doctype": "Sales Invoice",
+                    "docstatus": 1,
+                    "is_return": 0,
+                    "return_against": None,
+                    "creation": "2026-07-10 00:00:00",
+                    "amended_from": None,
+                    "pos_profile": "POS-1",
+                    "company": "Company 1",
+                    "status": "Paid",
+                }
+            ]
+
+        self.invoices.frappe.get_list = fake_get_list
+        self.invoices.frappe.get_all = lambda *args, **kwargs: []
+        self.invoices.frappe.db.exists = lambda *args, **kwargs: False
+        self.invoices.frappe.db.has_column = lambda doctype, fieldname: fieldname == "pos_closing_entry"
+        self.invoices.frappe.db.get_value = lambda *args, **kwargs: None
+
+        rows = self.invoices.list_submitted_invoices(
+            doctype="Sales Invoice",
+            filters={"pos_profile": "POS-1"},
+            fields=["name", "status"],
+        )
+
+        self.assertEqual(captured["doctype"], "Sales Invoice")
+        self.assertEqual(captured["kwargs"]["filters"]["docstatus"], 1)
+        self.assertTrue(rows[0]["can_edit_submitted_invoice"])
+        self.assertIsNone(rows[0]["edit_block_reason"])
+
+    def test_list_submitted_invoices_blocks_return_invoice_editing(self):
+        self.invoices.frappe.get_list = lambda *args, **kwargs: [
+            {
+                "name": "SINV-RET-0001",
+                "doctype": "Sales Invoice",
+                "docstatus": 1,
+                "is_return": 1,
+                "return_against": "SINV-0001",
+                "creation": "2026-07-10 00:00:00",
+                "amended_from": None,
+                "pos_profile": "POS-1",
+                "company": "Company 1",
+            }
+        ]
+        self.invoices.frappe.get_all = lambda *args, **kwargs: []
+        self.invoices.frappe.db.exists = lambda *args, **kwargs: False
+        self.invoices.frappe.db.has_column = lambda *args, **kwargs: False
+        self.invoices.frappe.db.get_value = lambda *args, **kwargs: None
+
+        rows = self.invoices.list_submitted_invoices(
+            doctype="Sales Invoice",
+            filters={"pos_profile": "POS-1"},
+            fields=["name"],
+        )
+
+        self.assertFalse(rows[0]["can_edit_submitted_invoice"])
+        self.assertIn("Return invoices cannot be edited", rows[0]["edit_block_reason"])
+
+    def test_list_submitted_invoices_bulk_loads_metadata_without_per_invoice_queries(self):
+        invoice_rows = [
+            {
+                "name": f"SINV-{index:05d}",
+                "doctype": "Sales Invoice",
+                "docstatus": 1,
+                "is_return": 0,
+                "return_against": None,
+                "creation": "2026-07-10 00:00:00",
+                "amended_from": None,
+                "pos_profile": "POS-1",
+                "company": "Company 1",
+                "status": "Paid",
+            }
+            for index in range(100)
+        ]
+        get_all_calls = []
+
+        self.invoices.frappe.get_list = lambda *args, **kwargs: invoice_rows
+
+        def fake_get_all(doctype, **kwargs):
+            get_all_calls.append((doctype, kwargs))
+            fields = kwargs.get("fields")
+            if doctype == "Sales Invoice" and fields == ["amended_from"]:
+                return [{"amended_from": "SINV-00000"}]
+            if doctype == "Sales Invoice" and fields == ["return_against"]:
+                return [{"return_against": "SINV-00001"}]
+            if doctype == "Sales Invoice Reference":
+                return [{"sales_invoice": "SINV-00002"}]
+            return []
+
+        self.invoices.frappe.get_all = fake_get_all
+        self.invoices.frappe.get_meta = lambda *args, **kwargs: types.SimpleNamespace(
+            has_field=lambda field: False
+        )
+        self.invoices.frappe.db.has_column = lambda *args, **kwargs: False
+        self.invoices.frappe.db.exists = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("list metadata must not perform per-invoice exists queries")
+        )
+        self.invoices.frappe.db.get_value = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("list metadata must not perform per-invoice value queries")
+        )
+
+        rows = self.invoices.list_submitted_invoices(
+            doctype="Sales Invoice",
+            filters={"pos_profile": "POS-1"},
+            fields=["name", "status"],
+        )
+
+        self.assertEqual(len(rows), 100)
+        self.assertIn("already been amended", rows[0]["edit_block_reason"])
+        self.assertIn("submitted return", rows[1]["edit_block_reason"])
+        self.assertIn("closing shift", rows[2]["edit_block_reason"])
+        self.assertTrue(all(row["can_edit_submitted_invoice"] for row in rows[3:]))
+        self.assertEqual(len(get_all_calls), 4)
 
     def test_create_sales_invoice_from_order_preserves_pos_tax_inclusive_flag(self):
         class FakeDoc:

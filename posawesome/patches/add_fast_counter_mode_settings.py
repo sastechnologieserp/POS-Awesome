@@ -21,6 +21,15 @@ FIELDS = [
         "description": "Number of recent or frequently sold items to keep in the in-memory fast counter catalog.",
         "insert_after": "posa_fast_counter_mode",
     },
+    {
+        "fieldname": "posa_fast_counter_positive_stock_only",
+        "label": "Fast Counter Positive Stock Only",
+        "fieldtype": "Check",
+        "default": "0",
+        "depends_on": "posa_fast_counter_mode",
+        "description": "Only load items with positive stock in the POS Profile warehouse into the Fast Counter hot catalog.",
+        "insert_after": "posa_hot_catalog_limit",
+    },
 ]
 
 

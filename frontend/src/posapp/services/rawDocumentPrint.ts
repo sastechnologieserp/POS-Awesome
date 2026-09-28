@@ -208,8 +208,33 @@ function addPaymentEntryDetails(lines: string[], doc: Record<string, any>, width
 	if (doc.paid_from) lines.push(leftRight(translate("From"), doc.paid_from, width));
 	if (doc.paid_to) lines.push(leftRight(translate("To"), doc.paid_to, width));
 	if (doc.reference_no) lines.push(leftRight(translate("Reference"), doc.reference_no, width));
-	if (doc.paid_amount !== undefined) lines.push(leftRight(translate("Paid"), formatAmount(doc.paid_amount, doc.paid_from_account_currency || doc.currency), width));
-	if (doc.received_amount !== undefined) lines.push(leftRight(translate("Received"), formatAmount(doc.received_amount, doc.paid_to_account_currency || doc.currency), width));
+	if (doc.posa_payment_currency && doc.posa_original_amount !== undefined) {
+		lines.push(
+			leftRight(
+				translate("Tender"),
+				formatAmount(doc.posa_original_amount, doc.posa_payment_currency),
+				width,
+			),
+		);
+		const settlementAmount =
+			doc.payment_type === "Pay" ? doc.received_amount : doc.paid_amount;
+		const settlementCurrency =
+			doc.payment_type === "Pay"
+				? doc.paid_to_account_currency
+				: doc.paid_from_account_currency;
+		if (settlementAmount !== undefined) {
+			lines.push(
+				leftRight(
+					translate("Settlement"),
+					formatAmount(settlementAmount, settlementCurrency || doc.posa_invoice_currency),
+					width,
+				),
+			);
+		}
+	} else {
+		if (doc.paid_amount !== undefined) lines.push(leftRight(translate("Paid"), formatAmount(doc.paid_amount, doc.paid_from_account_currency || doc.currency), width));
+		if (doc.received_amount !== undefined) lines.push(leftRight(translate("Received"), formatAmount(doc.received_amount, doc.paid_to_account_currency || doc.currency), width));
+	}
 
 	const references = Array.isArray(doc.references) ? doc.references : [];
 	if (!references.length) return;
@@ -258,11 +283,24 @@ function addTotals(lines: string[], doc: Record<string, any>, width: number) {
 	}
 
 	const payments = Array.isArray(doc.payments) ? doc.payments : [];
-	if (!payments.length) return;
-	lines.push(line(width));
-	lines.push(translate("Payments"));
+	if (payments.length) {
+		lines.push(line(width));
+		lines.push(translate("Payments"));
+	}
 	for (const payment of payments) {
-		lines.push(leftRight(payment.mode_of_payment || payment.account || translate("Payment"), formatAmount(paymentAmount(payment), currency), width));
+		const paymentCurrency = payment.posa_payment_currency || currency;
+		const originalAmount = payment.posa_original_amount ?? paymentAmount(payment);
+		lines.push(leftRight(payment.mode_of_payment || payment.account || translate("Payment"), formatAmount(originalAmount, paymentCurrency), width));
+		if (paymentCurrency !== currency) {
+			lines.push(leftRight(`  ${translate("Invoice equivalent")}`, formatAmount(payment.amount, currency), width));
+		}
+	}
+	const changeReturns = Array.isArray(doc.posa_change_returns) ? doc.posa_change_returns : [];
+	if (changeReturns.length) {
+		lines.push(translate("Physical Change Returned"));
+		for (const row of changeReturns) {
+			lines.push(leftRight(row.currency || currency, formatAmount(row.original_amount, row.currency || currency), width));
+		}
 	}
 }
 

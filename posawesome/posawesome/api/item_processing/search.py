@@ -22,6 +22,9 @@ from posawesome.posawesome.api.utils import (
 )
 from posawesome.posawesome.api.item_processing.barcode import search_serial_or_batch_or_barcode_number
 from posawesome.posawesome.api.item_processing.details import get_items_details
+from posawesome.posawesome.api.item_sale_controls import installed_item_search_fields
+
+INTERACTIVE_SEARCH_RESULT_LIMIT = 100
 
 
 @dataclass(frozen=True)
@@ -96,7 +99,10 @@ def _build_search_plan(
 ) -> SearchPlan:
     """Assemble filters, pagination rules and search metadata."""
 
-    use_limit_search = pos_profile.get("posa_use_limit_search")
+    use_limit_search_value = pos_profile.get("posa_use_limit_search")
+    if use_limit_search_value is None:
+        use_limit_search_value = pos_profile.get("pose_use_limit_search")
+    use_limit_search = bool(cint(use_limit_search_value))
     search_serial_no = pos_profile.get("posa_search_serial_no")
     search_batch_no = pos_profile.get("posa_search_batch_no")
     posa_show_template_items = pos_profile.get("posa_show_template_items")
@@ -158,6 +164,10 @@ def _build_search_plan(
                     ["item_name", "like", f"{base_search_term}%"],
                     ["item_code", "like", f"%{base_search_term}%"],
                 ]
+                or_filters.extend(
+                    [field, "like", f"%{base_search_term}%"]
+                    for field in installed_item_search_fields()
+                )
                 item_code_for_search = base_search_term
 
             if len(raw_search_value) < min_search_len:
@@ -184,7 +194,11 @@ def _build_search_plan(
     order_by = "item_code asc" if use_item_code_cursor else "item_name asc"
 
     if limit is not None:
-        limit_page_length = limit
+        limit_page_length = (
+            min(limit, INTERACTIVE_SEARCH_RESULT_LIMIT)
+            if use_limit_search and raw_search_value
+            else limit
+        )
         if offset and not start_after and start_after_item_code is None:
             limit_start = offset
     elif use_limit_search and not pos_profile.get("posa_force_reload_items"):
@@ -210,6 +224,7 @@ def _build_search_plan(
         "brand",
         "allow_negative_stock",
     ]
+    fields.extend([field for field in installed_item_search_fields() if field not in fields])
     if include_description:
         fields.append("description")
     if include_image:
@@ -251,6 +266,12 @@ def _collect_searchable_values(row: Dict[str, Any]) -> List[str]:
         row.get("barcode"),
         row.get("brand"),
         row.get("item_group"),
+        row.get("retailmind_short_name"),
+        row.get("retailmind_old_pos_pack"),
+        row.get("retailmind_old_pos_company_code"),
+        row.get("retailmind_old_pos_generic_code"),
+        row.get("retailmind_old_pos_generic_name"),
+        row.get("retailmind_old_pos_rack"),
         row.get("attributes"),
     ]
 
@@ -443,6 +464,33 @@ def _run_item_query(
                 order_by=plan.order_by,
             )
 
+        page_count = len(items_data)
+        if (
+            plan.item_code_for_search
+            and plan.initial_page_start == 0
+            and page_start == plan.initial_page_start
+            and not isinstance(plan.filters.get("item_code"), (list, tuple))
+        ):
+            exact_filters = dict(plan.filters)
+            exact_filters["item_code"] = plan.item_code_for_search
+            exact_rows = frappe.get_all(
+                "Item",
+                filters=exact_filters,
+                fields=plan.fields,
+                limit_page_length=1,
+                order_by="item_code asc",
+            )
+            if exact_rows:
+                seen_codes = {cstr(row.get("item_code")) for row in exact_rows}
+                items_data = (
+                    exact_rows
+                    + [
+                        row
+                        for row in items_data
+                        if cstr(row.get("item_code")) not in seen_codes
+                    ]
+                )
+
         if not items_data:
             break
 
@@ -475,8 +523,8 @@ def _run_item_query(
         if plan.limit_page_length and len(result) >= plan.limit_page_length:
             break
 
-        page_start += len(items_data)
-        if len(items_data) < plan.page_size:
+        page_start += page_count
+        if page_count < plan.page_size:
             break
 
     return result[: plan.limit_page_length] if plan.limit_page_length else result
@@ -526,6 +574,7 @@ def _get_hot_catalog_fields(include_description: bool, include_image: bool) -> L
         "brand",
         "allow_negative_stock",
     ]
+    fields.extend([field for field in installed_item_search_fields() if field not in fields])
     if include_description:
         fields.append("description")
     if include_image:
@@ -582,12 +631,115 @@ def _get_hot_sales_item_codes(
     return [row.get("item_code") for row in rows if row.get("item_code")]
 
 
+def _get_stock_warehouses(pos_profile: Dict[str, Any]) -> List[str]:
+    warehouse = pos_profile.get("warehouse")
+    if not warehouse:
+        return []
+
+    try:
+        warehouse_doc = frappe.db.get_value(
+            "Warehouse",
+            warehouse,
+            ["is_group", "lft", "rgt"],
+            as_dict=True,
+        )
+    except Exception:
+        warehouse_doc = None
+
+    if not warehouse_doc or not cint(warehouse_doc.get("is_group")):
+        return [warehouse]
+
+    warehouses = frappe.get_all(
+        "Warehouse",
+        filters={
+            "lft": [">", warehouse_doc.get("lft")],
+            "rgt": ["<", warehouse_doc.get("rgt")],
+            "is_group": 0,
+        },
+        pluck="name",
+    )
+    return [row for row in warehouses if row]
+
+
+def _get_positive_stock_item_codes(
+    pos_profile: Dict[str, Any],
+    item_groups: Sequence[str],
+    limit: Optional[int] = None,
+    candidate_codes: Optional[Sequence[str]] = None,
+    exclude_codes: Optional[Sequence[str]] = None,
+) -> List[str]:
+    warehouses = _get_stock_warehouses(pos_profile)
+    if not warehouses:
+        return []
+
+    conditions = [
+        "bin.warehouse in %(warehouses)s",
+        "item.disabled = 0",
+        "item.is_sales_item = 1",
+        "item.is_fixed_asset = 0",
+    ]
+    params: Dict[str, Any] = {"warehouses": tuple(warehouses)}
+
+    if item_groups:
+        conditions.append("item.item_group in %(item_groups)s")
+        params["item_groups"] = tuple(item_groups)
+    if candidate_codes:
+        conditions.append("bin.item_code in %(candidate_codes)s")
+        params["candidate_codes"] = tuple(candidate_codes)
+    if exclude_codes:
+        conditions.append("bin.item_code not in %(exclude_codes)s")
+        params["exclude_codes"] = tuple(exclude_codes)
+    if not pos_profile.get("posa_show_template_items"):
+        conditions.append("item.has_variants = 0")
+    if pos_profile.get("posa_hide_variants_items"):
+        conditions.append("(item.variant_of is null or item.variant_of = '')")
+
+    limit_clause = ""
+    if limit:
+        limit_clause = f" limit {cint(limit)}"
+
+    rows = frappe.db.sql(
+        f"""
+        select bin.item_code
+        from `tabBin` bin
+        inner join `tabItem` item on item.name = bin.item_code
+        where {" and ".join(conditions)}
+        group by bin.item_code
+        having sum(bin.actual_qty) > 0
+        order by max(item.modified) desc, bin.item_code asc
+        {limit_clause}
+        """,
+        params,
+        as_dict=True,
+    )
+    return [row.get("item_code") for row in rows if row.get("item_code")]
+
+
+def _filter_positive_stock_item_codes(
+    pos_profile: Dict[str, Any],
+    item_groups: Sequence[str],
+    item_codes: Sequence[str],
+) -> List[str]:
+    if not item_codes:
+        return []
+
+    positive_codes = set(
+        _get_positive_stock_item_codes(
+            pos_profile,
+            item_groups,
+            candidate_codes=item_codes,
+        )
+    )
+    return [code for code in item_codes if code in positive_codes]
+
+
 def _get_active_fallback_items(
     pos_profile: Dict[str, Any],
     item_groups: Sequence[str],
     limit: int,
     fields: Sequence[str],
     exclude_codes: Sequence[str],
+    positive_stock_only: bool = False,
 ) -> List[Dict[str, Any]]:
     filters: Dict[str, Any] = {
         "disabled": 0,
@@ -602,6 +754,26 @@ def _get_active_fallback_items(
         filters.update(HAS_VARIANTS_EXCLUSION)
     if pos_profile.get("posa_hide_variants_items"):
         filters["variant_of"] = ["is", "not set"]
+
+    if positive_stock_only:
+        positive_codes = _get_positive_stock_item_codes(
+            pos_profile,
+            item_groups,
+            limit=limit,
+            exclude_codes=exclude_codes,
+        )
+        if not positive_codes:
+            return []
+        filters.pop("item_code", None)
+        filters["item_code"] = ["in", positive_codes]
+        rows = frappe.get_all(
+            "Item",
+            filters=filters,
+            fields=list(fields),
+            limit_page_length=len(positive_codes),
+        )
+        rows_by_code = {row.get("item_code"): row for row in rows}
+        return [rows_by_code[code] for code in positive_codes if code in rows_by_code]
 
     return frappe.get_all(
         "Item",
@@ -638,7 +810,10 @@ def _enrich_hot_items(
         word_filter_active=False,
         include_description=include_description,
         include_image=include_image,
-        posa_display_items_in_stock=bool(pos_profile.get("posa_display_items_in_stock")),
+        posa_display_items_in_stock=bool(
+            pos_profile.get("posa_display_items_in_stock")
+            or pos_profile.get("posa_fast_counter_positive_stock_only")
+        ),
         posa_show_template_items=bool(pos_profile.get("posa_show_template_items")),
     )
     result: List[Dict[str, Any]] = []
@@ -683,6 +858,7 @@ def _execute_hot_item_search(
     resolved_limit = _coerce_hot_catalog_limit(limit)
     resolved_days = _coerce_hot_catalog_days(days)
     fields = _get_hot_catalog_fields(include_description, include_image)
+    positive_stock_only = bool(pos_profile.get("posa_fast_counter_positive_stock_only"))
 
     hot_codes = _get_hot_sales_item_codes(
         pos_profile,
@@ -690,6 +866,12 @@ def _execute_hot_item_search(
         resolved_limit,
         resolved_days,
     )
+    if positive_stock_only:
+        hot_codes = _filter_positive_stock_item_codes(
+            pos_profile,
+            item_groups or [],
+            hot_codes,
+        )
 
     item_rows: List[Dict[str, Any]] = []
     if hot_codes:
@@ -711,6 +893,7 @@ def _execute_hot_item_search(
                 remaining,
                 fields,
                 [row.get("item_code") for row in item_rows if row.get("item_code")],
+                positive_stock_only=positive_stock_only,
             )
         )
 
@@ -859,7 +1042,10 @@ def get_items(
             list(item_groups_tuple),
         )
 
-    if profile_ctx.use_price_list_cache:
+    # Interactive results contain live stock and price projections. Their component
+    # lookups already use scoped caches with explicit stock invalidation, whereas
+    # caching the entire response can replay stale quantities to another terminal.
+    if profile_ctx.use_price_list_cache and not cstr(search_value).strip():
         result = __get_items(
             profile_ctx.profile_name,
             profile_ctx.warehouse,

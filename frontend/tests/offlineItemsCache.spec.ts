@@ -4,7 +4,9 @@ const { bulkPut, put, toArray, anyOf } = vi.hoisted(() => {
 	const bulkPut = vi.fn();
 	const put = vi.fn();
 	const toArray = vi.fn();
-	const anyOf = vi.fn(() => ({ toArray }));
+	const anyOf = vi.fn(() => ({
+		filter: vi.fn(() => ({ toArray })),
+	}));
 	return { bulkPut, put, toArray, anyOf };
 });
 
@@ -25,9 +27,9 @@ vi.mock("../src/offline/db", () => {
 			isOpen: vi.fn(() => true),
 			open: vi.fn().mockResolvedValue(undefined),
 			table: vi.fn((name: string) => {
-		if (name === "items") {
-			return itemsTable;
-		}
+				if (name === "items") {
+					return itemsTable;
+				}
 				return {
 					get: vi.fn(),
 					put: vi.fn(),
@@ -77,9 +79,9 @@ describe("offline cache item persistence", () => {
 				item_name_lc: "test item",
 				barcodes: ["12345"],
 				barcodes_lc: ["12345"],
-				name_keywords: ["test", "item"],
-				name_keywords_lc: ["test", "item"],
-				search_text: "item-1 test item 12345 test item",
+				name_keywords: ["test", "item", "products"],
+				name_keywords_lc: ["test", "item", "products"],
+				search_text: "item-1 test item 12345 test item products",
 			}),
 		]);
 	});

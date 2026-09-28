@@ -24,6 +24,10 @@
 					@focus="selectAmount"
 					@keydown.enter.prevent="onConfirm"
 				/>
+				<div class="payment-confirmation-change" data-test="payment-confirmation-change">
+					<span>{{ __("Change") }}</span>
+					<strong>{{ formatTenderAmount(changeAmount) }}</strong>
+				</div>
 				<div
 					v-if="visibleTenderSuggestions.length"
 					class="payment-confirmation-tender"
@@ -89,6 +93,15 @@ const dialog = computed({
 const amountField = ref<any>(null);
 const amountInput = ref("0");
 const amountError = ref("");
+
+const changeAmount = computed(() => {
+	const invoiceAmount = Math.abs(Number(props.amount) || 0);
+	const receivedAmount = Number(amountInput.value);
+	if (!Number.isFinite(receivedAmount)) {
+		return 0;
+	}
+	return Math.max(receivedAmount - invoiceAmount, 0);
+});
 
 const visibleTenderSuggestions = computed(() =>
 	(props.tenderSuggestions || []).filter((amount) => {
@@ -167,6 +180,24 @@ const onConfirm = () => {
 </script>
 
 <style scoped>
+.payment-confirmation-change {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	margin-top: 10px;
+	padding: 10px 12px;
+	border: 1px solid rgba(var(--v-theme-primary), 0.2);
+	border-radius: 8px;
+	background: rgba(var(--v-theme-primary), 0.06);
+	color: rgb(var(--v-theme-on-surface));
+}
+
+.payment-confirmation-change strong {
+	color: rgb(var(--v-theme-primary));
+	font-size: 1rem;
+}
+
 .payment-confirmation-tender {
 	margin-top: 12px;
 }
