@@ -637,6 +637,10 @@ export default {
 						vm.loading = false;
 					}
 				},
+				error_handlers: {
+					"Request Timed Out": function () {},
+					"Timeout": function () {},
+				},
 			});
 		},
 
@@ -1502,6 +1506,10 @@ export default {
 					},
 					freeze: false,
 					signal: vm.abortController.signal,
+					error_handlers: {
+						"Request Timed Out": function () {},
+						"Timeout": function () {},
+					},
 				});
 
 				const r = vm.currentRequest;
