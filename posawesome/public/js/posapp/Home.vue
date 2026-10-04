@@ -606,6 +606,11 @@ export default {
 						total: usage.total || 0,
 						indexedDB: usage.indexedDB || 0,
 						localStorage: usage.localStorage || 0,
+						usage: typeof usage.usage === "number" ? usage.usage : null,
+						quota: typeof usage.quota === "number" ? usage.quota : null,
+						free: typeof usage.free === "number" ? usage.free : null,
+						localStorageQuota:
+							typeof usage.localStorageQuota === "number" ? usage.localStorageQuota : null,
 					};
 				})
 				.catch((e) => {

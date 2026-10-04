@@ -331,6 +331,19 @@ export async function forceClearAllCache() {
 export async function getCacheUsageEstimate() {
 	try {
 		await checkDbHealth();
+		// Use StorageManager estimate when available to get quota + used/free
+		let originUsage = null;
+		let originQuota = null;
+		try {
+			if (typeof navigator !== "undefined" && navigator.storage && navigator.storage.estimate) {
+				const est = await navigator.storage.estimate();
+				if (est && typeof est.usage === "number") originUsage = est.usage;
+				if (est && typeof est.quota === "number") originQuota = est.quota;
+			}
+		} catch (e) {
+			// ignore
+		}
+
 		// Calculate localStorage size
 		let localStorageSize = 0;
 		if (typeof localStorage !== "undefined") {
@@ -341,6 +354,14 @@ export async function getCacheUsageEstimate() {
 					localStorageSize += (key.length + value.length) * 2; // UTF-16 characters are 2 bytes each
 				}
 			}
+		}
+
+		// localStorage quota isn't reliably exposed; provide a conservative estimate
+		// so UI can render a used/available progress bar.
+		const LOCALSTORAGE_QUOTA_FALLBACK = 5 * 1024 * 1024; // ~5MB typical
+		let localStorageQuota = LOCALSTORAGE_QUOTA_FALLBACK
+		if (typeof originQuota === "number" && originQuota > 0) {
+			localStorageQuota = Math.min(originQuota, LOCALSTORAGE_QUOTA_FALLBACK)
 		}
 
 		// Estimate IndexedDB size using cursor to avoid loading everything in memory
@@ -358,14 +379,25 @@ export async function getCacheUsageEstimate() {
 		}
 
 		const totalSize = localStorageSize + indexedDBSize;
-		const maxSize = 10 * 1024 * 1024; // Assume 10MB as max size
-		const usagePercentage = Math.min(100, Math.round((totalSize / maxSize) * 100));
+		let usagePercentage = 0;
+		let free = null;
+		if (typeof originUsage === "number" && typeof originQuota === "number" && originQuota > 0) {
+			usagePercentage = Math.min(100, Math.round((originUsage / originQuota) * 100));
+			free = Math.max(0, originQuota - originUsage);
+		} else {
+			const maxSize = 10 * 1024 * 1024; // Fallback when quota is not available
+			usagePercentage = Math.min(100, Math.round((totalSize / maxSize) * 100));
+		}
 
 		return {
 			total: totalSize,
 			localStorage: localStorageSize,
 			indexedDB: indexedDBSize,
 			percentage: usagePercentage,
+			usage: originUsage,
+			quota: originQuota,
+			free: free,
+			localStorageQuota: localStorageQuota,
 		};
 	} catch (e) {
 		console.error("Failed to estimate cache usage", e);
@@ -374,6 +406,10 @@ export async function getCacheUsageEstimate() {
 			localStorage: 0,
 			indexedDB: 0,
 			percentage: 0,
+			usage: null,
+			quota: null,
+			free: null,
+			localStorageQuota: 0,
 		};
 	}
 }
