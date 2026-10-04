@@ -281,7 +281,7 @@
 				</v-row>
 			</div>
 		</v-card>
-		<v-card class="cards mb-0 mt-3 dynamic-padding resizable" style="resize: vertical; overflow: auto">
+		<v-card class="cards mb-0 mt-3 dynamic-padding resizable responsive-hide" style="resize: vertical; overflow: auto">
 			<v-row
 				no-gutters
 				align="center"

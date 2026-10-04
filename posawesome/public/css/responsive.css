@@ -121,15 +121,19 @@ body {
 .dynamic-spacing-xs {
 	padding: var(--dynamic-xs);
 }
+
 .dynamic-spacing-sm {
 	padding: var(--dynamic-sm);
 }
+
 .dynamic-spacing-md {
 	padding: var(--dynamic-md);
 }
+
 .dynamic-spacing-lg {
 	padding: var(--dynamic-lg);
 }
+
 .dynamic-spacing-xl {
 	padding: var(--dynamic-xl);
 }
@@ -137,15 +141,19 @@ body {
 .dynamic-margin-xs {
 	margin: var(--dynamic-xs);
 }
+
 .dynamic-margin-sm {
 	margin: var(--dynamic-sm);
 }
+
 .dynamic-margin-md {
 	margin: var(--dynamic-md);
 }
+
 .dynamic-margin-lg {
 	margin: var(--dynamic-lg);
 }
+
 .dynamic-margin-xl {
 	margin: var(--dynamic-xl);
 }
@@ -155,18 +163,22 @@ body {
 	padding-left: var(--dynamic-xs);
 	padding-right: var(--dynamic-xs);
 }
+
 .dynamic-px-sm {
 	padding-left: var(--dynamic-sm);
 	padding-right: var(--dynamic-sm);
 }
+
 .dynamic-px-md {
 	padding-left: var(--dynamic-md);
 	padding-right: var(--dynamic-md);
 }
+
 .dynamic-px-lg {
 	padding-left: var(--dynamic-lg);
 	padding-right: var(--dynamic-lg);
 }
+
 .dynamic-px-xl {
 	padding-left: var(--dynamic-xl);
 	padding-right: var(--dynamic-xl);
@@ -176,18 +188,22 @@ body {
 	padding-top: var(--dynamic-xs);
 	padding-bottom: var(--dynamic-xs);
 }
+
 .dynamic-py-sm {
 	padding-top: var(--dynamic-sm);
 	padding-bottom: var(--dynamic-sm);
 }
+
 .dynamic-py-md {
 	padding-top: var(--dynamic-md);
 	padding-bottom: var(--dynamic-md);
 }
+
 .dynamic-py-lg {
 	padding-top: var(--dynamic-lg);
 	padding-bottom: var(--dynamic-lg);
 }
+
 .dynamic-py-xl {
 	padding-top: var(--dynamic-xl);
 	padding-bottom: var(--dynamic-xl);
@@ -197,18 +213,22 @@ body {
 	margin-left: var(--dynamic-xs);
 	margin-right: var(--dynamic-xs);
 }
+
 .dynamic-mx-sm {
 	margin-left: var(--dynamic-sm);
 	margin-right: var(--dynamic-sm);
 }
+
 .dynamic-mx-md {
 	margin-left: var(--dynamic-md);
 	margin-right: var(--dynamic-md);
 }
+
 .dynamic-mx-lg {
 	margin-left: var(--dynamic-lg);
 	margin-right: var(--dynamic-lg);
 }
+
 .dynamic-mx-xl {
 	margin-left: var(--dynamic-xl);
 	margin-right: var(--dynamic-xl);
@@ -218,18 +238,22 @@ body {
 	margin-top: var(--dynamic-xs);
 	margin-bottom: var(--dynamic-xs);
 }
+
 .dynamic-my-sm {
 	margin-top: var(--dynamic-sm);
 	margin-bottom: var(--dynamic-sm);
 }
+
 .dynamic-my-md {
 	margin-top: var(--dynamic-md);
 	margin-bottom: var(--dynamic-md);
 }
+
 .dynamic-my-lg {
 	margin-top: var(--dynamic-lg);
 	margin-bottom: var(--dynamic-lg);
 }
+
 .dynamic-my-xl {
 	margin-top: var(--dynamic-xl);
 	margin-bottom: var(--dynamic-xl);
@@ -255,12 +279,15 @@ body {
 .text-weight-normal {
 	font-weight: 400;
 }
+
 .text-weight-medium {
 	font-weight: 500;
 }
+
 .text-weight-semibold {
 	font-weight: 600;
 }
+
 .text-weight-bold {
 	font-weight: 700;
 }
@@ -594,4 +621,81 @@ body {
 	resize: vertical;
 	overflow: auto;
 	min-height: 100px;
+}
+
+/* Responsive Helper Classes (Threshold: 768px - Between Mobile and Tablet) */
+@media (max-width: 768px) {
+	.responsive-hide {
+		display: none !important;
+	}
+
+	.responsive-full-width {
+		flex: 0 0 100% !important;
+		max-width: 100% !important;
+		width: 100% !important;
+	}
+
+	/* Disable inner cards vertical resizing and fixed heights to allow stacking */
+	.selection.resizable,
+	.cards.resizable {
+		height: auto !important;
+		max-height: none !important;
+		resize: none !important;
+	}
+
+	/* Force POS columns to occupy full-width and stack */
+	.dynamic-main-row .pos {
+		flex: 0 0 100% !important;
+		max-width: 100% !important;
+		margin-bottom: var(--dynamic-md);
+	}
+
+	/* Constrain POS container to exactly available screen height under the navbar */
+	.pos-main-container {
+		height: calc(100vh - 56px) !important;
+		max-height: calc(100vh - 56px) !important;
+		display: flex;
+		flex-direction: column;
+		/* overflow: hidden !important; */
+	}
+
+	/* Allow scrolling of stacked components while keeping screen bounds */
+	.dynamic-main-row {
+		flex: 1;
+		overflow-y: auto !important;
+		height: 100%;
+		padding-bottom: 100px !important;
+		/* Make sure items aren't obscured by sticky bottom footer */
+	}
+
+	/* Sticky Checkout Footer Bar */
+	.invoice-summary-sticky {
+		position: fixed !important;
+		bottom: 0 !important;
+		left: 0 !important;
+		right: 0 !important;
+		margin: 0 !important;
+		border-radius: 0 !important;
+		z-index: 999 !important;
+		box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12) !important;
+		background-color: var(--surface-primary, #ffffff) !important;
+		border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+		resize: none !important;
+		height: auto !important;
+		max-height: none !important;
+	}
+
+	.responsive-show-inline-only {
+		display: inline !important;
+	}
+}
+
+.responsive-show-inline-only {
+	display: none !important;
+}
+
+@media (min-width: 769px) {
+	.responsive-show-only {
+		display: none !important;
+	}
 }

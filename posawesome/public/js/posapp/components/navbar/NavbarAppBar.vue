@@ -18,7 +18,7 @@
 
 		<v-toolbar-title
 			@click="$emit('go-desk')"
-			class="text-h6 font-weight-bold text-primary navbar-title"
+			class="text-h6 font-weight-bold text-primary navbar-title responsive-hide"
 			style="cursor: pointer; text-decoration: none"
 		>
 			<span class="font-weight-light">POS</span><span>Awesome</span>
@@ -30,17 +30,19 @@
 		<slot name="status-indicator"></slot>
 
 		<!-- Cache Usage Meter -->
-		<slot name="cache-usage-meter"></slot>
+		<div class="responsive-hide">
+			<slot name="cache-usage-meter"></slot>
+		</div>
 
 		<!-- Petty Cash Buttons -->
-		<v-btn icon color="success" class="mx-1 petty-cash-btn" @click="$emit('show-petty-cash-pay-in')">
+		<v-btn icon color="success" class="mx-1 petty-cash-btn responsive-hide" @click="$emit('show-petty-cash-pay-in')">
 			<v-icon>mdi-cash-plus</v-icon>
 			<v-tooltip activator="parent" location="bottom">
 				{{ __("Pay In") }}
 			</v-tooltip>
 		</v-btn>
 
-		<v-btn icon color="warning" class="mx-1 petty-cash-btn" @click="$emit('show-petty-cash-pay-out')">
+		<v-btn icon color="warning" class="mx-1 petty-cash-btn responsive-hide" @click="$emit('show-petty-cash-pay-out')">
 			<v-icon>mdi-cash-minus</v-icon>
 			<v-tooltip activator="parent" location="bottom">
 				{{ __("Pay Out") }}
@@ -48,14 +50,14 @@
 		</v-btn>
 
 		<!-- Open Cash Drawer Button -->
-		<v-btn icon color="primary" class="mx-1 petty-cash-btn" @click="$emit('open-cash-drawer')">
+		<v-btn icon color="primary" class="mx-1 petty-cash-btn responsive-hide" @click="$emit('open-cash-drawer')">
 			<v-icon>mdi-cash-register</v-icon>
 			<v-tooltip activator="parent" location="bottom">
 				{{ __("Open Cash Drawer") }}
 			</v-tooltip>
 		</v-btn>
 
-		<div class="profile-section mx-1">
+		<div class="profile-section mx-1 responsive-hide">
 			<v-chip color="primary" variant="outlined" class="profile-chip">
 				<v-icon start>mdi-account-circle</v-icon>
 				{{ displayName }}
