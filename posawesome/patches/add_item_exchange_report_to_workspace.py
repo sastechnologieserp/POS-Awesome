@@ -110,4 +110,7 @@ def execute():
     for index, link in enumerate(links, start=1):
         link.idx = index
     _ensure_content_card(workspace)
+    if not workspace.get("type"):
+        workspace.type = "Workspace"
     workspace.save(ignore_permissions=True)
+
