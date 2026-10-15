@@ -1,13 +1,14 @@
 <template>
 	<v-sheet
-		v-if="pos_profile?.posa_allow_change_posting_date"
-		class="pos-header-bar px-4 py-3 mb-2"
+		v-if="showPostingDate || showBalance"
+		class="pos-header-bar px-3 py-2"
 		rounded="lg"
-		elevation="1"
+		elevation="0"
 	>
 		<v-row align="center" dense>
 			<!-- Posting Date -->
 			<v-col
+				v-if="showPostingDate"
 				cols="12"
 				:sm="showPriceList ? 6 : 6"
 				:md="showPriceList ? 4 : 5"
@@ -32,9 +33,9 @@
 			<v-col
 				v-if="showPriceList"
 				cols="12"
-				sm="6"
-				md="4"
-				lg="4"
+				:sm="showPostingDate ? 6 : (showBalance ? 6 : 12)"
+				:md="showPostingDate ? 4 : (showBalance ? 6 : 12)"
+				:lg="showPostingDate ? 4 : (showBalance ? 6 : 12)"
 				class="py-1"
 			>
 				<v-select
@@ -55,9 +56,9 @@
 			<v-col
 				v-if="showBalance"
 				cols="12"
-				:sm="showPriceList ? 12 : 6"
-				:md="showPriceList ? 4 : 7"
-				:lg="showPriceList ? 4 : 7"
+				:sm="showPostingDate ? (showPriceList ? 12 : 6) : (showPriceList ? 6 : 12)"
+				:md="showPostingDate ? (showPriceList ? 4 : 7) : (showPriceList ? 6 : 12)"
+				:lg="showPostingDate ? (showPriceList ? 4 : 7) : (showPriceList ? 6 : 12)"
 				class="py-1"
 			>
 				<div class="balance-container">
@@ -132,6 +133,7 @@ const internal_posting_date_display = ref(props.posting_date_display);
 const internal_price_list = ref(props.priceList);
 const postingDatePicker = ref<any>(null);
 
+const showPostingDate = computed(() => !!props.pos_profile?.posa_allow_change_posting_date);
 const showPriceList = computed(() => !!props.pos_profile?.posa_enable_price_list_dropdown);
 const showBalance = computed(() => !!props.pos_profile?.posa_show_customer_balance);
 
@@ -173,9 +175,8 @@ defineExpose({ focusPostingDate });
 
 <style scoped>
 .pos-header-bar {
-	background-color: var(--pos-card-bg, #ffffff);
-	border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
-	transition: box-shadow 0.3s ease;
+	background-color: transparent !important;
+	border: none !important;
 }
 
 /* ── Date Picker ── */

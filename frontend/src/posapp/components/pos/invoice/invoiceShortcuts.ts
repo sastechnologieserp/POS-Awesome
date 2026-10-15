@@ -133,6 +133,7 @@ interface InvoiceShortcutsVm {
 		triggerItemSearchFocus: () => void;
 		selectTopItem: () => void;
 		toggleItemSettings: () => void;
+		openInvoiceManagement?: (_targetTab?: string, _draftSourceKey?: string) => void;
 	};
 	$refs: {
 		actionToolbar?: {
@@ -243,6 +244,12 @@ const invoiceShortcuts: Record<string, unknown> & ThisType<InvoiceShortcutsVm> =
 				this.enterInvoiceItemsGrid(
 					invoiceGridEntryOptionsFromArrow(key, count),
 				);
+				return;
+			}
+
+			if (key === "End") {
+				consumeEvent(event);
+				this.uiStore?.openInvoiceManagement?.("history");
 				return;
 			}
 

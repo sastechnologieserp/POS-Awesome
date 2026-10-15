@@ -103,6 +103,9 @@ after_migrate = []
 # Hook on document methods and events
 
 doc_events = {
+    "POS Profile": {
+        "on_update": "posawesome.posawesome.api.pos_profile_realtime.publish_pos_profile_update",
+    },
     "Item": {
         "after_insert": "posawesome.posawesome.api.item_processing.alternates.clear_alternate_item_caches",
         "on_update": "posawesome.posawesome.api.item_processing.alternates.clear_alternate_item_caches",
@@ -234,11 +237,13 @@ fixtures = [
                     "POS Profile-posa_allow_user_to_edit_item_discount",
                     "POS Profile-posa_display_items_in_stock",
                     "POS Profile-posa_allow_submissions_in_background_job",
+                    "POS Profile-posa_direct_save_on_pay",
                     "POS Profile-posa_allow_partial_payment",
                     "POS Profile-posa_allow_credit_sale",
                     "POS Profile-posa_pos_awesome_advance_settings",
                     "Batch-posa_batch_price",
                     "POS Profile-posa_max_discount_allowed",
+                    "POS Profile-posa_scale_barcode_start",
                     "POS Profile-posa_enable_below_cost_guard",
                     "POS Profile-posa_below_cost_action",
                     "POS Profile-posa_minimum_margin_percentage",

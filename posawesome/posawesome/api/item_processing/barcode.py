@@ -197,52 +197,67 @@ def _parse_scale_barcode_data(barcode: str) -> Optional[Dict[str, Any]]:
         return None
 
     settings = _get_scale_barcode_settings()
-    if not settings:
-        return None
+    if settings:
+        prefix_included = cint(settings.prefix_included_or_not)
+        prefix_length = cint(settings.no_of_prefix_characters) if prefix_included else 0
+        prefix_value = cstr(settings.prefix or "").strip()
 
-    prefix_included = cint(settings.prefix_included_or_not)
-    prefix_length = cint(settings.no_of_prefix_characters) if prefix_included else 0
-    prefix_value = cstr(settings.prefix or "").strip()
+        if prefix_value and not barcode_value.startswith(prefix_value):
+            return None
 
-    if prefix_value and not barcode_value.startswith(prefix_value):
-        return None
+        if prefix_included and prefix_length and len(barcode_value) < prefix_length:
+            return None
 
-    if prefix_included and prefix_length and len(barcode_value) < prefix_length:
-        return None
+        item_start = cint(settings.item_code_starting_digit)
+        item_digits = cint(settings.item_code_total_digits)
+        if item_start and item_digits:
+            item_start_index = max(item_start - 1, 0)
+            item_end_index = item_start_index + item_digits
+            if len(barcode_value) >= item_end_index:
+                item_code = barcode_value[item_start_index:item_end_index]
+                data: Dict[str, Any] = {"barcode": barcode_value, "item_code": item_code}
 
-    item_start = cint(settings.item_code_starting_digit)
-    item_digits = cint(settings.item_code_total_digits)
-    if not (item_start and item_digits):
-        return None
+                qty = _extract_numeric_segment(
+                    barcode_value,
+                    cint(settings.weight_starting_digit),
+                    cint(settings.weight_total_digits),
+                    cint(settings.weight_decimals),
+                )
+                if qty is not None:
+                    data["qty"] = qty
 
-    item_start_index = max(item_start - 1, 0)
-    item_end_index = item_start_index + item_digits
-    if len(barcode_value) < item_end_index:
-        return None
+                if cint(settings.price_included_in_barcode_or_not):
+                    price = _extract_numeric_segment(
+                        barcode_value,
+                        cint(settings.price_starting_digit),
+                        cint(settings.price_total_digit),
+                        cint(settings.price_decimals),
+                    )
+                    if price is not None:
+                        data["price"] = price
 
-    item_code = barcode_value[item_start_index:item_end_index]
-    data: Dict[str, Any] = {"barcode": barcode_value, "item_code": item_code}
+                return data
 
-    qty = _extract_numeric_segment(
-        barcode_value,
-        cint(settings.weight_starting_digit),
-        cint(settings.weight_total_digits),
-        cint(settings.weight_decimals),
-    )
-    if qty is not None:
-        data["qty"] = qty
+    # Standard scale barcode format (e.g. 21IIIIIWWWWC, 21 + 5 digits item code + 5 digits weight + optional check digit)
+    # Total digits must be exactly 12 or 13 digits, starting with 21
+    if (len(barcode_value) == 12 or len(barcode_value) == 13) and barcode_value.startswith("21") and barcode_value.isdigit():
+        raw_item_code = barcode_value[2:7]
+        # Try both stripped leading zeroes and unstripped to match item_code
+        item_code = raw_item_code.lstrip("0") or raw_item_code
+        raw_val = barcode_value[7:12]
+        try:
+            qty = flt(raw_val) / 1000.0
+        except Exception:
+            qty = None
+        data = {
+            "barcode": barcode_value,
+            "item_code": item_code,
+            "raw_item_code": raw_item_code,
+            "qty": qty,
+        }
+        return data
 
-    if cint(settings.price_included_in_barcode_or_not):
-        price = _extract_numeric_segment(
-            barcode_value,
-            cint(settings.price_starting_digit),
-            cint(settings.price_total_digit),
-            cint(settings.price_decimals),
-        )
-        if price is not None:
-            data["price"] = price
-
-    return data
+    return None
 
 
 @frappe.whitelist()

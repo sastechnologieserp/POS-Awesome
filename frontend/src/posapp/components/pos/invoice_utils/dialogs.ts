@@ -55,30 +55,49 @@ export async function show_payment(context: any) {
 			invoiceType: context.invoiceType,
 			posProfile: context.pos_profile,
 		});
-		if (
-			paymentDoctype === "Sales Order" &&
-			!context.new_delivery_date &&
-			!(context.invoice_doc && context.invoice_doc.posa_delivery_date)
-		) {
-			invoice_doc = context.get_invoice_doc();
-		} else if (
-			context.invoice_doc &&
-			context.invoice_doc.doctype === "Sales Order" &&
-			context.invoiceType === "Invoice"
-		) {
-			invoice_doc = await context.process_invoice_from_order();
+
+		if (context.pos_profile?.posa_direct_save_on_pay) {
+			if (
+				paymentDoctype === "Sales Order" &&
+				!context.new_delivery_date &&
+				!(context.invoice_doc && context.invoice_doc.posa_delivery_date)
+			) {
+				invoice_doc = context.get_invoice_doc();
+			} else if (
+				context.invoice_doc &&
+				context.invoice_doc.doctype === "Sales Order" &&
+				context.invoiceType === "Invoice"
+			) {
+				invoice_doc = await context.process_invoice_from_order();
+			} else {
+				invoice_doc = await context.process_invoice();
+			}
+
+			if (!invoice_doc) {
+				return;
+			}
+
+			if (!isOffline() && invoice_doc.name) {
+				const refreshed = await context.reload_current_invoice_from_backend();
+				if (refreshed) {
+					invoice_doc = refreshed;
+				}
+			}
 		} else {
-			invoice_doc = await context.process_invoice();
-		}
+			if (
+				context.invoice_doc &&
+				context.invoice_doc.doctype === "Sales Order" &&
+				context.invoiceType === "Invoice"
+			) {
+				invoice_doc = context.get_invoice_from_order_doc
+					? await context.get_invoice_from_order_doc()
+					: context.get_invoice_doc();
+			} else {
+				invoice_doc = context.get_invoice_doc();
+			}
 
-		if (!invoice_doc) {
-			return;
-		}
-
-		if (!isOffline() && invoice_doc.name) {
-			const refreshed = await context.reload_current_invoice_from_backend();
-			if (refreshed) {
-				invoice_doc = refreshed;
+			if (!invoice_doc) {
+				return;
 			}
 		}
 

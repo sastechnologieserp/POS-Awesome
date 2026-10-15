@@ -37,8 +37,8 @@
 					{{ __("Invoices saved as POS Invoices") }}
 				</v-alert>
 				<div class="invoice-sections">
-					<div class="invoice-top-grid">
-						<v-card flat class="invoice-section-card pos-themed-card">
+					<div class="invoice-top-cards">
+						<v-card flat class="invoice-section-card pos-themed-card invoice-section-card--customer">
 							<div class="invoice-section-heading">
 								<h3 class="invoice-section-heading__title">{{ __("Customer Details") }}</h3>
 							</div>
@@ -51,42 +51,45 @@
 						</v-card>
 
 						<v-card
-							v-if="pos_profile.posa_use_delivery_charges"
+							v-if="pos_profile.posa_show_customer_balance && !pos_profile.posa_allow_change_posting_date"
 							flat
-							class="invoice-section-card pos-themed-card"
+							class="invoice-section-card pos-themed-card invoice-section-card--balance"
 						>
 							<div class="invoice-section-heading">
-								<h3 class="invoice-section-heading__title">{{ __("Delivery Charges") }}</h3>
+								<h3 class="invoice-section-heading__title">{{ __("Customer Balance") }}</h3>
 							</div>
-							<DeliveryCharges
-								ref="deliveryChargesComponent"
+							<PostingDateRow
+								ref="postingDateComponent"
 								:pos_profile="pos_profile"
-								:delivery_charges="delivery_charges"
-								:selected_delivery_charge="selected_delivery_charge"
-								:delivery_charges_rate="delivery_charges_rate"
-								:deliveryChargesFilter="deliveryChargesFilter"
+								:posting_date_display="posting_date_display"
+								:customer_balance="customer_balance"
+								:customer_balance_currency="customer_balance_currency"
+								:balance_loading="customer_balance_loading"
+								:price-list="selected_price_list"
+								:price-lists="price_lists"
 								:formatCurrency="formatCurrency"
 								:currencySymbol="currencySymbol"
-								:readonly="readonly"
-								@update:selected_delivery_charge="
+								@update:posting_date_display="
 									(val) => {
-										selected_delivery_charge = val;
-										update_delivery_charges(conversion_rate, currency_precision);
+										posting_date_display = val;
+									}
+								"
+								@update:priceList="
+									(val) => {
+										selected_price_list = val;
 									}
 								"
 							/>
 						</v-card>
-					</div>
 
-					<div class="invoice-meta-grid">
 						<v-card
 							v-if="pos_profile.posa_allow_change_posting_date"
 							flat
-							class="invoice-section-card pos-themed-card"
+							class="invoice-section-card pos-themed-card invoice-section-card--posting"
 						>
 							<div class="invoice-section-heading">
 								<h3 class="invoice-section-heading__title">
-									{{ __("Posting and Price List") }}
+									{{ pos_profile.posa_show_customer_balance ? __("Posting and Price List") : __("Posting Date") }}
 								</h3>
 							</div>
 							<PostingDateRow
@@ -114,9 +117,36 @@
 						</v-card>
 
 						<v-card
+							v-if="pos_profile.posa_use_delivery_charges"
+							flat
+							class="invoice-section-card pos-themed-card invoice-section-card--delivery"
+						>
+							<div class="invoice-section-heading">
+								<h3 class="invoice-section-heading__title">{{ __("Delivery Charges") }}</h3>
+							</div>
+							<DeliveryCharges
+								ref="deliveryChargesComponent"
+								:pos_profile="pos_profile"
+								:delivery_charges="delivery_charges"
+								:selected_delivery_charge="selected_delivery_charge"
+								:delivery_charges_rate="delivery_charges_rate"
+								:deliveryChargesFilter="deliveryChargesFilter"
+								:formatCurrency="formatCurrency"
+								:currencySymbol="currencySymbol"
+								:readonly="readonly"
+								@update:selected_delivery_charge="
+									(val) => {
+										selected_delivery_charge = val;
+										update_delivery_charges(conversion_rate, currency_precision);
+									}
+								"
+							/>
+						</v-card>
+
+						<v-card
 							v-if="pos_profile.posa_allow_multi_currency"
 							flat
-							class="invoice-section-card pos-themed-card"
+							class="invoice-section-card pos-themed-card invoice-section-card--currency"
 						>
 							<div class="invoice-section-heading">
 								<h3 class="invoice-section-heading__title">{{ __("Multi Currency") }}</h3>
@@ -1729,9 +1759,9 @@ export default {
 	overflow: hidden;
 }
 
+.invoice-shell--counter-grid .invoice-top-cards,
 .invoice-shell--counter-grid .invoice-top-grid,
 .invoice-shell--counter-grid .invoice-meta-grid {
-	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 8px;
 }
 
@@ -1756,6 +1786,7 @@ export default {
 	text-transform: uppercase;
 }
 
+.invoice-shell--counter-grid .invoice-top-cards .invoice-section-heading,
 .invoice-shell--counter-grid .invoice-top-grid .invoice-section-heading,
 .invoice-shell--counter-grid .invoice-meta-grid .invoice-section-heading {
 	display: none;
@@ -1904,6 +1935,37 @@ export default {
 	min-height: 0;
 	overflow: visible;
 	align-items: stretch;
+}
+
+.invoice-top-cards {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--dynamic-sm);
+	flex: 0 0 auto;
+	width: 100%;
+}
+
+.invoice-top-cards > .invoice-section-card {
+	flex: 1 1 calc(50% - var(--dynamic-sm));
+	min-width: 280px;
+	max-width: 100%;
+}
+
+.invoice-top-cards > .invoice-section-card--customer {
+	flex: 1 1 320px;
+}
+
+.invoice-top-cards > .invoice-section-card--balance {
+	flex: 1 1 240px;
+}
+
+.invoice-top-cards > .invoice-section-card--posting {
+	flex: 1 1 320px;
+}
+
+.invoice-top-cards > .invoice-section-card--delivery,
+.invoice-top-cards > .invoice-section-card--currency {
+	flex: 1 1 280px;
 }
 
 .invoice-top-grid {

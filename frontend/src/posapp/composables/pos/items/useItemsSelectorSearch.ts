@@ -151,13 +151,19 @@ export const useItemsSelectorSearch = ({
 	const get_search = (first_search: string) => {
 		if (!first_search) return "";
 		const prefix = scannerInput.getScaleBarcodePrefix();
-		const prefix_len = prefix.length;
-		if (!scannerInput.scaleBarcodeMatches(first_search)) {
-			return first_search;
+		const prefix_len = prefix ? prefix.length : 0;
+		if (prefix && first_search.startsWith(prefix)) {
+			const item_code_len = first_search.length - prefix_len - 6;
+			if (item_code_len > 0) {
+				return first_search.substr(0, prefix_len + item_code_len);
+			}
 		}
-		// Calculate item code length from total barcode length
-		const item_code_len = first_search.length - prefix_len - 6;
-		return first_search.substr(0, prefix_len + item_code_len);
+		// Standard scale barcode: starts with 21 and exactly 12 or 13 digits (21 + 5 digits item_code + 5 digits qty + optional check digit)
+		if ((first_search.length === 12 || first_search.length === 13) && first_search.startsWith("21") && /^\d+$/.test(first_search)) {
+			const rawCode = first_search.substr(2, 5);
+			return rawCode;
+		}
+		return first_search;
 	};
 
 	const get_item_qty = (first_search: string) => {
@@ -166,33 +172,19 @@ export const useItemsSelectorSearch = ({
 		const qtyVal = vm.qty != null ? vm.qty : 1;
 		let scal_qty: number | string = Math.abs(qtyVal);
 		const prefix = scannerInput.getScaleBarcodePrefix();
-		const prefix_len = prefix.length;
+		const prefix_len = prefix ? prefix.length : 0;
 
-		if (scannerInput.scaleBarcodeMatches(first_search)) {
-			// Determine item code length dynamically based on EAN-13 structure:
-			// prefix + item_code + 5 qty digits + 1 check digit
+		if (prefix && first_search.startsWith(prefix)) {
 			const item_code_len = first_search.length - prefix_len - 6;
-			let pesokg1 = first_search.substr(prefix_len + item_code_len, 5);
-			let pesokg;
-			if (pesokg1.startsWith("0000")) {
-				pesokg = "0.00" + pesokg1.substr(4);
-			} else if (pesokg1.startsWith("000")) {
-				pesokg = "0.0" + pesokg1.substr(3);
-			} else if (pesokg1.startsWith("00")) {
-				pesokg = "0." + pesokg1.substr(2);
-			} else if (pesokg1.startsWith("0")) {
-				pesokg =
-					pesokg1.substr(1, 1) +
-					"." +
-					pesokg1.substr(2, pesokg1.length);
-			} else if (!pesokg1.startsWith("0")) {
-				pesokg =
-					pesokg1.substr(0, 2) +
-					"." +
-					pesokg1.substr(2, pesokg1.length);
+			if (item_code_len > 0) {
+				const pesokg1 = first_search.substr(prefix_len + item_code_len, 5);
+				scal_qty = Number(pesokg1) / 1000.0;
 			}
-			scal_qty = pesokg;
+		} else if ((first_search.length === 12 || first_search.length === 13) && first_search.startsWith("21") && /^\d+$/.test(first_search)) {
+			const pesokg1 = first_search.substr(7, 5);
+			scal_qty = Number(pesokg1) / 1000.0;
 		}
+
 		if (vm.hide_qty_decimals) {
 			scal_qty = Math.round(Number(scal_qty));
 		}

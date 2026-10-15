@@ -117,6 +117,17 @@
 					<v-btn
 						theme="dark"
 						:disabled="is_loading"
+						@click="print_last_closing_shift"
+						class="pos-action-btn info-action-btn"
+						size="large"
+						elevation="2"
+					>
+						<v-icon start>mdi-printer</v-icon>
+						<span>{{ __("Print Last Closing Shift") }}</span>
+					</v-btn>
+					<v-btn
+						theme="dark"
+						:disabled="is_loading"
 						:loading="is_loading"
 						@click="submit_dialog"
 						class="pos-action-btn submit-action-btn"
@@ -133,7 +144,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from "vue";
+import { onMounted, ref, watch, inject } from "vue";
 import {
 	getOpeningDialogStorage,
 	setOpeningDialogStorage,
@@ -155,6 +166,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["close", "register"]);
+const eventBus = inject("eventBus");
 const __ = window.__ || ((text) => text);
 const get_currency_symbol = window.get_currency_symbol;
 const BUILD_VERSION = typeof __BUILD_VERSION__ !== "undefined" ? __BUILD_VERSION__ : null;
@@ -297,6 +309,13 @@ function submit_dialog() {
 function go_desk() {
 	frappe.set_route("/");
 	location.reload();
+}
+
+function print_last_closing_shift() {
+	const profileObj = (pos_profiles_data.value || []).find((p) => p.name === pos_profile.value) || null;
+	if (eventBus && typeof eventBus.emit === "function") {
+		eventBus.emit("print_last_closing_shift", profileObj);
+	}
 }
 
 function logout() {

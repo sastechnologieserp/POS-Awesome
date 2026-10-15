@@ -1031,20 +1031,22 @@ const add_item = async (item, optionsOrQty: any = {}) => {
 				!options.counterGridDirectEntry
 			) {
 				emit("item-added", addedLine, options.alternateSelection || null);
-			} else if (
-				addedLine &&
-				shouldFocusCartQtyAfterItemAdd(pos_profile.value) &&
-				eventBus &&
-				typeof eventBus.emit === "function"
-			) {
-				const focusedLine: any = addedLine;
-				window.setTimeout(() => {
-					eventBus.emit("focus_cart_item_qty", {
-						item: focusedLine,
-						rowId: focusedLine?.posa_row_id,
-						itemCode: focusedLine?.item_code || item?.item_code,
-					});
-				}, 0);
+			} else if (addedLine && eventBus && typeof eventBus.emit === "function") {
+				if (shouldFocusCartQtyAfterItemAdd(pos_profile.value)) {
+					const focusedLine: any = addedLine;
+					window.setTimeout(() => {
+						eventBus.emit("focus_cart_item_qty", {
+							item: focusedLine,
+							rowId: focusedLine?.posa_row_id,
+							itemCode: focusedLine?.item_code || item?.item_code,
+						});
+					}, 0);
+				} else {
+					window.setTimeout(() => {
+						eventBus.emit("focus_item_search");
+						focusSearchInput();
+					}, 0);
+				}
 			}
 			return addedLine || null;
 		}

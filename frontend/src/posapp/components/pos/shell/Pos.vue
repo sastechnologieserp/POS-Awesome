@@ -735,10 +735,30 @@ export default {
 				eventBus.on("submit_closing_pos", (data) => {
 					shift.submit_closing_pos(data);
 				});
+				eventBus.on("print_last_closing_shift", (pos_profile) => {
+					shift.print_last_closing_shift(pos_profile);
+				});
 				eventBus.on("focus_additional_discount", focusAdditionalDiscountField);
 				eventBus.on("set_compact_panel", setCompactPanel);
 				eventBus.on("open_counter_item_search", openCounterItemSearch);
 				eventBus.on("open_cart_alternates", openCartAlternates);
+			}
+
+			if (frappe.realtime) {
+				frappe.realtime.on("posa_pos_profile_updated", (data) => {
+					const updatedProfileName = typeof data === "string" ? data : (data?.pos_profile || data?.name);
+					const currentProfileName = posProfile.value?.name || shift.pos_profile.value?.name;
+					if (updatedProfileName && currentProfileName && updatedProfileName === currentProfileName) {
+						console.info("POS Profile updated via realtime event, reloading profile:", updatedProfileName);
+						shift.check_opening_entry().then(() => {
+							toastStore.show({
+								title: __("POS Profile settings updated"),
+								color: "success",
+								timeout: 3000,
+							});
+						});
+					}
+				});
 			}
 			nextTick(() => {
 				updateBottomDockHeight();
@@ -759,10 +779,14 @@ export default {
 			}
 			if (eventBus) {
 				eventBus.off("submit_closing_pos");
+				eventBus.off("print_last_closing_shift");
 				eventBus.off("focus_additional_discount", focusAdditionalDiscountField);
 				eventBus.off("set_compact_panel", setCompactPanel);
 				eventBus.off("open_counter_item_search", openCounterItemSearch);
 				eventBus.off("open_cart_alternates", openCartAlternates);
+			}
+			if (frappe.realtime && typeof frappe.realtime.off === "function") {
+				frappe.realtime.off("posa_pos_profile_updated");
 			}
 		});
 

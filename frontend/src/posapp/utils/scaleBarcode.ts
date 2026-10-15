@@ -78,9 +78,17 @@ export const getScaleBarcodePrefix = (settings: Partial<ScaleBarcodeSettings> = 
  * @returns boolean
  */
 export const scaleBarcodeMatches = (settings: Partial<ScaleBarcodeSettings> = {}, value: string | null | undefined): boolean => {
-    const prefix = getScaleBarcodePrefix(settings);
-    if (!prefix) {
+    const valStr = String(value || "").trim();
+    if (!valStr) {
         return false;
     }
-    return String(value || "").startsWith(prefix);
+    const prefix = getScaleBarcodePrefix(settings);
+    if (prefix && valStr.startsWith(prefix)) {
+        return true;
+    }
+    // Check if barcode is standard scale format (starts with 21 and exactly 12 or 13 digits)
+    if ((valStr.length === 12 || valStr.length === 13) && valStr.startsWith("21") && /^\d+$/.test(valStr)) {
+        return true;
+    }
+    return false;
 };

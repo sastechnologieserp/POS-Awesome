@@ -500,19 +500,40 @@ export function useScanProcessor(context: ScanProcessorContext) {
 		// Use barcodeIndex composable methods if available, else local logic
 		let foundItem = barcodeIndex.lookupItemByBarcode(searchCode);
 
+		// If not found and searchCode has leading zeros or can be stripped, try stripped/padded variations
+		if (!foundItem && typeof searchCode === "string") {
+			const stripped = searchCode.replace(/^0+/, "");
+			if (stripped && stripped !== searchCode) {
+				foundItem = barcodeIndex.lookupItemByBarcode(stripped);
+			}
+			if (!foundItem && scaleResponse && scaleResponse.raw_item_code) {
+				foundItem = barcodeIndex.lookupItemByBarcode(scaleResponse.raw_item_code);
+			}
+		}
+
 		if (!foundItem && (!index || index.size === 0)) {
 			// Index not populated yet, build it and fall back to a direct scan once
 			barcodeIndex.replaceBarcodeIndex(items.value);
 			foundItem = items.value.find((item) => {
+				const strippedCode = typeof searchCode === "string" ? searchCode.replace(/^0+/, "") : "";
+				const rawItemCode = scaleResponse?.raw_item_code || "";
 				const barcodeMatch =
 					item.barcode === searchCode ||
+					(strippedCode && item.barcode === strippedCode) ||
+					(rawItemCode && item.barcode === rawItemCode) ||
 					(Array.isArray(item.item_barcode) &&
 						item.item_barcode.some(
-							(b: any) => b.barcode === searchCode,
+							(b: any) =>
+								b.barcode === searchCode ||
+								(strippedCode && b.barcode === strippedCode) ||
+								(rawItemCode && b.barcode === rawItemCode),
 						)) ||
 					(Array.isArray(item.barcodes) &&
 						item.barcodes.some(
-							(bc: any) => String(bc) === searchCode,
+							(bc: any) =>
+								String(bc) === searchCode ||
+								(strippedCode && String(bc) === strippedCode) ||
+								(rawItemCode && String(bc) === rawItemCode),
 						)) ||
 					(Array.isArray(item.serial_no_data) &&
 						item.serial_no_data.some(
@@ -524,7 +545,12 @@ export function useScanProcessor(context: ScanProcessorContext) {
 							(bn: any) =>
 								String(bn?.batch_no || "") === searchCode,
 						));
-				return barcodeMatch || item.item_code === searchCode;
+				return (
+					barcodeMatch ||
+					item.item_code === searchCode ||
+					(strippedCode && item.item_code === strippedCode) ||
+					(rawItemCode && item.item_code === rawItemCode)
+				);
 			});
 		}
 		logScanFlow("Parsed scan code", {
