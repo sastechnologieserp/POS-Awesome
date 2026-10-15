@@ -15,6 +15,10 @@
 				:cache-usage="cacheUsage"
 				:cache-usage-loading="cacheUsageLoading"
 				:cache-usage-details="cacheUsageDetails"
+				:loading-active="loadingActive"
+				:loading-progress="loadingProgress"
+				:loading-indeterminate="loadingIndeterminate"
+				:loading-message="loadingMessage"
 				@change-page="setPage($event)"
 				@nav-click="handleNavClick"
 				@close-shift="handleCloseShift"
@@ -80,6 +84,25 @@ export default {
 			cacheUsage: 0,
 			cacheUsageLoading: false,
 			cacheUsageDetails: { total: 0, indexedDB: 0, localStorage: 0 },
+
+			// Initial & Background Loading state
+			loadingActive: true,
+			loadingProgress: 0,
+			loadingIndeterminate: false,
+			loadingMessage: "Initializing application...",
+			loadingSources: {
+				init: 0,
+				items: 0,
+				customers: 0,
+			},
+			sourceMessages: {
+				init: "Initializing application...",
+				items: "Loading product catalog...",
+				customers: "Loading customer database...",
+			},
+			loadingSourceCount: 3,
+			isCompletingLoading: false,
+			startupGraceTimer: null,
 		};
 	},
 	computed: {
@@ -175,6 +198,69 @@ export default {
 				this.serverOnline = false;
 				window.serverOnline = false;
 			}
+
+			// Mark init source complete
+			this.handleSourceProgress("init", 100);
+		},
+
+		handleSourceProgress(name, value, customMsg) {
+			if (!this.loadingActive && value < 100) {
+				this.loadingActive = true;
+			}
+			const clamped = Math.max(0, Math.min(100, Math.round(value)));
+			const oldVal = this.loadingSources[name] || 0;
+			const newVal = Math.max(oldVal, clamped);
+			this.loadingSources[name] = newVal;
+
+			if (customMsg) {
+				this.loadingMessage = customMsg;
+			} else if (this.sourceMessages[name]) {
+				this.loadingMessage = this.sourceMessages[name];
+			}
+
+			let total = 0;
+			const keys = Object.keys(this.loadingSources);
+			keys.forEach((k) => {
+				total += this.loadingSources[k] || 0;
+			});
+			const avgProgress = Math.min(100, Math.round(total / (keys.length || 1)));
+
+			if (avgProgress > this.loadingProgress) {
+				this.loadingProgress = avgProgress;
+			}
+
+			// Clear previous grace timer if still active
+			if (!this.startupGraceTimer) {
+				// Releasing grace timer after 15s so it never gets stuck permanently
+				this.startupGraceTimer = setTimeout(() => {
+					if (this.loadingActive && !this.isCompletingLoading) {
+						console.info("Releasing startup loading progress surface via grace timeout");
+						this.completeLoadingSetup();
+					}
+				}, 15000);
+			}
+
+			if (avgProgress >= 100 && !this.isCompletingLoading) {
+				this.completeLoadingSetup();
+			}
+		},
+
+		completeLoadingSetup() {
+			if (this.isCompletingLoading) return;
+			this.isCompletingLoading = true;
+			if (this.startupGraceTimer) {
+				clearTimeout(this.startupGraceTimer);
+				this.startupGraceTimer = null;
+			}
+			this.loadingProgress = 100;
+			this.loadingMessage = "Setup complete!";
+			setTimeout(() => {
+				this.loadingMessage = "Ready!";
+				setTimeout(() => {
+					this.loadingActive = false;
+					this.isCompletingLoading = false;
+				}, 700);
+			}, 500);
 		},
 
 		setupNetworkListeners() {
@@ -451,6 +537,15 @@ export default {
 				// Update pending invoice count when other modules emit the change
 				this.eventBus.on("pending_invoices_changed", (count) => {
 					this.pendingInvoices = count;
+				});
+
+				// Listen for initial loading progress (like in develop branch)
+				this.eventBus.on("data-load-progress", ({ name, progress, message }) => {
+					this.handleSourceProgress(name, progress, message);
+				});
+
+				this.eventBus.on("data-loaded", (name) => {
+					this.handleSourceProgress(name, 100);
 				});
 			}
 

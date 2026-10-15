@@ -1,0 +1,159 @@
+
+.gift-card-dialog {
+	border-radius: var(--pos-radius-lg);
+	overflow: hidden;
+	background:
+		radial-gradient(circle at top right, rgba(var(--v-theme-primary), 0.14), transparent 40%),
+		var(--pos-surface-raised);
+}
+
+.gift-card-dialog__header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--pos-space-3);
+	padding: var(--pos-space-4) var(--pos-space-4) 0;
+}
+
+.gift-card-dialog__header-copy {
+	max-width: 420px;
+}
+
+.gift-card-dialog__eyebrow,
+.gift-card-dialog__section-label {
+	margin: 0;
+	font-size: 0.74rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--pos-text-secondary);
+}
+
+.gift-card-dialog__hero-chip,
+.gift-card-dialog__scan-chip {
+	display: inline-flex;
+	align-items: center;
+	padding: 8px 12px;
+	border-radius: 999px;
+	font-size: 0.78rem;
+	font-weight: 700;
+	border: 1px solid rgba(var(--v-theme-primary), 0.12);
+}
+
+.gift-card-dialog__hero-chip {
+	background: rgba(var(--v-theme-primary), 0.12);
+	color: var(--pos-text-primary);
+}
+
+.gift-card-dialog__title {
+	margin: 0;
+	font-size: 1.16rem;
+	font-weight: 700;
+}
+
+.gift-card-dialog__subtitle {
+	margin: 6px 0 0;
+	color: var(--pos-text-secondary);
+	font-size: 0.92rem;
+}
+
+.gift-card-dialog__content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--pos-space-3);
+}
+
+.gift-card-dialog__scan-banner {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--pos-space-3);
+	padding: 14px 16px;
+	border-radius: var(--pos-radius-md);
+	background:
+		radial-gradient(circle at top left, rgba(var(--v-theme-primary), 0.1), transparent 38%),
+		var(--pos-surface-muted);
+	border: 1px solid rgba(var(--v-theme-primary), 0.12);
+}
+
+.gift-card-dialog__scan-banner h4 {
+	margin: 4px 0 6px;
+	font-size: 1rem;
+	color: var(--pos-text-primary);
+}
+
+.gift-card-dialog__scan-banner p:last-child {
+	margin: 0;
+	color: var(--pos-text-secondary);
+	font-size: 0.9rem;
+}
+
+.gift-card-dialog__scan-chip {
+	background: rgba(var(--v-theme-surface), 0.82);
+	color: var(--pos-text-primary);
+	white-space: nowrap;
+}
+
+.gift-card-dialog__modes {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--pos-space-2);
+}
+
+.gift-card-dialog__stats {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px;
+}
+
+.gift-card-dialog__stat {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 12px 14px;
+	border-radius: 14px;
+	border: 1px solid rgba(var(--v-theme-primary), 0.1);
+	background: rgba(var(--v-theme-primary), 0.05);
+}
+
+.gift-card-dialog__stat span {
+	font-size: 0.74rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--pos-text-secondary);
+}
+
+.gift-card-dialog__stat strong {
+	color: var(--pos-text-primary);
+	font-size: 0.98rem;
+}
+
+.gift-card-dialog__hint {
+	margin: 0;
+	color: var(--pos-text-secondary);
+	font-size: 0.88rem;
+	line-height: 1.5;
+}
+
+.gift-card-dialog__actions {
+	padding: 0 var(--pos-space-4) var(--pos-space-4);
+	gap: var(--pos-space-2);
+}
+
+.gift-card-dialog__error {
+	margin: 0;
+	color: rgb(var(--v-theme-error));
+	font-weight: 600;
+}
+
+@media (max-width: 768px) {
+	.gift-card-dialog__header,
+	.gift-card-dialog__scan-banner {
+		flex-direction: column;
+	}
+
+	.gift-card-dialog__stats {
+		grid-template-columns: 1fr;
+	}
+}

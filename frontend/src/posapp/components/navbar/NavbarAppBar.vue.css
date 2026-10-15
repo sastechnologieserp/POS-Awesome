@@ -1,0 +1,823 @@
+
+/* Enhanced Navbar Styling */
+.pos-navbar-enhanced {
+	background-image: none !important;
+	background-color: var(--pos-bg-primary) !important;
+	border-bottom: 1px solid var(--pos-border) !important;
+	box-shadow: var(--pos-elevation-1) !important;
+	backdrop-filter: blur(14px);
+	transition:
+		border-color 160ms ease,
+		box-shadow 160ms ease;
+	padding-bottom: 2px !important;
+	overflow: visible !important;
+	color: var(--pos-text-primary) !important;
+}
+
+.pos-navbar-enhanced--counter-grid {
+	background: #09253d !important;
+	background-image: none !important;
+	border-bottom: 2px solid #38bdf8 !important;
+	box-shadow: 0 3px 0 rgba(5, 20, 34, 0.38) !important;
+	color: #ffffff !important;
+}
+
+.pos-navbar-enhanced--counter-grid .pos-navbar-title-light,
+.pos-navbar-enhanced--counter-grid .pos-navbar-title-compact {
+	color: #ffffff !important;
+}
+
+.pos-navbar-enhanced--counter-grid .pos-navbar-title-bold {
+	color: #39a0ff !important;
+}
+
+.pos-navbar-enhanced--counter-grid .nav-icon,
+.pos-navbar-enhanced--counter-grid .offline-invoices-btn,
+.pos-navbar-enhanced--counter-grid .profile-chip {
+	background: #102f4a !important;
+	border: 1px solid #315773 !important;
+	border-radius: 5px !important;
+	box-shadow: none !important;
+	color: #ffffff !important;
+}
+
+.pos-navbar-enhanced--counter-grid .profile-chip__meta {
+	color: #c4d4e1 !important;
+}
+
+.pos-navbar-enhanced--counter-grid .pos-text-primary,
+.pos-navbar-enhanced--counter-grid .v-icon.pos-text-primary,
+.pos-navbar-enhanced--counter-grid .mdi-menu-down,
+.pos-navbar-enhanced--counter-grid .v-icon--end.pos-text-primary {
+	color: #eaf6ff !important;
+}
+
+.pos-navbar-enhanced--counter-grid :deep(.status-btn-enhanced),
+.pos-navbar-enhanced--counter-grid :deep(.notification-bell-trigger),
+.pos-navbar-enhanced--counter-grid :deep(.menu-btn-compact) {
+	background: #102f4a !important;
+	border: 1px solid #315773 !important;
+	border-radius: 5px !important;
+	box-shadow: none !important;
+	color: #ffffff !important;
+}
+
+.pos-navbar-enhanced--counter-grid :deep(.status-title-inline),
+.pos-navbar-enhanced--counter-grid :deep(.menu-btn-compact .v-btn__content),
+.pos-navbar-enhanced--counter-grid :deep(.notification-bell-trigger .v-icon),
+.pos-navbar-enhanced--counter-grid :deep(.menu-btn-compact .v-icon) {
+	color: #ffffff !important;
+}
+
+/* RTL/LTR App Bar Layout */
+.rtl-app-bar {
+	direction: rtl;
+}
+
+.ltr-app-bar {
+	direction: ltr;
+}
+
+/* Brand Section Styling */
+.pos-navbar-brand-section {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-direction: row;
+	/* Default to normal row */
+	flex: 1 1 auto;
+	min-width: 0;
+	max-width: 100%;
+}
+
+.pos-navbar-title-compact {
+	font-weight: 600;
+	font-size: 1.05rem;
+	letter-spacing: 0.03em;
+}
+
+.rtl-brand-section {
+	flex-direction: row-reverse;
+}
+
+.ltr-brand-section {
+	flex-direction: row;
+	/* Explicit normal row for LTR */
+}
+
+/* Actions Section Styling */
+.pos-navbar-actions-section {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-direction: row;
+	/* Default to normal row */
+	min-width: 0;
+}
+
+.rtl-actions-section {
+	flex-direction: row-reverse;
+}
+
+.ltr-actions-section {
+	flex-direction: row;
+	/* Explicit normal row for LTR */
+}
+
+.primary-actions-cluster {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	flex-shrink: 0;
+	min-width: 0;
+}
+
+.mobile-primary-actions {
+	gap: 6px;
+}
+
+.rtl-primary-actions {
+	flex-direction: row-reverse;
+}
+
+.ltr-primary-actions {
+	flex-direction: row;
+}
+
+.primary-actions-cluster .offline-invoices-btn,
+.primary-actions-cluster .notification-wrapper,
+.primary-actions-cluster .menu-wrapper {
+	order: 0;
+}
+
+.notification-wrapper,
+.menu-wrapper {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+/* LTR Actions ordering for proper sequence */
+.status-gadget {
+	order: 1;
+}
+
+.ltr-info-gadgets {
+	order: 2;
+}
+
+.ltr-actions-section .profile-section {
+	order: 3;
+}
+
+.ltr-actions-section .primary-actions-cluster {
+	order: 4;
+}
+
+/* RTL adjustments for gadgets - reverse the order */
+.rtl-info-gadgets {
+	order: 4;
+}
+
+.rtl-actions-section .profile-section {
+	order: 3;
+}
+
+.rtl-actions-section .primary-actions-cluster {
+	order: 1;
+}
+
+.pos-navbar-enhanced:hover {
+	box-shadow: var(--pos-elevation-1) !important;
+}
+
+/* Logo Styling */
+.pos-navbar-logo {
+	transition: transform 160ms ease;
+}
+
+.rtl-logo {
+	margin-left: 12px;
+	margin-right: 0;
+}
+
+.ltr-logo {
+	margin-right: 12px;
+	margin-left: 0;
+	order: 0;
+}
+
+.pos-navbar-logo:hover {
+	transform: scale(1.02);
+}
+
+@media (max-width: 960px) {
+	.pos-navbar-brand-section {
+		gap: 8px;
+		min-width: 0;
+	}
+	.pos-navbar-actions-section {
+		gap: 6px;
+	}
+}
+
+@media (max-width: 768px) {
+	.mobile-navbar .pos-navbar-brand-section {
+		flex: 1;
+	}
+	.mobile-navbar .pos-navbar-actions-section {
+		gap: 4px;
+	}
+	.pos-navbar-title-compact {
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+}
+
+@media (max-width: 600px) {
+	.pos-navbar-title {
+		font-size: 1rem !important;
+	}
+	.nav-icon {
+		margin-inline-end: 0;
+	}
+}
+
+/* Brand Title Styling */
+.pos-navbar-title {
+	text-decoration: none !important;
+	border-bottom: none !important;
+	transition: color 160ms ease;
+	white-space: nowrap;
+	overflow: hidden !important;
+	text-overflow: ellipsis;
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	max-width: 100%;
+	flex: 1 1 auto;
+	/* Use same blue as Menu button - matching gradient blue */
+	color: var(--pos-primary) !important;
+}
+
+.pos-navbar-title:hover {
+	text-decoration: none !important;
+	opacity: 0.8;
+}
+
+.rtl-title {
+	text-align: right;
+	order: -1;
+	/* Moves title before logo in RTL */
+	flex-direction: row-reverse;
+}
+
+.ltr-title {
+	text-align: left;
+	order: 0;
+	/* Normal order in LTR */
+	flex-direction: row;
+}
+
+/* Title Text Styling */
+.pos-navbar-title-light {
+	font-weight: 500 !important;
+	letter-spacing: 0.5px;
+	margin-right: 2px;
+	display: inline-block;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.pos-navbar-title-bold {
+	font-weight: 750 !important;
+	letter-spacing: 0.25px;
+	display: inline-block;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* RTL Title Spacing */
+.rtl-title .pos-navbar-title-light {
+	margin-left: 2px;
+	margin-right: 0;
+}
+
+.rtl-title .pos-navbar-title-bold {
+	margin-right: 2px;
+	margin-left: 0;
+}
+
+/* Navigation Icon - Elite Style */
+.nav-icon {
+	border-radius: var(--pos-radius-sm);
+	padding: 8px;
+	transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+	min-width: 40px;
+	min-height: 40px;
+	color: var(--pos-primary) !important;
+	background: var(--pos-primary-container) !important;
+	border: 1px solid var(--pos-border-light);
+}
+
+.nav-icon:hover {
+	background: color-mix(in srgb, var(--pos-primary-container) 82%, var(--pos-primary)) !important;
+	color: var(--pos-primary-variant) !important;
+	border-color: var(--pos-primary);
+	transform: translateY(-1px);
+	box-shadow: var(--pos-elevation-1);
+}
+
+.rtl-nav-icon {
+	order: 3;
+	/* Last in brand section for RTL */
+}
+
+.ltr-nav-icon {
+	order: 0;
+	/* Normal order for LTR */
+}
+
+/* Gadget Wrapper Styling for Consistency */
+.gadget-wrapper {
+	display: flex;
+	align-items: center;
+	min-height: 40px;
+	transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gadget-wrapper:empty {
+	display: none;
+}
+
+/* Profile Section */
+.profile-section {
+	margin: 0;
+	order: 2;
+	/* Second to last in actions section */
+}
+
+.profile-chip {
+	color: var(--pos-primary) !important;
+	border-color: var(--pos-border) !important;
+	background: var(--pos-surface-muted) !important;
+}
+
+.rtl-profile-section {
+	order: 2;
+}
+
+.ltr-profile-section {
+	order: 2;
+}
+
+.profile-chip {
+	font-weight: 500;
+	padding: 8px 16px;
+	border-radius: var(--pos-radius-sm);
+	transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.profile-chip__content {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 0;
+}
+
+.profile-chip__title {
+	font-weight: 600;
+	line-height: 1.1;
+}
+
+.profile-chip__meta {
+	font-size: 0.72rem;
+	line-height: 1.1;
+	color: var(--pos-text-secondary);
+	white-space: nowrap;
+}
+
+.profile-chip:hover {
+	transform: translateY(-1px);
+	background: var(--pos-primary-container) !important;
+	border-color: var(--pos-primary) !important;
+	box-shadow: var(--pos-elevation-1);
+}
+
+/* RTL Profile Chip Styling */
+.rtl-profile-chip {
+	flex-direction: row-reverse;
+	text-align: right;
+}
+
+.ltr-profile-chip {
+	flex-direction: row;
+	text-align: left;
+}
+
+/* Profile Icon Positioning */
+.rtl-profile-icon {
+	margin-left: 8px;
+	margin-right: 0;
+	order: 2;
+}
+
+.ltr-profile-icon {
+	margin-right: 8px;
+	margin-left: 0;
+	order: 0;
+	/* Keep normal order for LTR */
+}
+
+/* Profile Text Positioning */
+.rtl-profile-text {
+	order: 1;
+	text-align: right;
+	margin-right: 4px;
+}
+
+.ltr-profile-text {
+	order: 0;
+	/* Keep normal order for LTR */
+	text-align: left;
+	margin-left: 4px;
+}
+
+/* Override Vuetify's default chip styles for better RTL spacing */
+.rtl-profile-chip :deep(.v-chip__content) {
+	flex-direction: row-reverse;
+	gap: 8px;
+}
+
+.ltr-profile-chip :deep(.v-chip__content) {
+	flex-direction: row;
+	gap: 8px;
+}
+
+/* Force proper icon spacing in Vuetify chips */
+.rtl-profile-chip :deep(.v-icon) {
+	margin-left: 6px !important;
+	margin-right: 0 !important;
+}
+
+.ltr-profile-chip :deep(.v-icon) {
+	margin-right: 6px !important;
+	margin-left: 0 !important;
+}
+
+/* Offline Invoices Button Enhancement - Elite Style */
+.offline-invoices-btn {
+	position: relative;
+	transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+	padding: 4px;
+	min-width: 40px;
+	min-height: 40px;
+	background: var(--pos-primary-container) !important;
+	border: 1px solid var(--pos-border-light);
+	border-radius: var(--pos-radius-sm);
+}
+
+.offline-invoices-btn .pos-text-primary {
+	color: var(--pos-primary) !important;
+}
+
+/* Elite styling for navbar text and icons */
+.pos-navbar-enhanced .pos-text-primary {
+	color: var(--pos-primary) !important;
+}
+
+/* Ensure profile text and icons use elite colors */
+.profile-chip .pos-text-primary,
+.profile-chip .ltr-profile-text,
+.profile-chip .rtl-profile-text {
+	color: var(--pos-primary) !important;
+	font-weight: 500;
+}
+
+/* Navbar icons with refined styling */
+.pos-navbar-enhanced .v-icon.pos-text-primary,
+.pos-navbar-enhanced .mdi-menu-down,
+.pos-navbar-enhanced .v-icon--end.pos-text-primary {
+	color: var(--pos-primary) !important;
+	transition: color 0.25s ease;
+}
+
+.pos-navbar-enhanced .v-icon.pos-text-primary:hover {
+	color: var(--pos-primary-variant) !important;
+}
+
+.rtl-offline-btn {
+	order: 3;
+	/* Last in actions section for RTL */
+}
+
+.ltr-offline-btn {
+	order: 3;
+	/* Last in actions section for LTR */
+}
+
+.offline-invoices-btn:hover {
+	transform: translateY(-1px);
+	background: rgba(25, 118, 210, 0.12) !important;
+	border-color: rgba(25, 118, 210, 0.2);
+	box-shadow: 0 4px 12px rgba(25, 118, 210, 0.15);
+}
+
+.offline-invoices-btn:hover .pos-text-primary {
+	color: #1565c0 !important;
+}
+
+.offline-invoices-btn.has-pending {
+	animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+	0% {
+		box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.4);
+	}
+
+	70% {
+		box-shadow: 0 0 0 10px rgba(244, 67, 54, 0);
+	}
+
+	100% {
+		box-shadow: 0 0 0 0 rgba(244, 67, 54, 0);
+	}
+}
+
+/* ===== GLASS MORPHISM LOADING BAR ===== */
+.loading-container {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	z-index: 1000;
+}
+
+.glass-card {
+	position: absolute;
+	top: -40px;
+	left: 12px;
+	right: 12px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 8px 16px;
+
+	/* Glass morphism effect */
+	background: color(from Canvas r g b / 0.8);
+	backdrop-filter: blur(20px);
+	border-radius: 12px;
+	border: 1px solid color(from Canvas r g b / 0.1);
+
+	/* System shadows */
+	box-shadow:
+		0 8px 32px color(from CanvasText r g b / 0.1),
+		0 1px 0 color(from Canvas r g b / 0.5) inset;
+}
+
+.loading-message {
+	font-size: 12px;
+	font-weight: 500;
+	color: AccentColor;
+	flex: 1;
+}
+
+.progress-badge {
+	font-size: 11px;
+	font-weight: 600;
+	color: Canvas;
+	background: AccentColor;
+	padding: 2px 8px;
+	border-radius: 8px;
+	min-width: 32px;
+	text-align: center;
+}
+
+.glass-progress {
+	border-radius: 0 !important;
+	backdrop-filter: blur(10px);
+}
+
+.glass-progress :deep(.v-progress-linear__background) {
+	background: color(from CanvasText r g b / 0.1) !important;
+}
+
+.glass-progress :deep(.v-progress-linear__determinate) {
+	background: AccentColor !important;
+	box-shadow: 0 0 12px color(from AccentColor r g b / 0.3);
+}
+
+/* Smooth transitions */
+.loading-fade-enter-active,
+.loading-fade-leave-active {
+	transition: all 0.3s ease;
+}
+
+.loading-fade-enter-from {
+	opacity: 0;
+	transform: translateY(8px);
+}
+
+.loading-fade-leave-to {
+	opacity: 0;
+	transform: translateY(-4px);
+}
+
+/* Dark theme fallback for older browsers */
+@media (prefers-color-scheme: dark) {
+	.glass-card {
+		background: rgba(30, 30, 30, 0.8);
+		border-color: rgba(255, 255, 255, 0.1);
+		box-shadow:
+			0 8px 32px rgba(0, 0, 0, 0.2),
+			0 1px 0 rgba(255, 255, 255, 0.1) inset;
+	}
+
+	.loading-message {
+		color: var(--pos-primary);
+	}
+
+	.progress-badge {
+		background: var(--pos-primary);
+		color: var(--pos-text-primary);
+	}
+}
+
+/* Mobile Navbar Styles */
+.mobile-navbar {
+	padding: 0 8px !important;
+}
+
+.mobile-navbar .pos-navbar-brand-section {
+	gap: 8px;
+	flex-shrink: 0;
+}
+
+.mobile-navbar .pos-navbar-logo {
+	max-width: 28px !important;
+}
+
+.mobile-navbar .pos-navbar-title {
+	font-size: 1rem !important;
+}
+
+.mobile-navbar .pos-navbar-title-light,
+.mobile-navbar .pos-navbar-title-bold {
+	font-size: 0.9rem !important;
+}
+
+.mobile-navbar .pos-navbar-actions-section {
+	gap: 6px;
+}
+
+.mobile-navbar .mobile-btn {
+	min-width: 36px !important;
+	min-height: 36px !important;
+	padding: 6px !important;
+}
+
+.mobile-navbar .nav-icon {
+	min-width: 36px !important;
+	min-height: 36px !important;
+	padding: 6px !important;
+}
+
+/* Desktop Navbar Styles */
+.desktop-navbar {
+	padding: 0 16px 4px !important;
+}
+
+/* Enhanced mobile responsiveness */
+@media (max-width: 480px) {
+	.mobile-navbar {
+		padding: 0 4px !important;
+		height: 56px !important;
+	}
+
+	.mobile-navbar .pos-navbar-brand-section {
+		gap: 6px;
+	}
+
+	.mobile-navbar .pos-navbar-logo {
+		max-width: 24px !important;
+	}
+
+	.mobile-navbar .pos-navbar-title {
+		font-size: 0.9rem !important;
+	}
+
+	.mobile-navbar .pos-navbar-title-light {
+		display: none !important; /* Hide "POS" part on very small screens */
+	}
+
+	.mobile-navbar .mobile-btn,
+	.mobile-navbar .nav-icon {
+		min-width: 32px !important;
+		min-height: 32px !important;
+		padding: 4px !important;
+	}
+
+	/* Hide hamburger icon text on very small screens */
+	.mobile-navbar .v-app-bar-nav-icon .v-icon {
+		font-size: 20px !important;
+	}
+}
+
+/* Touch-friendly interactions for mobile */
+@media (hover: none) and (pointer: coarse) {
+	.nav-icon,
+	.offline-invoices-btn,
+	.mobile-btn {
+		min-width: 44px !important;
+		min-height: 44px !important;
+		-webkit-tap-highlight-color: rgba(25, 118, 210, 0.1);
+	}
+
+	.pos-navbar-title {
+		min-height: 44px;
+		display: flex;
+		align-items: center;
+	}
+}
+
+/* Reduced motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+	.pos-navbar-enhanced,
+	.nav-icon,
+	.offline-invoices-btn,
+	.profile-chip,
+	.pos-navbar-logo,
+	.gadget-wrapper {
+		transition: none !important;
+		animation: none !important;
+	}
+
+	.offline-invoices-btn.has-pending {
+		animation: none !important;
+	}
+}
+
+/* Tablet optimizations */
+@media (min-width: 768px) and (max-width: 1023px) {
+	.pos-navbar-actions-section {
+		gap: 6px;
+	}
+
+	.profile-chip {
+		padding: 6px 12px !important;
+		font-size: 0.9rem !important;
+	}
+}
+
+/* Original responsive adjustments for loading bar */
+@media (max-width: 768px) {
+	.glass-card {
+		padding: 6px 12px;
+		left: 8px;
+		right: 8px;
+	}
+
+	.loading-message {
+		font-size: 11px;
+	}
+
+	.progress-badge {
+		font-size: 10px;
+		padding: 1px 6px;
+		min-width: 28px;
+	}
+}
+
+/* High DPI display adjustments */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+	.mobile-navbar .pos-navbar-logo,
+	.mobile-navbar .v-icon {
+		image-rendering: -webkit-optimize-contrast;
+		image-rendering: crisp-edges;
+	}
+}
+
+/* Landscape mobile adjustments */
+@media (max-height: 500px) and (orientation: landscape) {
+	.mobile-navbar {
+		height: 48px !important;
+	}
+
+	.mobile-navbar .pos-navbar-title {
+		font-size: 0.8rem !important;
+	}
+
+	.mobile-navbar .mobile-btn,
+	.mobile-navbar .nav-icon {
+		min-width: 28px !important;
+		min-height: 28px !important;
+	}
+}

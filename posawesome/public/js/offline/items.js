@@ -42,7 +42,7 @@ export function getCachedOffers() {
 }
 
 // Price list items caching functions
-export function savePriceListItems(priceList, items) {
+export function savePriceListItems(priceList, items, persistToDb = true) {
 	try {
 		const cache = memory.price_list_cache || {};
 
@@ -55,7 +55,9 @@ export function savePriceListItems(priceList, items) {
 			timestamp: Date.now(),
 		};
 		memory.price_list_cache = cache;
-		persist("price_list_cache", memory.price_list_cache);
+		if (persistToDb) {
+			persist("price_list_cache", memory.price_list_cache);
+		}
 	} catch (e) {
 		console.error("Failed to cache price list items", e);
 	}

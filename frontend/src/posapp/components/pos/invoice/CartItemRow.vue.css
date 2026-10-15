@@ -1,0 +1,199 @@
+
+/* Local styles specific to the row only */
+.currency-display {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	padding: 0;
+	margin: 0;
+	min-width: 0;
+	max-width: 100%;
+	gap: 2px;
+	overflow: hidden;
+	box-sizing: border-box;
+	white-space: nowrap;
+}
+
+.currency-display.right-aligned {
+	justify-content: center;
+}
+
+.amount-value {
+	min-width: 0;
+	max-width: 100%;
+	font-weight: 500;
+	text-align: left;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-family:
+		"SF Pro Display", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "Noto Sans Arabic", "Tahoma",
+		sans-serif;
+	font-variant-numeric: lining-nums tabular-nums;
+	font-feature-settings:
+		"tnum" 1,
+		"lnum" 1,
+		"kern" 1;
+}
+
+.amount-value.right-aligned {
+	text-align: center;
+}
+
+.currency-symbol {
+	opacity: 0.7;
+	margin-right: 0;
+	font-size: 0.85em;
+	flex: 0 0 auto;
+}
+
+.negative-number {
+	color: var(--pos-error) !important;
+	font-weight: 600;
+}
+
+/* Add minimal padding for table cells as per ItemsTable.vue styles */
+td {
+	padding: 10px 6px;
+	vertical-align: middle;
+	height: 60px;
+	text-align: center;
+	color: var(--pos-text-primary);
+	position: relative;
+	min-width: 0;
+	box-sizing: border-box;
+}
+
+/* Keyboard focus styles */
+.posa-cart-table__qty-input-shell:focus-visible,
+.posa-cart-table__editor-display:focus-visible {
+	outline: 2px solid var(--pos-primary);
+	outline-offset: 2px;
+	z-index: 10;
+}
+
+.posa-cart-item-row--keyboard-active {
+	position: relative;
+	background: #174a70 !important;
+	animation: none !important;
+	transition: none !important;
+}
+
+.posa-cart-item-row--keyboard-active > td {
+	background: #174a70 !important;
+	color: #ffffff !important;
+	animation: none !important;
+	transition: none !important;
+}
+
+.posa-cart-item-row--keyboard-row {
+	outline: 3px solid var(--pos-primary);
+	outline-offset: -3px;
+}
+
+.posa-cart-item-row--keyboard-row:focus {
+	outline: 3px solid var(--pos-primary);
+	outline-offset: -3px;
+}
+
+.posa-cart-item-cell--keyboard-active {
+	background: #174a70 !important;
+	box-shadow:
+		inset 0 0 0 3px #38bdf8,
+		inset 0 0 0 5px #ffffff;
+	z-index: 2;
+}
+
+.posa-cart-item-cell--keyboard-active > div {
+	position: relative;
+	z-index: 3;
+}
+
+.posa-cart-item-row--loss-risk > td {
+	background: var(--pos-error-container) !important;
+	color: var(--pos-text-primary);
+}
+
+.posa-cart-item-row--loss-risk {
+	outline: 3px solid #ef4444;
+	outline-offset: -3px;
+}
+
+.posa-cart-item-row--loss-risk.posa-cart-item-row--keyboard-active > td,
+.posa-cart-item-row--loss-risk .posa-cart-item-cell--keyboard-active {
+	background: #174a70 !important;
+	color: #ffffff !important;
+}
+
+td[data-column-key="item_name"] {
+	text-align: left;
+}
+
+.posa-cart-item-row__item-cell {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	flex-wrap: wrap;
+	gap: 4px;
+	width: 100%;
+	height: auto;
+	text-align: left;
+}
+
+.posa-cart-item-row__item-name {
+	min-width: 0;
+	overflow-wrap: anywhere;
+	font-weight: 650;
+	line-height: 1.35;
+}
+
+.posa-cart-item-row__tracking-stack {
+	display: flex;
+	flex-direction: column;
+	flex: 0 0 100%;
+	order: 10;
+	align-items: flex-start;
+	gap: 4px;
+	margin-top: 2px;
+}
+
+.posa-cart-item-row__tracking-chip {
+	max-width: 100%;
+	cursor: pointer;
+}
+
+.posa-cart-table__delete-btn,
+.posa-cart-table__expand-btn {
+	min-width: 36px !important;
+	min-height: 36px !important;
+	border-radius: var(--pos-radius-xs) !important;
+	box-shadow: none !important;
+	transition:
+		border-color 120ms ease,
+		background-color 120ms ease,
+		color 120ms ease !important;
+}
+
+.posa-cart-table__delete-btn {
+	border: 1px solid color-mix(in srgb, var(--pos-error) 32%, var(--pos-border)) !important;
+	background: var(--pos-error-container) !important;
+	color: var(--pos-error) !important;
+}
+
+.posa-cart-table__delete-btn:hover {
+	border-color: var(--pos-error) !important;
+	background: color-mix(in srgb, var(--pos-error-container) 82%, var(--pos-error)) !important;
+}
+
+.posa-cart-table__expand-btn {
+	border: 1px solid var(--pos-border) !important;
+	background: var(--pos-surface-muted) !important;
+	color: var(--pos-primary) !important;
+}
+
+.posa-cart-table__expand-btn:hover {
+	border-color: var(--pos-primary) !important;
+	background: var(--pos-primary-container) !important;
+}

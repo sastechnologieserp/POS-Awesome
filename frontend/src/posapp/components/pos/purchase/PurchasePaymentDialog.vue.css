@@ -1,0 +1,116 @@
+
+.v-text-field {
+	composes: pos-form-field;
+}
+
+/* Remove readonly styling */
+.v-text-field--readonly {
+	cursor: text;
+}
+
+.v-text-field--readonly:hover {
+	background-color: transparent;
+}
+
+.cards {
+	background-color: var(--surface-secondary) !important;
+}
+
+.pos-themed-card {
+	border-radius: 12px;
+}
+
+/* Payment method button styling - matches Payments.vue */
+.payment-method-btn {
+	position: relative;
+	text-transform: none;
+	font-weight: 500;
+}
+
+.payment-method-btn:hover,
+.payment-method-btn:focus,
+.payment-method-btn:focus-visible,
+.payment-method-btn:active {
+	background-color: rgb(var(--v-theme-primary)) !important;
+	color: rgb(var(--v-theme-on-primary)) !important;
+	box-shadow: none;
+}
+
+.payment-method-btn::before,
+.payment-method-btn:hover::before,
+.payment-method-btn:focus::before,
+.payment-method-btn:focus-visible::before,
+.payment-method-btn:active::before {
+	opacity: 0 !important;
+}
+
+/* Submit button styling - matches Payments.vue */
+.submit-btn {
+	position: relative;
+}
+
+.submit-btn:hover,
+.submit-btn:focus,
+.submit-btn:focus-visible,
+.submit-btn:active {
+	background-color: rgb(var(--v-theme-primary)) !important;
+	color: rgb(var(--v-theme-on-primary)) !important;
+	box-shadow: none;
+}
+
+.submit-btn:focus-visible {
+	outline: 2px solid rgb(var(--v-theme-primary));
+	outline-offset: 2px;
+}
+
+.submit-btn::before,
+.submit-btn:hover::before,
+.submit-btn:focus::before,
+.submit-btn:focus-visible::before,
+.submit-btn:active::before {
+	opacity: 0 !important;
+}
+
+.submit-highlight {
+	box-shadow: 0 0 0 4px rgb(var(--v-theme-primary));
+	transition: box-shadow 0.3s ease-in-out;
+}
+
+/* Sleek field styling for right-aligned text */
+.sleek-field :deep(.v-field__input) {
+	text-align: right;
+}
+
+/* Payment row spacing */
+.payments {
+	margin-bottom: 8px;
+}
+
+/* Denomination buttons container */
+.d-flex.flex-wrap {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.gap-2 {
+	gap: 8px;
+}
+
+/* Dialog specific adjustments */
+.v-dialog .v-card-text {
+	scrollbar-width: thin;
+	scrollbar-color: var(--v-theme-primary) transparent;
+}
+
+.v-dialog .v-card-text::-webkit-scrollbar {
+	width: 6px;
+}
+
+.v-dialog .v-card-text::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.v-dialog .v-card-text::-webkit-scrollbar-thumb {
+	background-color: rgb(var(--v-theme-primary));
+	border-radius: 3px;
+}

@@ -1,0 +1,227 @@
+
+.pay-sidebar {
+	padding: 8px;
+	height: 100%;
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
+.section-card {
+	border-color: rgba(var(--v-border-color), 0.12);
+	background: rgb(var(--v-theme-surface));
+	border-radius: 12px;
+}
+
+.payment-detail-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 2px;
+}
+
+.payment-detail-row:last-child {
+	margin-bottom: 0;
+}
+
+.compact-grid .v-col {
+	padding-top: 1px;
+	padding-bottom: 1px;
+}
+
+.exchange-rate-input {
+	max-width: 90px;
+	min-width: 70px;
+}
+.exchange-rate-input :deep(.v-field) {
+	background: transparent !important;
+	box-shadow: none !important;
+	border-bottom: 1px dashed rgba(var(--v-border-color), 0.3);
+	border-radius: 0;
+}
+.exchange-rate-input :deep(.v-field__input) {
+	font-size: 0.825rem;
+	font-weight: 600;
+	text-align: center;
+	padding: 2px 4px;
+	min-height: 28px;
+}
+.exchange-rate-input :deep(.v-field__overlay) {
+	display: none;
+}
+
+.base-paid-input {
+	max-width: 100px;
+	min-width: 70px;
+}
+.base-paid-input :deep(.v-field) {
+	background: transparent !important;
+	box-shadow: none !important;
+	border-bottom: 1px dashed rgba(var(--v-border-color), 0.3);
+	border-radius: 0;
+}
+.base-paid-input :deep(.v-field__input) {
+	font-size: 0.8rem;
+	font-weight: 600;
+	padding: 2px 4px;
+	min-height: 26px;
+	text-align: right;
+}
+.base-paid-input :deep(.v-field__prefix) {
+	font-size: 0.7rem;
+	font-weight: 500;
+	color: rgba(var(--v-theme-primary), 0.8);
+	padding-right: 2px;
+}
+.base-paid-input :deep(.v-field__overlay) {
+	display: none;
+}
+
+.pay-reference-date :deep(.dp__input_wrap) {
+	width: 100%;
+}
+
+.pay-reference-date :deep(.dp__input) {
+	width: 100%;
+	min-height: 40px;
+	border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+	border-radius: 4px;
+	background-color: rgb(var(--v-theme-surface));
+	color: inherit;
+	padding: 0 12px;
+}
+
+/* RTL: datepicker component root — cascades to input + icon siblings */
+.pay-sidebar[dir="rtl"] :deep(.pay-reference-date) {
+	--dp-direction: rtl;
+}
+
+/* RTL: datepicker input text alignment */
+.pay-sidebar[dir="rtl"] .pay-reference-date :deep(.dp__input) {
+	direction: rtl;
+	text-align: right;
+}
+.pay-sidebar[dir="rtl"] .pay-reference-date :deep(.dp__input_icon) {
+	left: 8px;
+	right: auto;
+}
+.pay-sidebar[dir="rtl"] .pay-reference-date :deep(.dp__input_icon_pad) {
+	padding-left: 30px;
+	padding-right: 12px;
+}
+.pay-sidebar[dir="rtl"] .pay-reference-date :deep(.dp__clear_icon) {
+	left: 30px;
+	right: auto;
+}
+
+/* RTL: text field input alignment */
+.pay-sidebar[dir="rtl"] :deep(.v-field__input) {
+	text-align: right;
+}
+
+.new-payment-card {
+	border: 1px solid rgba(var(--v-border-color), 0.25);
+	border-radius: 10px;
+	background: rgba(var(--v-theme-surface), 0.6);
+}
+
+.payment-amount-input :deep(.v-field__input) {
+	font-size: 1.25rem;
+	font-weight: 700;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.payment-amount-input :deep(.v-field__prefix) {
+	font-size: 1.1rem;
+	font-weight: 600;
+	color: rgb(var(--v-theme-primary));
+	padding-right: 4px;
+}
+
+.text-truncate {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.account-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 8px 12px;
+	background: rgba(var(--v-theme-surface), 0.5);
+	border-radius: 8px;
+	border: 1px solid rgba(var(--v-border-color), 0.15);
+}
+
+.account-selector-card {
+	display: flex;
+	flex-direction: column;
+	padding: 10px 14px;
+	background: rgba(var(--v-theme-primary), 0.06);
+	border: 1px solid rgba(var(--v-theme-primary), 0.2);
+	border-left: 3px solid rgb(var(--v-theme-primary));
+	border-radius: 8px;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	min-width: 200px;
+	max-width: 280px;
+}
+
+.account-selector-card:hover {
+	background: rgba(var(--v-theme-primary), 0.1);
+	border-color: rgba(var(--v-theme-primary), 0.35);
+}
+
+.difference-card {
+	border-radius: 10px;
+}
+
+.account-dialog-card {
+	border-radius: 16px;
+	overflow: hidden;
+}
+
+.account-dialog-card .v-card-title {
+	background: rgba(var(--v-theme-primary), 0.05);
+	font-weight: 600;
+}
+
+.account-list-item {
+	border-radius: 8px;
+	margin: 4px 0;
+	transition: background 0.15s ease;
+}
+
+.account-list-item:hover {
+	background: rgba(var(--v-theme-primary), 0.08);
+}
+
+.account-dialog-card :deep(.v-autocomplete) {
+	border-radius: 10px;
+}
+
+/* Custom scrollbar styling */
+.pay-sidebar::-webkit-scrollbar {
+	width: 6px;
+}
+.pay-sidebar::-webkit-scrollbar-track {
+	background: transparent;
+}
+.pay-sidebar::-webkit-scrollbar-thumb {
+	background: rgba(var(--v-border-color), 0.3);
+	border-radius: 3px;
+}
+
+@media (max-width: 600px) {
+	.account-row {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 8px;
+	}
+
+	.account-selector-card {
+		width: 100%;
+		max-width: none;
+	}
+}

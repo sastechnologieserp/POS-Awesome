@@ -80,6 +80,25 @@
 
 		<!-- Menu component slot -->
 		<slot name="menu"></slot>
+
+		<!-- Glass Morphism Loading Bar -->
+		<transition name="loading-fade">
+			<div v-if="loadingActive" class="loading-container">
+				<div class="glass-card">
+					<span class="loading-message">{{ loadingMessage }}</span>
+					<div v-if="!loadingIndeterminate" class="progress-badge">{{ loadingProgress }}%</div>
+				</div>
+				<v-progress-linear
+					:model-value="loadingProgress"
+					:indeterminate="loadingIndeterminate"
+					color="primary"
+					height="4"
+					absolute
+					location="bottom"
+					class="glass-progress"
+				/>
+			</div>
+		</transition>
 	</v-app-bar>
 </template>
 
@@ -96,6 +115,22 @@ export default {
 			default: 0,
 		},
 		isDark: Boolean,
+		loadingActive: {
+			type: Boolean,
+			default: false,
+		},
+		loadingProgress: {
+			type: Number,
+			default: 0,
+		},
+		loadingIndeterminate: {
+			type: Boolean,
+			default: false,
+		},
+		loadingMessage: {
+			type: String,
+			default: "",
+		},
 	},
 	computed: {
 		appBarColor() {
@@ -261,5 +296,71 @@ export default {
 	background-color: var(--surface-secondary, #2d2d2d) !important;
 	color: var(--text-primary, #ffffff) !important;
 	border-color: var(--primary-light, #90caf9) !important;
+}
+
+/* Glass Morphism Loading Bar */
+.loading-container {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	z-index: 1000;
+}
+
+.glass-card {
+	position: absolute;
+	top: -40px;
+	left: 12px;
+	right: 12px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 8px 16px;
+	background: rgba(255, 255, 255, 0.88);
+	backdrop-filter: blur(20px);
+	border-radius: 12px;
+	border: 1px solid rgba(0, 0, 0, 0.08);
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+}
+
+:deep(.dark-theme) .glass-card,
+:deep(.v-theme--dark) .glass-card {
+	background: rgba(30, 30, 30, 0.88);
+	border-color: rgba(255, 255, 255, 0.1);
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+}
+
+.loading-message {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--primary, #0097a7);
+	flex: 1;
+}
+
+.progress-badge {
+	font-size: 11px;
+	font-weight: 700;
+	color: #ffffff;
+	background: var(--primary, #0097a7);
+	padding: 2px 8px;
+	border-radius: 8px;
+	min-width: 36px;
+	text-align: center;
+}
+
+.glass-progress {
+	border-radius: 0 !important;
+	backdrop-filter: blur(10px);
+}
+
+.loading-fade-enter-active,
+.loading-fade-leave-active {
+	transition: all 0.3s ease;
+}
+
+.loading-fade-enter-from,
+.loading-fade-leave-to {
+	opacity: 0;
+	transform: translateY(-8px);
 }
 </style>

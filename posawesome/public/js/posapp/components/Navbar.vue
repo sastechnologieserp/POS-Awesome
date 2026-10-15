@@ -5,6 +5,10 @@
 			:pos-profile="posProfile"
 			:pending-invoices="pendingInvoices"
 			:is-dark="isDark"
+			:loading-active="loadingActive"
+			:loading-progress="loadingProgress"
+			:loading-indeterminate="loadingIndeterminate"
+			:loading-message="loadingMessage"
 			@nav-click="handleNavClick"
 			@go-desk="goDesk"
 			@show-offline-invoices="showOfflineInvoices = true"
@@ -237,6 +241,22 @@ export default {
 		cacheUsageDetails: {
 			type: Object,
 			default: () => ({ total: 0, indexedDB: 0, localStorage: 0 }),
+		},
+		loadingActive: {
+			type: Boolean,
+			default: false,
+		},
+		loadingProgress: {
+			type: Number,
+			default: 0,
+		},
+		loadingIndeterminate: {
+			type: Boolean,
+			default: false,
+		},
+		loadingMessage: {
+			type: String,
+			default: "",
 		},
 	},
 	data() {

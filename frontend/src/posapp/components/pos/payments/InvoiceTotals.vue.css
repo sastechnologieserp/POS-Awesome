@@ -1,0 +1,38 @@
+
+.invoice-totals-grid {
+	margin: 0;
+	row-gap: var(--pos-space-2);
+}
+
+.invoice-totals-grid :deep(.v-col) {
+	padding-top: 0;
+	padding-bottom: 0;
+}
+
+.invoice-totals-grid :deep(.v-field) {
+	border-radius: var(--pos-radius-sm);
+	background: var(--pos-surface-raised);
+}
+
+.discount-help-trigger {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	margin-inline-start: 2px;
+	border-radius: 999px;
+	border: 0;
+	background: transparent;
+	color: rgb(var(--v-theme-info));
+	cursor: help;
+	transition:
+		background-color 140ms ease,
+		color 140ms ease;
+}
+
+.discount-help-trigger:hover,
+.discount-help-trigger:focus-visible {
+	background: rgba(var(--v-theme-info), 0.14);
+	outline: none;
+}

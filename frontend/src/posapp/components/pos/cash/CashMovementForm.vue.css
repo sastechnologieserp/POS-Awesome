@@ -1,0 +1,5 @@
+
+.cash-movement-form__posting-date {
+	width: min(220px, 100%);
+	min-width: 0;
+}

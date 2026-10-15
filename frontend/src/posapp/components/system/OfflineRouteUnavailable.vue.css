@@ -1,0 +1,14 @@
+
+.offline-route-unavailable {
+	padding-top: 24px;
+	padding-bottom: 24px;
+}
+
+.offline-route-unavailable__card {
+	border-radius: 18px;
+}
+
+.offline-route-unavailable__target {
+	font-weight: 600;
+	word-break: break-word;
+}

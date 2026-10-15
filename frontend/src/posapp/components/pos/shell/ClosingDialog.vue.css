@@ -1,0 +1,30 @@
+
+.closing-dialog-card {
+	border-radius: 16px;
+	overflow: hidden;
+}
+
+.white-background {
+	background-color: rgb(var(--v-theme-surface));
+}
+
+.dialog-actions-container {
+	padding: 16px 24px;
+	border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.pos-action-btn {
+	border-radius: 8px;
+	text-transform: none;
+	font-weight: 600;
+	letter-spacing: 0.5px;
+	padding: 0 24px;
+}
+
+.cancel-action-btn {
+	border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.submit-action-btn {
+	margin-left: 16px;
+}

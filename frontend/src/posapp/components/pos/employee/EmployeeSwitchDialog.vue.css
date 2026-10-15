@@ -1,0 +1,114 @@
+
+.employee-switch-dialog__title {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.employee-switch-dialog__eyebrow {
+	font-size: 0.72rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--pos-text-secondary);
+}
+
+.employee-switch-dialog__copy {
+	margin-bottom: 12px;
+	color: var(--pos-text-secondary);
+}
+
+.employee-switch-dialog__empty {
+	padding: 16px;
+	border: 1px dashed var(--pos-border);
+	border-radius: 14px;
+	color: var(--pos-text-secondary);
+}
+
+.employee-switch-dialog__status {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 64px;
+	padding: 14px 16px;
+	border: 1px solid var(--pos-border);
+	border-radius: 14px;
+	background: var(--pos-surface-muted);
+	color: var(--pos-text-secondary);
+}
+
+.employee-switch-dialog__load-error :deep(.v-alert__content) {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.employee-switch-dialog__retry {
+	flex: 0 0 auto;
+	padding: 6px 10px;
+	border: 1px solid currentColor;
+	border-radius: 6px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.employee-switch-dialog__retry:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+}
+
+.employee-switch-dialog__list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.employee-switch-dialog__option {
+	width: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 14px 16px;
+	border-radius: 16px;
+	border: 1px solid rgba(var(--v-theme-primary), 0.12);
+	background: var(--pos-surface-muted);
+	color: var(--pos-text-primary);
+	text-align: left;
+	transition:
+		transform 0.18s ease,
+		box-shadow 0.18s ease,
+		border-color 0.18s ease;
+}
+
+.employee-switch-dialog__option:hover,
+.employee-switch-dialog__option--active {
+	border-color: rgba(var(--v-theme-primary), 0.34);
+	box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
+	transform: translateY(-1px);
+}
+
+.employee-switch-dialog__meta {
+	margin-top: 4px;
+	font-size: 0.82rem;
+	color: var(--pos-text-secondary);
+}
+
+.employee-switch-dialog__actions {
+	justify-content: flex-end;
+}
+
+.employee-switch-dialog__error {
+	margin-top: 12px;
+	border-radius: 14px;
+}
+
+.employee-switch-dialog__help {
+	margin: 14px 0 12px;
+	border-radius: 14px;
+}

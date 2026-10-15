@@ -1,1011 +1,252 @@
 # Copyright (c) 2020, Youssef Restom and contributors
 # For license information, please see license.txt
 
-import json
-from typing import Dict, List
+"""Public invoice API facade backed by `invoice_processing` modules."""
 
 import frappe
-from erpnext.accounts.doctype.sales_invoice.sales_invoice import get_bank_cash_account
-from erpnext.selling.doctype.sales_order.sales_order import make_sales_invoice
-from erpnext.setup.utils import get_exchange_rate
-from erpnext.stock.doctype.batch.batch import (
-	get_batch_no,
-)  # This should be from erpnext directly
-from frappe import _
-from frappe.utils import cint, cstr, flt, getdate, money_in_words, nowdate
-from frappe.utils.background_jobs import enqueue
-
-from posawesome.posawesome.api.payments import (
-	redeeming_customer_credit,
-)  # Updated import
-from posawesome.posawesome.api.utilities import (
-	ensure_child_doctype,
-	set_batch_nos_for_bundels,
-)  # Updated imports
-
-
-def get_latest_rate(from_currency: str, to_currency: str):
-	"""Return the most recent Currency Exchange rate and its date."""
-	rate_doc = frappe.get_all(
-		"Currency Exchange",
-		filters={"from_currency": from_currency, "to_currency": to_currency},
-		fields=["exchange_rate", "date"],
-		order_by="date desc, creation desc",
-		limit=1,
-	)
-	if rate_doc:
-		return flt(rate_doc[0].exchange_rate), rate_doc[0].date
-	rate = get_exchange_rate(from_currency, to_currency, nowdate())
-	return flt(rate), nowdate()
-
-
-@frappe.whitelist()
-def validate_return_items(original_invoice_name, return_items):
-	"""
-	Ensure that return items do not exceed the quantity from the original invoice.
-	"""
-	original_invoice = frappe.get_doc("Sales Invoice", original_invoice_name)
-	original_item_qty = {}
-
-	for item in original_invoice.items:
-		original_item_qty[item.item_code] = original_item_qty.get(item.item_code, 0) + item.qty
-
-	returned_items = frappe.get_all(
-		"Sales Invoice",
-		filters={
-			"return_against": original_invoice_name,
-			"docstatus": 1,
-			"is_return": 1,
-		},
-		fields=["name"],
-	)
-
-	for returned_invoice in returned_items:
-		ret_doc = frappe.get_doc("Sales Invoice", returned_invoice.name)
-		for item in ret_doc.items:
-			if item.item_code in original_item_qty:
-				original_item_qty[item.item_code] -= abs(item.qty)
-
-	for item in return_items:
-		item_code = item.get("item_code")
-		return_qty = abs(item.get("qty", 0))
-		if item_code in original_item_qty and return_qty > original_item_qty[item_code]:
-			return {
-				"valid": False,
-				"message": _("You are trying to return more quantity for item {0} than was sold.").format(
-					item_code
-				),
-			}
-
-	return {"valid": True}
+import time
+from frappe.utils import cint, flt
+from posawesome.posawesome.api.erpnext_compat import resolve_make_sales_invoice_from_order
+from posawesome.posawesome.api.tax_contracts import apply_pos_tax_inclusion_contract
+from posawesome.posawesome.api.invoice_processing.utils import (
+    _get_return_validity_settings,
+    _build_invoice_remarks,
+    _set_return_valid_upto,
+    _validate_return_window,
+    get_latest_rate,
+    get_price_list_currency,
+    get_available_currencies,
+)
+from posawesome.posawesome.api.invoice_processing.stock import (
+    _strip_client_freebies_from_payload,
+    _validate_stock_on_invoice,
+    _apply_item_name_overrides,
+    _deduplicate_free_items,
+    _merge_duplicate_taxes,
+    _auto_set_return_batches,
+    _collect_stock_errors,
+    _should_block,
+)
+from posawesome.posawesome.api.invoice_processing.creation import (
+    update_invoice,
+    submit_invoice,
+    submit_in_background_job,
+    repair_invoice_submission,
+    validate_cart_items,
+)
+from posawesome.posawesome.api.invoice_processing.returns import (
+    search_invoices_for_return,
+    validate_return_items,
+    get_invoice_for_return,
+)
+from posawesome.posawesome.api.invoice_processing.payment import _create_change_payment_entries
+from posawesome.posawesome.api.invoice_processing.data import get_last_invoice_rates
+from posawesome.posawesome.api.utils import log_perf_event
+from posawesome.posawesome.api.submitted_invoice_edits import (
+    get_submitted_invoice_for_edit,
+    list_submitted_invoices,
+    preview_submitted_invoice_edit,
+    submit_submitted_invoice_edit,
+)
 
 
 @frappe.whitelist()
-def update_invoice(data):
-	data = json.loads(data) if isinstance(data, str) else data
-	if isinstance(data, dict):
-		if data.get("id") and not data.get("name"):
-			data["name"] = data.get("id")
+def get_draft_invoices(
+    pos_opening_shift=None,
+    doctype="Sales Invoice",
+    limit_page_length=0,
+    company=None,
+    pos_profile=None,
+    cashier=None,
+    is_supervisor=0,
+):
+    started_at = time.perf_counter()
+    try:
+        limit_page_length = int(limit_page_length or 0)
+    except (TypeError, ValueError):
+        limit_page_length = 0
+    if limit_page_length < 0:
+        limit_page_length = 0
 
-	# Idempotency / Duplicate request check using client_request_id
-	client_req_id = (
-		(data.get("posa_client_request_id") if isinstance(data, dict) else None)
-		or (data.get("client_request_id") if isinstance(data, dict) else None)
-		or (data.get("idempotency_key") if isinstance(data, dict) else None)
-	)
-	if client_req_id and not data.get("name"):
-		try:
-			existing_name = frappe.db.get_value("Sales Invoice", {"posa_client_request_id": str(client_req_id).strip()}, "name")
-			if existing_name:
-				data["name"] = existing_name
-		except Exception:
-			pass
+    supervisor_scope = int(is_supervisor or 0)
+    filters = {
+        "docstatus": 0,
+    }
+    if supervisor_scope and company:
+        filters["company"] = company
+        if pos_profile:
+            filters["pos_profile"] = pos_profile
+        if cashier:
+            filters["owner"] = cashier
+    else:
+        filters["posa_pos_opening_shift"] = pos_opening_shift
+    if frappe.db.has_column(doctype, "posa_is_printed"):
+        filters["posa_is_printed"] = 0
 
-	if data.get("name") and frappe.db.exists("Sales Invoice", data.get("name")):
-		invoice_doc = frappe.get_doc("Sales Invoice", data.get("name"))
-		invoice_doc.update(data)
-	else:
-		if isinstance(data, dict):
-			if not data.get("doctype"):
-				data["doctype"] = "Sales Invoice"
-			if not data.get("pos_profile"):
-				active_shift_profile = frappe.db.sql(
-					"""
-					SELECT pos_profile FROM `tabPOS Opening Entry` 
-					WHERE user = %s AND status = 'Open' and docstatus = 1
-					LIMIT 1
-					""",
-					frappe.session.user,
-				)
-				if active_shift_profile:
-					data["pos_profile"] = active_shift_profile[0][0]
-			if not data.get("company"):
-				if data.get("pos_profile"):
-					data["company"] = frappe.db.get_value("POS Profile", data.get("pos_profile"), "company")
-				if not data.get("company"):
-					active_shift_company = frappe.db.sql(
-						"""
-						SELECT company FROM `tabPOS Opening Entry` 
-						WHERE user = %s AND status = 'Open' and docstatus = 1
-						LIMIT 1
-						""",
-						frappe.session.user,
-					)
-					if active_shift_company:
-						data["company"] = active_shift_company[0][0]
-				if not data.get("company"):
-					data["company"] = frappe.defaults.get_user_default("company") or frappe.db.get_default("company")
-			if not data.get("customer") and data.get("pos_profile"):
-				data["customer"] = frappe.db.get_value("POS Profile", data.get("pos_profile"), "customer")
-			if not data.get("posa_pos_opening_shift"):
-				active_shift = frappe.db.sql(
-					"""
-					SELECT name FROM `tabPOS Opening Entry` 
-					WHERE user = %s AND status = 'Open' and docstatus = 1
-					LIMIT 1
-					""",
-					frappe.session.user,
-				)
-				if active_shift:
-					data["posa_pos_opening_shift"] = active_shift[0][0]
-		invoice_doc = frappe.get_doc(data)
-		if isinstance(data, dict) and data.get("name"):
-			invoice_doc.name = data.get("name")
-			invoice_doc.flags.name_set = True
+    fields = [
+        "name",
+        "customer",
+        "customer_name",
+        "posting_date",
+        "posting_time",
+        "grand_total",
+        "currency",
+        "pos_profile",
+        "owner",
+        "modified_by",
+    ]
+    if frappe.db.has_column(doctype, "posa_cashier"):
+        fields.append("posa_cashier")
 
-	# Set currency from data before set_missing_values
-	# Validate return items if this is a return invoice
-	if (data.get("is_return") or invoice_doc.is_return) and invoice_doc.get("return_against"):
-		validation = validate_return_items(
-			invoice_doc.return_against, [d.as_dict() for d in invoice_doc.items]
-		)
-		if not validation.get("valid"):
-			frappe.throw(validation.get("message"))
-	selected_currency = data.get("currency")
-	price_list_currency = data.get("price_list_currency")
-	exchange_rate_date = invoice_doc.posting_date
-	if not price_list_currency and invoice_doc.get("selling_price_list"):
-		price_list_currency = frappe.db.get_value("Price List", invoice_doc.selling_price_list, "currency")
-
-	# Ensure customer exists before setting missing values
-	customer_name = invoice_doc.get("customer")
-	if customer_name and not frappe.db.exists("Customer", customer_name):
-		try:
-			cust = frappe.get_doc(
-				{
-					"doctype": "Customer",
-					"customer_name": customer_name,
-					"customer_group": "All Customer Groups",
-					"territory": "All Territories",
-					"customer_type": "Individual",
-				}
-			)
-			cust.flags.ignore_permissions = True
-			cust.insert()
-			invoice_doc.customer = cust.name
-			invoice_doc.customer_name = cust.customer_name
-		except Exception as e:
-			frappe.log_error(f"Failed to create customer {customer_name}: {e}")
-
-	# Preserve payments entered on frontend
-	original_payments = [p.as_dict() for p in invoice_doc.payments] if invoice_doc.payments else []
-
-	# Set missing values first
-	invoice_doc.set_missing_values()
-
-	# Restore payments if they were cleared
-	if original_payments:
-		invoice_doc.set("payments", [])
-		for p in original_payments:
-			invoice_doc.append("payments", p)
-
-	# Ensure selected currency is preserved after set_missing_values
-	if selected_currency:
-		invoice_doc.currency = selected_currency
-		company_currency = frappe.get_cached_value("Company", invoice_doc.company, "default_currency")
-		price_list_currency = price_list_currency or company_currency
-
-		conversion_rate = 1
-		if invoice_doc.currency != company_currency:
-			conversion_rate, exchange_rate_date = get_latest_rate(
-				invoice_doc.currency,
-				company_currency,
-			)
-			if not conversion_rate:
-				frappe.throw(
-					_(
-						"Unable to find exchange rate for {0} to {1}. Please create a Currency Exchange record manually"
-					).format(invoice_doc.currency, company_currency)
-				)
-
-		plc_conversion_rate = 1
-		if price_list_currency != invoice_doc.currency:
-			plc_conversion_rate, _ignored = get_latest_rate(
-				price_list_currency,
-				invoice_doc.currency,
-			)
-			if not plc_conversion_rate:
-				frappe.throw(
-					_(
-						"Unable to find exchange rate for {0} to {1}. Please create a Currency Exchange record manually"
-					).format(price_list_currency, invoice_doc.currency)
-				)
-
-		invoice_doc.conversion_rate = conversion_rate
-		invoice_doc.plc_conversion_rate = plc_conversion_rate
-		invoice_doc.price_list_currency = price_list_currency
-
-		# Update rates and amounts for all items using multiplication
-		for item in invoice_doc.items:
-			item.price_list_rate = flt(item.price_list_rate)
-			item.rate = flt(item.rate)
-			item.amount = flt(item.amount)
-
-			if item.price_list_rate:
-				item.base_price_list_rate = flt(
-					item.price_list_rate * (conversion_rate / plc_conversion_rate),
-					item.precision("base_price_list_rate"),
-				)
-			if item.rate:
-				item.base_rate = flt(item.rate * conversion_rate, item.precision("base_rate"))
-			if item.amount:
-				item.base_amount = flt(item.amount * conversion_rate, item.precision("base_amount"))
-
-		# Update payment amounts
-		for payment in invoice_doc.payments:
-			payment.amount = flt(payment.amount)
-			payment.base_amount = flt(payment.amount * conversion_rate, payment.precision("base_amount"))
-
-		# Update invoice level amounts
-		invoice_doc.total = flt(invoice_doc.total)
-		invoice_doc.net_total = flt(invoice_doc.net_total)
-		invoice_doc.grand_total = flt(invoice_doc.grand_total)
-		invoice_doc.rounded_total = flt(invoice_doc.rounded_total)
-
-		invoice_doc.base_total = flt(invoice_doc.total * conversion_rate, invoice_doc.precision("base_total"))
-		invoice_doc.base_net_total = flt(
-			invoice_doc.net_total * conversion_rate,
-			invoice_doc.precision("base_net_total"),
-		)
-		invoice_doc.base_grand_total = flt(
-			invoice_doc.grand_total * conversion_rate,
-			invoice_doc.precision("base_grand_total"),
-		)
-		invoice_doc.base_rounded_total = flt(
-			invoice_doc.rounded_total * conversion_rate,
-			invoice_doc.precision("base_rounded_total"),
-		)
-		invoice_doc.base_in_words = money_in_words(invoice_doc.base_rounded_total, company_currency)
-
-		# Update data to be sent back to frontend
-		data["conversion_rate"] = conversion_rate
-		data["plc_conversion_rate"] = plc_conversion_rate
-		data["exchange_rate_date"] = exchange_rate_date
-
-	invoice_doc.flags.ignore_permissions = True
-	frappe.flags.ignore_account_permission = True
-	invoice_doc.docstatus = 0
-	invoice_doc.save()
-
-	# Return both the invoice doc and the updated data
-	response = invoice_doc.as_dict()
-	response["conversion_rate"] = invoice_doc.conversion_rate
-	response["plc_conversion_rate"] = invoice_doc.plc_conversion_rate
-	response["exchange_rate_date"] = exchange_rate_date
-	return response
+    invoices_list = frappe.get_list(
+        doctype,
+        filters=filters,
+        fields=fields,
+        limit_page_length=limit_page_length,
+        order_by="modified desc",
+    )
+    for invoice in invoices_list:
+        invoice["doctype"] = doctype
+    log_perf_event(
+        "get_draft_invoices",
+        started_at,
+        doctype=doctype,
+        rows=len(invoices_list),
+    )
+    return invoices_list
 
 
 @frappe.whitelist()
-def submit_invoice(invoice, data):
-	data = json.loads(data) if isinstance(data, str) else data
-	invoice = json.loads(invoice) if isinstance(invoice, str) else invoice
-	if isinstance(invoice, dict):
-		if invoice.get("id") and not invoice.get("name"):
-			invoice["name"] = invoice.get("id")
-
-	# Idempotency / Duplicate request check using client_request_id
-	client_req_id = (
-		(invoice.get("posa_client_request_id") if isinstance(invoice, dict) else None)
-		or (data.get("client_request_id") if isinstance(data, dict) else None)
-		or (data.get("idempotency_key") if isinstance(data, dict) else None)
-	)
-	if client_req_id:
-		client_req_id = str(client_req_id).strip()
-		try:
-			existing_invoices = frappe.get_all(
-				"Sales Invoice",
-				filters={"posa_client_request_id": client_req_id},
-				fields=["name", "docstatus"],
-				limit=1,
-			)
-			if existing_invoices:
-				existing = existing_invoices[0]
-				return {"name": existing.name, "status": existing.docstatus, "replayed": True}
-		except Exception:
-			# Field might not exist yet in db
-			pass
-
-	invoice_name = invoice.get("name") if isinstance(invoice, dict) else None
-	if not invoice_name or not frappe.db.exists("Sales Invoice", invoice_name):
-		created = update_invoice(json.dumps(invoice))
-		invoice_name = created.get("name")
-		invoice_doc = frappe.get_doc("Sales Invoice", invoice_name)
-	else:
-		invoice_doc = frappe.get_doc("Sales Invoice", invoice_name)
-		invoice_doc.update(invoice)
-
-	if client_req_id and hasattr(invoice_doc, "posa_client_request_id"):
-		invoice_doc.posa_client_request_id = client_req_id
-	if invoice.get("posa_delivery_date"):
-		invoice_doc.update_stock = 0
-	mop_cash_list = [
-		i.mode_of_payment
-		for i in invoice_doc.payments
-		if "cash" in i.mode_of_payment.lower() and i.type == "Cash"
-	]
-	if len(mop_cash_list) > 0:
-		cash_account = get_bank_cash_account(mop_cash_list[0], invoice_doc.company)
-	else:
-		cash_account = {"account": frappe.get_value("Company", invoice_doc.company, "default_cash_account")}
-
-	# Update remarks with items details
-	items = []
-	for item in invoice_doc.items:
-		if item.item_name and item.rate and item.qty:
-			total = item.rate * item.qty
-			items.append(f"{item.item_name} - Rate: {item.rate}, Qty: {item.qty}, Amount: {total}")
-
-	# Add the grand total at the end of remarks
-	grand_total = f"\nGrand Total: {invoice_doc.grand_total}"
-	items.append(grand_total)
-
-	invoice_doc.remarks = "\n".join(items)
-
-	# Handle credit sales - ensure is_pos remains 1 for credit sales
-	if data.get("is_credit_sale"):
-		invoice_doc.is_pos = 1
-		# Clear all payment amounts for credit sales
-		for payment in invoice_doc.payments:
-			payment.amount = 0
-			if hasattr(payment, 'base_amount'):
-				payment.base_amount = 0
-
-	# creating advance payment
-	if data.get("credit_change"):
-		advance_payment_entry = frappe.get_doc(
-			{
-				"doctype": "Payment Entry",
-				"mode_of_payment": "Cash",
-				"paid_to": cash_account["account"],
-				"payment_type": "Receive",
-				"party_type": "Customer",
-				"party": invoice_doc.get("customer"),
-				"paid_amount": invoice_doc.get("credit_change"),
-				"received_amount": invoice_doc.get("credit_change"),
-				"company": invoice_doc.get("company"),
-			}
-		)
-
-		advance_payment_entry.flags.ignore_permissions = True
-		frappe.flags.ignore_account_permission = True
-		advance_payment_entry.save()
-		advance_payment_entry.submit()
-
-	# calculating cash
-	total_cash = 0
-	if data.get("redeemed_customer_credit"):
-		total_cash = invoice_doc.total - float(data.get("redeemed_customer_credit"))
-
-	is_payment_entry = 0
-	if data.get("redeemed_customer_credit"):
-		for row in data.get("customer_credit_dict"):
-			if row["type"] == "Advance" and row["credit_to_redeem"]:
-				advance = frappe.get_doc("Payment Entry", row["credit_origin"])
-
-				advance_payment = {
-					"reference_type": "Payment Entry",
-					"reference_name": advance.name,
-					"remarks": advance.remarks,
-					"advance_amount": advance.unallocated_amount,
-					"allocated_amount": row["credit_to_redeem"],
-				}
-
-				advance_row = invoice_doc.append("advances", {})
-				advance_row.update(advance_payment)
-				ensure_child_doctype(invoice_doc, "advances", "Sales Invoice Advance")
-				# Only set is_pos = 0 if it's not a credit sale
-				if not data.get("is_credit_sale"):
-					invoice_doc.is_pos = 0
-				is_payment_entry = 1
-
-	payments = invoice_doc.payments
-
-	# if frappe.get_value("POS Profile", invoice_doc.pos_profile, "posa_auto_set_batch"):
-	#     set_batch_nos(invoice_doc, "warehouse", throw=True)
-	set_batch_nos_for_bundels(invoice_doc, "warehouse", throw=True)
-
-	invoice_doc.flags.ignore_permissions = True
-	frappe.flags.ignore_account_permission = True
-	invoice_doc.posa_is_printed = 1
-	invoice_doc.save()
-
-	if data.get("due_date"):
-		frappe.db.set_value(
-			"Sales Invoice",
-			invoice_doc.name,
-			"due_date",
-			data.get("due_date"),
-			update_modified=False,
-		)
-
-	if frappe.get_value(
-		"POS Profile",
-		invoice_doc.pos_profile,
-		"posa_allow_submissions_in_background_job",
-	):
-		invoices_list = frappe.get_all(
-			"Sales Invoice",
-			filters={
-				"posa_pos_opening_shift": invoice_doc.posa_pos_opening_shift,
-				"docstatus": 0,
-				"posa_is_printed": 1,
-			},
-		)
-		for invoice in invoices_list:
-			enqueue(
-				method=submit_in_background_job,
-				queue="short",
-				timeout=1000,
-				is_async=True,
-				kwargs={
-					"invoice": invoice.name,
-					"data": data,
-					"is_payment_entry": is_payment_entry,
-					"total_cash": total_cash,
-					"cash_account": cash_account,
-					"payments": payments,
-				},
-			)
-	else:
-		invoice_doc.submit()
-		redeeming_customer_credit(invoice_doc, data, is_payment_entry, total_cash, cash_account, payments)
-
-	return {"name": invoice_doc.name, "status": invoice_doc.docstatus}
-
-
-def submit_in_background_job(kwargs):
-	invoice = kwargs.get("invoice")
-	invoice_doc = kwargs.get("invoice_doc")
-	data = kwargs.get("data")
-	is_payment_entry = kwargs.get("is_payment_entry")
-	total_cash = kwargs.get("total_cash")
-	cash_account = kwargs.get("cash_account")
-	payments = kwargs.get("payments")
-
-	invoice_doc = frappe.get_doc("Sales Invoice", invoice)
-
-	# Update remarks with items details for background job
-	items = []
-	for item in invoice_doc.items:
-		if item.item_name and item.rate and item.qty:
-			total = item.rate * item.qty
-			items.append(f"{item.item_name} - Rate: {item.rate}, Qty: {item.qty}, Amount: {total}")
-
-	# Add the grand total at the end of remarks
-	grand_total = f"\nGrand Total: {invoice_doc.grand_total}"
-	items.append(grand_total)
-
-	invoice_doc.remarks = "\n".join(items)
-	invoice_doc.save()
-
-	invoice_doc.submit()
-	redeeming_customer_credit(invoice_doc, data, is_payment_entry, total_cash, cash_account, payments)
+def get_draft_invoice_doc(invoice_name, doctype="Sales Invoice"):
+    started_at = time.perf_counter()
+    doc = frappe.get_cached_doc(doctype, invoice_name)
+    log_perf_event(
+        "get_draft_invoice_doc",
+        started_at,
+        doctype=doctype,
+        invoice=invoice_name,
+        items=len(getattr(doc, "items", []) or []),
+    )
+    return doc
 
 
 @frappe.whitelist()
 def delete_invoice(invoice):
-	if frappe.get_value("Sales Invoice", invoice, "posa_is_printed"):
-		frappe.throw(_("This invoice {0} cannot be deleted").format(invoice))
-	frappe.delete_doc("Sales Invoice", invoice, force=1)
-	return _("Invoice {0} Deleted").format(invoice)
+    from frappe import _
+    from posawesome.posawesome.api.invoice import delete_invoice_submission_ledger_entries_for_invoice
+
+    doctype = "Sales Invoice"
+    if frappe.db.exists("POS Invoice", invoice):
+        doctype = "POS Invoice"
+    elif not frappe.db.exists("Sales Invoice", invoice):
+        frappe.throw(_("Invoice {0} does not exist").format(invoice))
+
+    if frappe.db.has_column(doctype, "posa_is_printed") and frappe.get_value(
+        doctype, invoice, "posa_is_printed"
+    ):
+        frappe.throw(_("This invoice {0} cannot be deleted").format(invoice))
+
+    frappe.delete_doc(doctype, invoice, force=1)
+    delete_invoice_submission_ledger_entries_for_invoice(doctype, invoice)
+    return _("Invoice {0} Deleted").format(invoice)
 
 
 @frappe.whitelist()
-def get_draft_invoices(pos_opening_shift):
-	invoices_list = frappe.get_list(
-		"Sales Invoice",
-		filters={
-			"posa_pos_opening_shift": pos_opening_shift,
-			"docstatus": 0,
-			"posa_is_printed": 0,
-		},
-		fields=["name"],
-		limit_page_length=0,
-		order_by="modified desc",
-	)
-	data = []
-	for invoice in invoices_list:
-		data.append(frappe.get_cached_doc("Sales Invoice", invoice["name"]))
-	return data
+def fetch_exchange_rate_pair(from_currency, to_currency, transaction_date=None):
+    """Return exchange rate payload expected by POS multi-currency UI."""
+
+    if not from_currency or not to_currency:
+        frappe.throw("from_currency and to_currency are required")
+
+    if from_currency == to_currency:
+        from frappe.utils import nowdate
+
+        return {
+            "exchange_rate": 1,
+            "date": transaction_date or nowdate(),
+        }
+
+    exchange_rate, rate_date = get_latest_rate(
+        from_currency,
+        to_currency,
+        transaction_date=transaction_date,
+        silent=True,
+    )
+    return {
+        "exchange_rate": exchange_rate,
+        "date": rate_date,
+    }
 
 
 @frappe.whitelist()
-def search_invoices_for_return(
-	invoice_name,
-	company,
-	customer_name=None,
-	customer_id=None,
-	mobile_no=None,
-	tax_id=None,
-	from_date=None,
-	to_date=None,
-	min_amount=None,
-	max_amount=None,
-	page=1,
+def resolve_exchange_rate(
+    from_currency,
+    to_currency,
+    transaction_date=None,
+    purpose=None,
+    allow_external=1,
 ):
-	"""
-	Search for invoices that can be returned with separate customer search fields and pagination
+    """Resolve one explicitly requested pair without emitting desk dialogs."""
 
-	Args:
-	    invoice_name: Invoice ID to search for
-	    company: Company to search in
-	    customer_name: Customer name to search for
-	    customer_id: Customer ID to search for
-	    mobile_no: Mobile number to search for
-	    tax_id: Tax ID to search for
-	    from_date: Start date for filtering
-	    to_date: End date for filtering
-	    min_amount: Minimum invoice amount to filter by
-	    max_amount: Maximum invoice amount to filter by
-	    page: Page number for pagination (starts from 1)
+    if not from_currency or not to_currency:
+        return {
+            "found": False,
+            "from_currency": from_currency,
+            "to_currency": to_currency,
+            "error": "from_currency and to_currency are required",
+        }
 
-	Returns:
-	    Dictionary with:
-	        - invoices: List of invoice documents
-	        - has_more: Boolean indicating if there are more invoices to load
-	"""
-	# Start with base filters
-	filters = {
-		"company": company,
-		"docstatus": 1,
-		"is_return": 0,
-	}
-
-	# Convert page to integer if it's a string
-	if page and isinstance(page, str):
-		page = int(page)
-	else:
-		page = 1  # Default to page 1
-
-	# Items per page - can be adjusted based on performance requirements
-	page_length = 100
-	start = (page - 1) * page_length
-
-	# Add invoice name filter if provided
-	if invoice_name:
-		filters["name"] = ["like", f"%{invoice_name}%"]
-
-	# Add date range filters if provided
-	if from_date:
-		filters["posting_date"] = [">=", from_date]
-
-	if to_date:
-		if "posting_date" in filters:
-			filters["posting_date"] = ["between", [from_date, to_date]]
-		else:
-			filters["posting_date"] = ["<=", to_date]
-
-	# Add amount filters if provided
-	if min_amount:
-		filters["grand_total"] = [">=", float(min_amount)]
-
-	if max_amount:
-		if "grand_total" in filters:
-			# If min_amount was already set, change to between
-			filters["grand_total"] = ["between", [float(min_amount), float(max_amount)]]
-		else:
-			filters["grand_total"] = ["<=", float(max_amount)]
-
-	# If any customer search criteria is provided, find matching customers
-	customer_ids = []
-	if customer_name or customer_id or mobile_no or tax_id:
-		conditions = []
-		params = {}
-
-		if customer_name:
-			conditions.append("customer_name LIKE %(customer_name)s")
-			params["customer_name"] = f"%{customer_name}%"
-
-		if customer_id:
-			conditions.append("name LIKE %(customer_id)s")
-			params["customer_id"] = f"%{customer_id}%"
-
-		if mobile_no:
-			conditions.append("mobile_no LIKE %(mobile_no)s")
-			params["mobile_no"] = f"%{mobile_no}%"
-
-		if tax_id:
-			conditions.append("tax_id LIKE %(tax_id)s")
-			params["tax_id"] = f"%{tax_id}%"
-
-		# Build the WHERE clause for the query
-		where_clause = " OR ".join(conditions)
-		customer_query = f"""
-            SELECT name 
-            FROM `tabCustomer`
-            WHERE {where_clause}
-            LIMIT 100
-        """
-
-		customers = frappe.db.sql(customer_query, params, as_dict=True)
-		customer_ids = [c.name for c in customers]
-
-		# If we found matching customers, add them to the filter
-		if customer_ids:
-			filters["customer"] = ["in", customer_ids]
-		# If customer search criteria provided but no matches found, return empty
-		elif any([customer_name, customer_id, mobile_no, tax_id]):
-			return {"invoices": [], "has_more": False}
-
-	# Count total invoices matching the criteria (for has_more flag)
-	total_count_query = frappe.get_list(
-		"Sales Invoice",
-		filters=filters,
-		fields=["count(name) as total_count"],
-		as_list=False,
-	)
-	total_count = total_count_query[0].total_count if total_count_query else 0
-
-	# Get invoices matching all criteria with pagination
-	invoices_list = frappe.get_list(
-		"Sales Invoice",
-		filters=filters,
-		fields=["name"],
-		limit_start=start,
-		limit_page_length=page_length,
-		order_by="posting_date desc, name desc",
-	)
-
-	# Process and return the results
-	data = []
-
-	# Process invoices and check for returns
-	for invoice in invoices_list:
-		invoice_doc = frappe.get_doc("Sales Invoice", invoice.name)
-
-		# Check if any items have already been returned
-		has_returns = frappe.get_all(
-			"Sales Invoice",
-			filters={"return_against": invoice.name, "docstatus": 1},
-			fields=["name"],
-		)
-
-		if has_returns:
-			# Calculate returned quantity per item_code
-			returned_qty = {}
-			for ret_inv in has_returns:
-				ret_doc = frappe.get_doc("Sales Invoice", ret_inv.name)
-				for item in ret_doc.items:
-					returned_qty[item.item_code] = returned_qty.get(item.item_code, 0) + abs(item.qty)
-
-			# Filter items with remaining qty
-			filtered_items = []
-			for item in invoice_doc.items:
-				remaining_qty = item.qty - returned_qty.get(item.item_code, 0)
-				if remaining_qty > 0:
-					new_item = item.as_dict().copy()
-					new_item["qty"] = remaining_qty
-					new_item["amount"] = remaining_qty * item.rate
-					if item.get("stock_qty"):
-						new_item["stock_qty"] = (
-							item.stock_qty / item.qty * remaining_qty if item.qty else remaining_qty
-						)
-					filtered_items.append(frappe._dict(new_item))
-
-			if filtered_items:
-				# Create a copy of invoice with filtered items
-				filtered_invoice = frappe.get_doc("Sales Invoice", invoice.name)
-				filtered_invoice.items = filtered_items
-				data.append(filtered_invoice)
-		else:
-			data.append(invoice_doc)
-
-	# Check if there are more results
-	has_more = (start + page_length) < total_count
-
-	return {"invoices": data, "has_more": has_more}
+    rate, rate_date = get_latest_rate(
+        from_currency,
+        to_currency,
+        transaction_date=transaction_date,
+        purpose=purpose,
+        allow_external=cint(allow_external),
+        silent=True,
+    )
+    return {
+        "found": bool(rate and flt(rate) > 0),
+        "from_currency": from_currency,
+        "to_currency": to_currency,
+        "exchange_rate": flt(rate) if rate else None,
+        "date": rate_date,
+        "source": "same_currency" if from_currency == to_currency else "currency_exchange",
+    }
 
 
 @frappe.whitelist()
 def create_sales_invoice_from_order(sales_order):
-	sales_invoice = make_sales_invoice(sales_order, ignore_permissions=True)
-	sales_invoice.save()
-	return sales_invoice
+    """Backward-compatible facade for legacy frontend method path."""
+
+    if not sales_order:
+        frappe.throw("sales_order is required")
+
+    if not frappe.db.exists("Sales Order", sales_order):
+        frappe.throw(f"Sales Order {sales_order} does not exist")
+
+    sales_order_doc = frappe.get_doc("Sales Order", sales_order)
+    invoice_doc = resolve_make_sales_invoice_from_order()(sales_order)
+    invoice_doc.flags.ignore_permissions = True
+    invoice_doc.run_method("set_missing_values")
+    apply_pos_tax_inclusion_contract(invoice_doc, source_doc=sales_order_doc, recalculate=False)
+    invoice_doc.run_method("calculate_taxes_and_totals")
+    return invoice_doc
 
 
 @frappe.whitelist()
 def delete_sales_invoice(sales_invoice):
-	frappe.delete_doc("Sales Invoice", sales_invoice)
+    """Backward-compatible facade for legacy frontend method path."""
 
+    if not sales_invoice:
+        frappe.throw("sales_invoice is required")
 
-@frappe.whitelist()
-def get_sales_invoice_child_table(sales_invoice, sales_invoice_item):
-	parent_doc = frappe.get_doc("Sales Invoice", sales_invoice)
-	child_doc = frappe.get_doc("Sales Invoice Item", {"parent": parent_doc.name, "name": sales_invoice_item})
-	return child_doc
+    if frappe.db.exists("Sales Invoice", sales_invoice):
+        frappe.delete_doc("Sales Invoice", sales_invoice, force=1)
+    return True
 
 
 @frappe.whitelist()
 def update_invoice_from_order(data):
-	data = json.loads(data)
-	invoice_doc = frappe.get_doc("Sales Invoice", data.get("name"))
-	invoice_doc.update(data)
-	invoice_doc.save()
-	return invoice_doc
+    """Backward-compatible facade used by order-to-invoice flow."""
 
-
-@frappe.whitelist()
-def get_available_currencies():
-	"""Get list of available currencies from ERPNext"""
-	return frappe.get_all(
-		"Currency",
-		fields=["name", "currency_name"],
-		filters={"enabled": 1},
-		order_by="currency_name",
-	)
-
-
-@frappe.whitelist()
-def fetch_exchange_rate(currency: str, company: str, posting_date: str = None):
-	"""Return latest exchange rate and its date."""
-	company_currency = frappe.get_cached_value("Company", company, "default_currency")
-	rate, date = get_latest_rate(currency, company_currency)
-	return {"exchange_rate": rate, "date": date}
-
-
-@frappe.whitelist()
-def fetch_exchange_rate_pair(from_currency: str, to_currency: str, posting_date: str = None):
-	"""Return latest exchange rate between two currencies along with rate date."""
-	rate, date = get_latest_rate(from_currency, to_currency)
-	return {"exchange_rate": rate, "date": date}
-
-
-@frappe.whitelist()
-def get_todays_invoices(company, user=None):
-	"""
-	Get all invoices for today that can be recalled/loaded
-	
-	Args:
-	    company: Company to search in
-	    user: User who created the invoices (optional)
-	
-	Returns:
-	    List of invoice documents from today
-	"""
-	from frappe.utils import nowdate
-	
-	today = nowdate()
-	
-	filters = {
-		"company": company,
-		"posting_date": today,
-		"docstatus": 1,  # Only submitted invoices
-		"is_return": 0,  # Exclude return invoices
-	}
-	
-	if user:
-		filters["owner"] = user
-	
-	invoices_list = frappe.get_list(
-		"Sales Invoice",
-		filters=filters,
-		fields=["name"],
-		order_by="posting_date desc, name desc",
-	)
-	
-	data = []
-	for invoice in invoices_list:
-		invoice_doc = frappe.get_doc("Sales Invoice", invoice.name)
-		data.append(invoice_doc)
-	
-	return data
-
-
-@frappe.whitelist()
-def open_cash_drawer():
-	"""
-	Open the cash drawer by sending a minimal receipt format
-	This prevents long page issues by using controlled dimensions
-	"""
-	try:
-		# Get current user's POS profile
-		user = frappe.session.user
-		pos_profiles = frappe.get_all("POS Profile", fields=["name"])
-		
-		if not pos_profiles:
-			return {
-				"success": False, 
-				"message": "No POS profiles found."
-			}
-		
-		# Use the first available profile
-		pos_profile = pos_profiles[0].name
-		
-		# Get or create cash drawer counter
-		counter_key = f"cash_drawer_counter_{user}"
-		current_counter = frappe.cache().get_value(counter_key) or 0
-		new_counter = current_counter + 1
-		frappe.cache().set_value(counter_key, new_counter)
-		
-		# Log the attempt
-		frappe.logger().info(f"Opening cash drawer for user: {user}, profile: {pos_profile}, counter: {new_counter}")
-		
-		# Create a minimal, controlled receipt format for cash drawer
-		# This prevents long page issues by using strict dimensions and minimal content
-		receipt_content = f"""
-		<!DOCTYPE html>
-		<html>
-		<head>
-			<title>Cash Drawer</title>
-			<meta charset="utf-8">
-			<style>
-				/* Strict page sizing to prevent long page issues */
-				@page {{
-					size: 80mm 80mm;
-					margin: 0;
-					padding: 0;
-				}}
-				
-				/* Reset all margins and padding */
-				* {{
-					margin: 0;
-					padding: 0;
-					box-sizing: border-box;
-				}}
-				
-				html, body {{
-					width: 80mm;
-					height: 80mm;
-					margin: 0;
-					padding: 0;
-					overflow: hidden;
-					font-family: 'Courier New', monospace;
-					font-size: 10px;
-					line-height: 1.2;
-					color: #000;
-					background: white;
-				}}
-				
-				/* Ensure content fits within strict dimensions */
-				.receipt-container {{
-					width: 76mm;
-					height: 76mm;
-					margin: 2mm;
-					padding: 0;
-					overflow: hidden;
-				}}
-				
-				.header {{
-					text-align: center;
-					font-weight: bold;
-					font-size: 12px;
-					margin-bottom: 3mm;
-					border-bottom: 1px solid #000;
-					padding-bottom: 2mm;
-				}}
-				
-				.content {{
-					text-align: center;
-					font-size: 10px;
-					margin: 3mm 0;
-				}}
-				
-				.counter {{
-					text-align: center;
-					font-size: 14px;
-					font-weight: bold;
-					margin: 2mm 0;
-					color: #333;
-				}}
-				
-				.small-text {{
-					text-align: center;
-					font-size: 8px;
-					margin: 2mm 0;
-					color: #666;
-					font-style: italic;
-				}}
-				
-				.timestamp {{
-					text-align: center;
-					font-size: 8px;
-					margin-top: 3mm;
-					border-top: 1px solid #000;
-					padding-top: 2mm;
-				}}
-				
-				.end-marker {{
-					text-align: center;
-					font-size: 10px;
-					margin-top: 4mm;
-					font-weight: bold;
-					color: #000;
-					border: 2px solid #000;
-					padding: 2mm;
-					border-radius: 2mm;
-				}}
-				
-				/* Print media queries to ensure consistent output */
-				@media print {{
-					html, body {{
-						width: 80mm !important;
-						height: 80mm !important;
-						margin: 0 !important;
-						padding: 0 !important;
-						overflow: hidden !important;
-					}}
-					
-					.receipt-container {{
-						width: 76mm !important;
-						height: 76mm !important;
-						margin: 2mm !important;
-						padding: 0 !important;
-						overflow: hidden !important;
-					}}
-					
-					/* Prevent page breaks */
-					* {{
-						page-break-inside: avoid !important;
-						page-break-before: avoid !important;
-						page-break-after: avoid !important;
-					}}
-				}}
-			</style>
-		</head>
-		<body>
-			<div class="receipt-container">
-				<div class="header">CASH DRAWER OPENED</div>
-				<div class="counter">Counter: {new_counter}</div>
-				<div class="content">
-					Cash drawer has been opened<br>
-					by user: {user}<br>
-					Profile: {pos_profile}
-				</div>
-				<div class="small-text">
-					Thank you for using our POS system<br>
-					Please ensure cash drawer is properly closed<br>
-					Keep this receipt for your records
-				</div>
-				<div class="timestamp">
-					{frappe.utils.now_datetime().strftime("%Y-%m-%d %H:%M:%S")}
-				</div>
-				<div class="end-marker">END OF RECEIPT</div>
-			</div>
-		</body>
-		</html>
-		"""
-		
-		# Return the controlled receipt content
-		return {
-			"success": True, 
-			"message": "Cash drawer command prepared",
-			"profile": pos_profile,
-			"html_content": receipt_content,
-			"counter": new_counter,
-			"note": "This will print a controlled receipt and trigger cash drawer"
-		}
-		
-	except Exception as e:
-		frappe.logger().error(f"Failed to open cash drawer: {str(e)}")
-		return {
-			"success": False, 
-			"message": f"Failed to open cash drawer: {str(e)}"
-		}
-
-
-@frappe.whitelist()
-def get_price_list_currency(price_list: str) -> str:
-	"""Return the currency of the given Price List."""
-	if not price_list:
-		return None
-	return frappe.db.get_value("Price List", price_list, "currency")
+    return update_invoice(data)

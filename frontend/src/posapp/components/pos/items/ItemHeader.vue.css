@@ -1,0 +1,155 @@
+
+.sticky-header {
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	background: var(--pos-surface);
+	padding: 12px 12px 0 12px;
+	border-bottom: 1px solid var(--pos-border);
+	margin-bottom: 0;
+}
+
+.items {
+	margin: 0;
+}
+
+.search-field-shell {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.search-sync-progress {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 0 6px 2px;
+	animation: sync-progress-fade-in 160ms ease-out;
+}
+
+:deep(.search-sync-progress .v-progress-linear) {
+	border-radius: 999px;
+	overflow: hidden;
+	box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+}
+
+.search-sync-progress__meta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.search-sync-progress__label,
+.search-sync-progress__value {
+	font-size: 0.7rem;
+	line-height: 1.2;
+	color: var(--pos-primary-variant);
+}
+
+.search-sync-progress__label {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+}
+
+.search-sync-progress__count {
+	font-variant-numeric: tabular-nums;
+	font-weight: 700;
+	opacity: 0.82;
+}
+
+.search-sync-progress__value {
+	font-variant-numeric: tabular-nums;
+	font-weight: 700;
+}
+
+.tools-panel {
+	margin-top: 8px;
+	padding: 10px 12px;
+	border-radius: 16px;
+	background: var(--pos-surface-muted);
+	border: 1px solid var(--pos-border);
+}
+
+.tools-panel__actions {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.tools-panel__meta {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	padding-top: 6px;
+}
+
+.settings-btn {
+	text-transform: none !important;
+	letter-spacing: normal !important;
+	font-weight: 500 !important;
+	background-color: transparent !important;
+	min-height: 40px !important;
+}
+
+.last-sync-label {
+	white-space: nowrap;
+	font-size: 0.75rem;
+}
+
+.dynamic-margin-xs {
+	margin-top: 4px;
+}
+
+:deep(.sticky-header .v-field) {
+	border-radius: 16px;
+}
+
+.search-field-shell :deep(.v-label),
+.search-field-shell :deep(.v-field-label) {
+	color: var(--pos-primary-variant) !important;
+	opacity: 1;
+}
+
+@media (max-width: 768px) {
+	.sticky-header {
+		top: 0;
+		z-index: 13;
+		padding: 12px 12px 2px;
+	}
+
+	.tools-panel {
+		padding: 8px 10px;
+	}
+
+	.tools-panel__meta {
+		justify-content: flex-start;
+	}
+
+	.search-sync-progress {
+		gap: 3px;
+		padding: 0 2px 2px;
+	}
+
+	.search-sync-progress__label,
+	.search-sync-progress__value {
+		font-size: 0.68rem;
+	}
+}
+
+@keyframes sync-progress-fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(-2px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}

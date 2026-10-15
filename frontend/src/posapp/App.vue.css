@@ -1,0 +1,20 @@
+
+/* Page Transition Styles - Global or moved here */
+.fade-page-enter-active,
+.fade-page-leave-active {
+	transition:
+		opacity 0.2s ease,
+		transform 0.2s ease;
+}
+
+.fade-page-enter-from,
+.fade-page-leave-to {
+	opacity: 0;
+	transform: translateY(5px);
+}
+
+.app-route-view {
+	width: 100%;
+	min-width: 0;
+	min-height: 0;
+}

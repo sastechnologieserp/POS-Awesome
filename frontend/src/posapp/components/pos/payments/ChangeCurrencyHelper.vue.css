@@ -1,0 +1,5 @@
+
+.change-helper { margin-top: var(--pos-space-3); padding: var(--pos-space-3); border: 1px solid var(--pos-border-light); border-radius: var(--pos-radius-md); }
+.change-helper__header { display: flex; align-items: center; justify-content: space-between; gap: var(--pos-space-2); }
+.change-helper__remaining { margin-top: var(--pos-space-2); text-align: right; font-weight: 700; }
+.change-helper__error { color: rgb(var(--v-theme-error)); }

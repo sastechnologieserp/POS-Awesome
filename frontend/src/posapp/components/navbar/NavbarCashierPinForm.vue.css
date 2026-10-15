@@ -1,0 +1,126 @@
+
+.navbar-cashier-pin-form,
+.navbar-cashier-pin-form__actions {
+	display: grid;
+	gap: 14px;
+}
+
+.navbar-cashier-pin-form__toolbar {
+	display: flex;
+	justify-content: flex-start;
+}
+
+.navbar-cashier-pin-form__back {
+	width: fit-content;
+	border: 1px solid var(--pos-border);
+	background: rgba(25, 118, 210, 0.06);
+	color: var(--pos-text-primary);
+	border-radius: 999px;
+	padding: 8px 12px;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.navbar-cashier-pin-form__summary {
+	display: grid;
+	gap: 4px;
+	padding: 14px 16px;
+	border: 1px solid var(--pos-border);
+	border-radius: 18px;
+	background: rgba(25, 118, 210, 0.04);
+}
+
+.navbar-cashier-pin-form__summary-label {
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--pos-text-secondary);
+}
+
+.navbar-cashier-pin-form__summary-value {
+	font-size: 14px;
+	font-weight: 700;
+	color: var(--pos-text-primary);
+}
+
+.navbar-cashier-pin-form__alert {
+	padding: 12px 14px;
+	border-radius: 16px;
+	border: 1px solid var(--pos-border);
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+.navbar-cashier-pin-form__alert--warning {
+	background: rgba(255, 152, 0, 0.1);
+	color: #8a5600;
+}
+
+.navbar-cashier-pin-form__alert--info {
+	background: rgba(25, 118, 210, 0.08);
+	color: var(--pos-text-primary);
+}
+
+.navbar-cashier-pin-form__alert--error {
+	background: rgba(211, 47, 47, 0.08);
+	color: #a12727;
+}
+
+.navbar-cashier-pin-form__alert--success {
+	background: rgba(46, 125, 50, 0.1);
+	color: #256628;
+}
+
+.navbar-cashier-pin-form__field {
+	display: grid;
+	gap: 6px;
+}
+
+.navbar-cashier-pin-form__label {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--pos-text-primary);
+}
+
+.navbar-cashier-pin-form__input-wrap {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 8px;
+	align-items: center;
+}
+
+.navbar-cashier-pin-form__input {
+	border: 1px solid var(--pos-border);
+	background: var(--pos-card-bg);
+	color: var(--pos-text-primary);
+	border-radius: 14px;
+	padding: 10px 12px;
+	font-size: 13px;
+}
+
+.navbar-cashier-pin-form__toggle,
+.navbar-cashier-pin-form__save {
+	border: 1px solid var(--pos-border);
+	border-radius: 14px;
+	padding: 10px 12px;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.navbar-cashier-pin-form__toggle {
+	background: rgba(25, 118, 210, 0.04);
+	color: var(--pos-text-primary);
+}
+
+.navbar-cashier-pin-form__help {
+	font-size: 12px;
+	line-height: 1.5;
+	color: var(--pos-text-secondary);
+}
+
+.navbar-cashier-pin-form__save {
+	background: var(--pos-primary);
+	color: white;
+	justify-self: start;
+}

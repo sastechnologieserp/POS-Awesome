@@ -1,0 +1,118 @@
+
+.pos-header-bar {
+	background-color: var(--pos-card-bg, #ffffff);
+	border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+	transition: box-shadow 0.3s ease;
+}
+
+/* ── Date Picker ── */
+.pos-date-picker {
+	width: 100%;
+	min-width: 0;
+}
+
+.pos-date-picker :deep(.dp__main) {
+	width: 100%;
+}
+
+.pos-date-picker :deep(.dp__input_wrap) {
+	width: 100%;
+}
+
+.pos-date-picker :deep(.dp__input) {
+	width: 100%;
+	min-width: 0;
+	background-color: var(--pos-input-bg, #f5f5f5);
+	color: var(--pos-text-primary, #212121);
+	border-radius: 10px;
+	border: 1px solid transparent;
+	padding: 10px 36px 10px 12px;
+	font-size: 0.9375rem;
+	transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pos-date-picker :deep(.dp__input:hover) {
+	border-color: rgba(var(--v-theme-primary), 0.4);
+}
+
+.pos-date-picker :deep(.dp__input:focus) {
+	border-color: rgb(var(--v-theme-primary));
+	box-shadow: 0 0 0 2px rgba(var(--v-theme-primary), 0.15);
+}
+
+.pos-date-picker :deep(.dp__input_icon) {
+	inset-inline-start: auto;
+	inset-inline-end: 10px;
+	color: var(--pos-text-secondary, #757575);
+}
+
+.pos-date-picker :deep(.dp__input_icon_pad) {
+	padding-inline-start: 12px;
+}
+
+.pos-date-picker :deep(.dp__menu) {
+	background-color: var(--pos-card-bg, #ffffff);
+	color: var(--pos-text-primary, #212121);
+	border-radius: 12px;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+	z-index: 4000;
+}
+
+.pos-date-picker :deep(.dp__calendar_header_item),
+.pos-date-picker :deep(.dp__cell_inner) {
+	color: var(--pos-text-primary, #212121);
+}
+
+/* ── Price List Select ── */
+.sleek-select :deep(.v-field) {
+	border-radius: 10px;
+}
+
+.sleek-select :deep(.v-field__input) {
+	padding-top: 8px;
+	padding-bottom: 8px;
+	font-size: 0.9375rem;
+}
+
+/* ── Balance ── */
+.balance-container {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+	min-width: 0;
+	width: 100%;
+}
+
+.balance-label {
+	font-size: 0.75rem;
+	color: rgba(var(--v-theme-on-surface), 0.6);
+	white-space: nowrap;
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.balance-skeleton :deep(.v-skeleton-loader__chip) {
+	border-radius: 16px;
+	height: 28px;
+}
+
+.balance-chip {
+	flex: 0 0 auto;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.01em;
+}
+
+.balance-amount {
+	white-space: nowrap;
+	font-size: 1rem;
+}
+
+/* ── Mobile ── */
+@media (max-width: 599px) {
+	.balance-container {
+		justify-content: space-between;
+	}
+}

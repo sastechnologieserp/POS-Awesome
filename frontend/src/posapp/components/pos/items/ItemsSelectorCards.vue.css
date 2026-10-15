@@ -1,0 +1,65 @@
+
+.item-container {
+	overflow-y: auto;
+	scrollbar-gutter: stable;
+}
+
+.items-card-grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 16px;
+	padding: 16px;
+	height: calc(100% - 80px);
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(var(--v-theme-on-surface), 0.2) transparent;
+	contain: layout style;
+	will-change: scroll-position;
+	transform: translate3d(0, 0, 0);
+}
+
+.virtual-scroller {
+	height: calc(100% - 80px);
+	overflow-y: auto;
+	position: relative;
+}
+
+.virtual-scroller .items-card-grid {
+	height: auto;
+	overflow: visible;
+}
+
+.virtual-scroller .vue-recycle-scroller__item-wrapper {
+	display: contents;
+}
+
+.items-card-grid::-webkit-scrollbar {
+	width: 8px;
+}
+
+.items-card-grid::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.items-card-grid::-webkit-scrollbar-thumb {
+	background-color: rgba(var(--v-theme-on-surface), 0.2);
+	border-radius: 4px;
+}
+
+.virtual-scroller :deep(.items-virtual-list) {
+	padding: 16px;
+	contain: layout style;
+	box-sizing: border-box;
+}
+
+@media (max-width: 1200px) {
+	.virtual-scroller :deep(.items-virtual-list) {
+		padding: 12px;
+	}
+}
+
+@media (max-width: 768px) {
+	.virtual-scroller :deep(.items-virtual-list) {
+		padding: 10px;
+	}
+}

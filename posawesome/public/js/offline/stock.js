@@ -4,33 +4,37 @@ import { persist } from "./core.js";
 // Modify initializeStockCache function to set the flag
 export async function initializeStockCache(items, pos_profile) {
 	try {
-		// If stock cache is already initialized, skip
-		if (memory.stock_cache_ready && Object.keys(memory.local_stock_cache || {}).length > 0) {
-			console.debug("Stock cache already initialized, skipping");
+		const existingCache = memory.local_stock_cache || {};
+		const missingItems = Array.isArray(items)
+			? items.filter((it) => !existingCache[it.item_code])
+			: [];
+
+		if (missingItems.length === 0) {
+			if (!memory.stock_cache_ready) {
+				setStockCacheReady(true);
+			}
+			console.debug("Stock cache already initialized");
 			return true;
 		}
 
-		console.info("Initializing stock cache for", items.length, "items");
+		console.info("Initializing stock cache for", missingItems.length, "new items");
 
-		const updatedItems = await fetchItemStockQuantities(items, pos_profile);
+		const updatedItems = await fetchItemStockQuantities(missingItems, pos_profile);
 
 		if (updatedItems && updatedItems.length > 0) {
-			const stockCache = {};
-
 			updatedItems.forEach((item) => {
 				if (item.actual_qty !== undefined) {
-					stockCache[item.item_code] = {
+					existingCache[item.item_code] = {
 						actual_qty: item.actual_qty,
 						last_updated: new Date().toISOString(),
 					};
 				}
 			});
 
-			memory.local_stock_cache = stockCache;
-			memory.stock_cache_ready = true; // Set flag to true
+			memory.local_stock_cache = existingCache;
+			setStockCacheReady(true);
 			persist("local_stock_cache", memory.local_stock_cache);
-			persist("stock_cache_ready", memory.stock_cache_ready); // Persist the flag
-			console.info("Stock cache initialized with", Object.keys(stockCache).length, "items");
+			console.info("Stock cache initialized with", Object.keys(existingCache).length, "items");
 			return true;
 		}
 		return false;
@@ -167,7 +171,7 @@ export async function fetchItemStockQuantities(items, pos_profile, chunkSize = 1
 			const chunk = items.slice(i, i + chunkSize);
 			const response = await new Promise((resolve, reject) => {
 				frappe.call({
-					method: "posawesome.posawesome.api.posapp.get_items_details",
+					method: "posawesome.posawesome.api.items.get_items_details",
 					args: {
 						pos_profile: JSON.stringify(pos_profile),
 						items_data: JSON.stringify(chunk),

@@ -1,0 +1,4 @@
+
+.pos-themed-input :deep(.v-field__input) {
+	font-weight: 500;
+}

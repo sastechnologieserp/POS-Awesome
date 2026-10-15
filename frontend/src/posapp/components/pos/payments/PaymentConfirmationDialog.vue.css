@@ -1,0 +1,41 @@
+
+.payment-confirmation-change {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	margin-top: 10px;
+	padding: 10px 12px;
+	border: 1px solid rgba(var(--v-theme-primary), 0.2);
+	border-radius: 8px;
+	background: rgba(var(--v-theme-primary), 0.06);
+	color: rgb(var(--v-theme-on-surface));
+}
+
+.payment-confirmation-change strong {
+	color: rgb(var(--v-theme-primary));
+	font-size: 1rem;
+}
+
+.payment-confirmation-tender {
+	margin-top: 12px;
+}
+
+.payment-confirmation-tender__label {
+	margin: 0 0 8px;
+	font-size: 0.8rem;
+	font-weight: 700;
+	color: rgba(var(--v-theme-on-surface), 0.72);
+}
+
+.payment-confirmation-tender__buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.payment-confirmation-tender__btn {
+	border-radius: 6px;
+	text-transform: none;
+	font-weight: 600;
+}

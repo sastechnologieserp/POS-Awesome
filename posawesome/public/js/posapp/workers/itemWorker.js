@@ -130,6 +130,59 @@ self.onmessage = async (event) => {
 			console.error("Worker parse_and_cache error", err);
 			self.postMessage({ type: "error", error: err.message });
 		}
+	} else if (data.type === "append_batch") {
+		try {
+			const batchRaw = Array.isArray(data.items) ? data.items : [];
+			const enrichedBatch = batchRaw.map((it) => {
+				const searchFields = deriveItemSearchFields(it);
+				return {
+					...it,
+					...searchFields,
+				};
+			});
+
+			self.postMessage({
+				type: "batch_processed",
+				items: enrichedBatch,
+				batchIndex: data.batchIndex,
+				isLast: Boolean(data.isLast),
+			});
+		} catch (err) {
+			console.error("Worker append_batch error", err);
+			self.postMessage({ type: "error", error: err.message });
+		}
+	} else if (data.type === "finalize_cache") {
+		try {
+			let cache = {};
+			try {
+				if (!db.isOpen()) {
+					await db.open();
+				}
+				const stored = await db.table("keyval").get("price_list_cache");
+				if (stored && stored.value) cache = stored.value;
+			} catch (e) {
+				console.error("Failed to read cache in worker", e);
+			}
+
+			const items = Array.isArray(data.items) ? data.items : [];
+			cache[data.priceList] = { items, timestamp: Date.now() };
+			await persist("price_list_cache", cache);
+
+			let maxModified = "";
+			for (const it of items) {
+				if (it.modified && it.modified > maxModified) {
+					maxModified = it.modified;
+				}
+			}
+
+			self.postMessage({
+				type: "cache_finalized",
+				maxModified: maxModified || null,
+			});
+		} catch (err) {
+			console.error("Worker finalize_cache error", err);
+			self.postMessage({ type: "error", error: err.message });
+		}
 	} else if (data.type === "persist") {
 		await persist(data.key, data.value);
 		self.postMessage({ type: "persisted", key: data.key });

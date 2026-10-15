@@ -1,0 +1,16 @@
+
+.posa-batch-serial-dialog :deep(.v-card-text) {
+	padding-top: 20px;
+}
+
+.posa-batch-serial-dialog {
+	border-top: 4px solid var(--pos-primary, #1976d2);
+}
+
+.posa-batch-serial-dialog :deep(.v-card-title) {
+	background: var(--pos-surface-variant, rgba(25, 118, 210, 0.08));
+}
+
+.posa-batch-allocation-table__qty {
+	width: 150px;
+}

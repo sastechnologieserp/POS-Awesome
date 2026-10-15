@@ -278,6 +278,7 @@ export default {
 			if (vm.pos_profile.posa_local_storage && getCustomerStorage().length) {
 				try {
 					vm.customers = getCustomerStorage();
+					vm.eventBus.emit("data-load-progress", { name: "customers", progress: 100 });
 				} catch (e) {
 					console.error("Failed to parse customer cache:", e);
 					vm.customers = [];
@@ -285,6 +286,7 @@ export default {
 			}
 
 			this.loadingCustomers = true; // ? Start loading
+			vm.eventBus.emit("data-load-progress", { name: "customers", progress: 30 });
 			frappe.call({
 				method: "posawesome.posawesome.api.customers.get_customer_names",
 				args: {
@@ -299,10 +301,12 @@ export default {
 						}
 					}
 					vm.loadingCustomers = false; // ? Stop loading
+					vm.eventBus.emit("data-load-progress", { name: "customers", progress: 100 });
 				},
 				error: function (err) {
 					console.error("Failed to fetch customers:", err);
 					vm.loadingCustomers = false; // Ensure field is re-enabled on failure
+					vm.eventBus.emit("data-load-progress", { name: "customers", progress: 100 });
 				},
 			});
 		},

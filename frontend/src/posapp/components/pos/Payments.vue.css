@@ -1,0 +1,313 @@
+
+/* Remove readonly styling */
+.v-text-field--readonly {
+	cursor: text;
+}
+
+.v-text-field--readonly:hover {
+	background-color: transparent;
+}
+
+.cards {
+	background-color: var(--pos-surface-muted) !important;
+}
+
+.payment-shell {
+	padding: 0;
+}
+
+.payment-shell--dialog {
+	height: calc(100dvh - 48px);
+	display: flex;
+	flex-direction: column;
+	gap: var(--pos-space-2);
+}
+
+.payment-card {
+	padding: var(--pos-space-2);
+	border: 1px solid var(--pos-border-light);
+	background: var(--pos-card-bg) !important;
+	box-shadow: var(--pos-elevation-2);
+}
+
+.payment-card--dialog {
+	flex: 1 1 auto;
+	min-height: 0;
+	height: auto;
+	max-height: none;
+	margin-top: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.payment-scroll {
+	padding: var(--pos-space-3);
+	display: flex;
+	flex-direction: column;
+	gap: var(--pos-space-3);
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.payment-sections {
+	display: flex;
+	flex-direction: column;
+	gap: var(--pos-space-3);
+}
+
+.payment-sections--dialog {
+	display: grid;
+	grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+	gap: var(--pos-space-2);
+	align-items: start;
+	grid-template-areas:
+		"summary adjustments"
+		"methods adjustments"
+		"settlement adjustments"
+		"settlement meta";
+}
+
+.payment-section {
+	background: var(--pos-surface-raised);
+	border: 1px solid var(--pos-border);
+	border-radius: var(--pos-radius-md);
+	padding: var(--pos-space-3);
+	display: flex;
+	flex-direction: column;
+	gap: var(--pos-space-3);
+	box-shadow: var(--pos-elevation-1);
+}
+
+.payment-sections--dialog .payment-section {
+	padding: 10px;
+	gap: 10px;
+}
+
+.payment-sections--dialog .payment-section--summary {
+	grid-area: summary;
+}
+
+.payment-sections--dialog .payment-section--methods {
+	grid-area: methods;
+}
+
+.payment-sections--dialog .payment-section--settlement {
+	grid-area: settlement;
+}
+
+.payment-sections--dialog .payment-section--adjustments {
+	grid-area: adjustments;
+}
+
+.payment-sections--dialog .payment-section--meta {
+	grid-area: meta;
+}
+
+.payment-section--summary {
+	border-inline-start: 5px solid var(--pos-primary);
+	background:
+		linear-gradient(
+			90deg,
+			color-mix(in srgb, var(--pos-primary-container) 52%, transparent),
+			transparent 42%
+		),
+		var(--pos-surface-raised);
+}
+
+.payment-section__header {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: var(--pos-space-2);
+	min-height: 28px;
+}
+
+.payment-section__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 30px;
+	height: 30px;
+	flex: 0 0 30px;
+	border-radius: var(--pos-radius-xs);
+	background: var(--pos-primary-container);
+	color: var(--pos-primary-variant);
+}
+
+.payment-section__subsection {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding-top: var(--pos-space-1);
+	border-top: 1px solid var(--pos-border-light);
+}
+
+.payment-section__title {
+	margin: 0;
+	font-size: 1rem;
+	font-weight: 650;
+	line-height: 1.2;
+	color: var(--pos-text-primary);
+}
+
+.payment-section__title--subsection {
+	font-size: 0.92rem;
+}
+
+:deep(.payment-section .v-divider) {
+	display: none;
+}
+
+:deep(.payment-section .v-field) {
+	border-radius: var(--pos-radius-sm);
+}
+
+:deep(.payment-section .v-label),
+:deep(.payment-section .v-field-label) {
+	color: var(--pos-text-secondary) !important;
+	opacity: 1;
+}
+
+.payment-footer {
+	flex: 0 0 auto;
+	position: sticky;
+	bottom: 0;
+	z-index: 8;
+	padding: 10px 2px 2px;
+	background: linear-gradient(180deg, transparent, var(--pos-surface) 32%);
+}
+
+.payment-footer--dialog {
+	margin-top: 0;
+}
+
+:deep(.payment-footer--dialog .cards) {
+	margin-top: 0 !important;
+}
+
+:deep(.payment-footer--dialog .v-btn) {
+	min-height: 42px;
+}
+
+:deep(.payment-shell--dialog .payment-methods) {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--pos-space-2);
+}
+
+:deep(.payment-shell--dialog .payment-method-card) {
+	padding: 10px;
+	gap: 10px;
+}
+
+:deep(.payment-shell--dialog .payment-summary-grid),
+:deep(.payment-shell--dialog .invoice-totals-grid),
+:deep(.payment-shell--dialog .payments),
+:deep(.payment-shell--dialog .selection-fields .v-row) {
+	row-gap: 6px;
+}
+
+:deep(.payment-shell--dialog .selection-fields p) {
+	display: none;
+}
+
+:deep(.payment-shell--dialog .payment-summary-grid .v-col),
+:deep(.payment-shell--dialog .invoice-totals-grid .v-col),
+:deep(.payment-shell--dialog .payments .v-col),
+:deep(.payment-shell--dialog .selection-fields .v-col) {
+	padding-top: 2px;
+	padding-bottom: 2px;
+}
+
+:deep(.payment-shell--dialog .payment-section .v-field__input) {
+	min-height: 34px;
+	padding-top: 4px;
+	padding-bottom: 4px;
+}
+
+:deep(.payment-shell--dialog .payment-section .v-label) {
+	font-size: 0.78rem;
+	color: var(--pos-text-secondary) !important;
+	opacity: 1;
+}
+
+:deep(.payment-shell--dialog .payment-section .v-field-label) {
+	color: var(--pos-text-secondary) !important;
+	opacity: 1;
+}
+
+:deep(.payment-shell--dialog .payment-section .v-input) {
+	font-size: 0.86rem;
+}
+
+:deep(.payment-shell--dialog .v-switch) {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+:deep(.payment-shell--dialog .v-switch .v-label) {
+	font-size: 0.82rem;
+	color: var(--pos-text-secondary) !important;
+	opacity: 1;
+}
+
+.submit-highlight {
+	box-shadow: 0 0 0 4px var(--pos-focus-ring);
+	transition: box-shadow 0.3s ease-in-out;
+}
+
+.pos-themed-card {
+	background-color: rgb(var(--v-theme-surface));
+	color: rgb(var(--v-theme-on-surface));
+}
+
+@media (max-width: 768px) {
+	.payment-shell {
+		display: flex;
+		flex-direction: column;
+		gap: var(--pos-space-2);
+		overflow: visible;
+	}
+
+	.payment-card {
+		padding: var(--pos-space-1);
+		height: auto !important;
+		max-height: none !important;
+		overflow: visible !important;
+	}
+
+	.payment-shell--dialog {
+		height: auto;
+	}
+
+	.payment-scroll {
+		padding: var(--pos-space-2);
+		gap: var(--pos-space-2);
+		overflow: visible !important;
+		min-height: auto;
+		max-height: none;
+	}
+
+	.payment-sections {
+		overflow: visible;
+	}
+
+	.payment-sections--dialog {
+		grid-template-columns: 1fr;
+	}
+
+	:deep(.payment-shell--dialog .payment-methods) {
+		grid-template-columns: 1fr;
+	}
+
+	.payment-section {
+		padding: var(--pos-space-2);
+		gap: var(--pos-space-2);
+	}
+
+	.payment-footer {
+		position: sticky;
+		margin-top: 0;
+		padding-bottom: calc(env(safe-area-inset-bottom) + 4px);
+	}
+}

@@ -1,0 +1,101 @@
+
+/* Cache Usage Meter Styling */
+.cache-usage-section {
+	display: flex;
+	align-items: center;
+	margin: 0 8px;
+}
+
+.cache-meter-container {
+	cursor: pointer;
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: all 0.3s ease;
+}
+
+.cache-meter-container:hover {
+	transform: scale(1.1);
+}
+
+.cache-meter {
+	transition: all 0.3s ease;
+}
+
+.cache-tooltip-content {
+	padding: 12px;
+	min-width: 200px;
+}
+
+.cache-tooltip-title {
+	font-weight: 600;
+	font-size: 14px;
+	margin-bottom: 8px;
+	/* Removed hardcoded color */
+}
+
+.cache-tooltip-detail {
+	font-size: 12px;
+	margin-bottom: 8px;
+	line-height: 1.5;
+}
+
+.cache-tooltip-action {
+	font-size: 11px;
+	opacity: 0.7;
+	display: flex;
+	align-items: center;
+	margin-top: 8px;
+}
+.cache-tooltip-bar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 4px;
+}
+.cache-bar-bg {
+	width: 80px;
+	height: 8px;
+	background: #e3f2fd;
+	border-radius: 4px;
+	overflow: hidden;
+	margin-right: 6px;
+}
+.cache-bar-fill {
+	height: 100%;
+	background: linear-gradient(90deg, #1976d2 0%, #42a5f5 100%);
+	border-radius: 4px;
+	transition: width 0.3s;
+}
+.cache-bar-label {
+	font-size: 11px;
+	color: #1976d2;
+	font-weight: 600;
+}
+.cache-tooltip-warning {
+	color: #d32f2f;
+	font-size: 12px;
+	display: flex;
+	align-items: center;
+	margin-bottom: 4px;
+}
+.cache-tooltip-tip {
+	/* Removed hardcoded color */
+	font-size: 12px;
+	display: flex;
+	align-items: center;
+}
+.cache-tooltip-explanation {
+	/* Removed hardcoded color */
+	font-size: 12px;
+	display: flex;
+	align-items: center;
+}
+.cache-tooltip-section-title {
+	font-weight: 600;
+	font-size: 13px;
+	margin-bottom: 4px;
+	/* Removed hardcoded color */
+	opacity: 0.85;
+}

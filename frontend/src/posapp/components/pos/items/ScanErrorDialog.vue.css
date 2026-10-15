@@ -1,0 +1,43 @@
+
+.scan-error-message {
+	font-size: 1.05rem;
+	font-weight: 600;
+	margin: 0;
+}
+
+.scan-error-code {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	background: var(--v-theme-surface-variant);
+	border-radius: 4px;
+	font-family: monospace;
+	font-size: 0.95rem;
+}
+
+.scan-error-code span {
+	margin-left: 8px;
+	color: var(--v-theme-primary);
+	font-weight: 600;
+}
+
+.scan-error-details {
+	color: rgba(var(--v-theme-on-surface), 0.72);
+	font-size: 0.9rem;
+	line-height: 1.4;
+	margin-top: 12px;
+}
+
+:deep(.scan-error-dialog) {
+	border-radius: 16px;
+}
+
+:deep(.v-theme--dark) .scan-error-dialog .scan-error-code {
+	background-color: rgba(var(--v-theme-error), 0.25);
+	color: rgb(var(--v-theme-on-error));
+}
+
+:deep(.v-theme--dark) .scan-error-dialog .scan-error-details {
+	color: rgba(var(--v-theme-on-surface), 0.7);
+}
