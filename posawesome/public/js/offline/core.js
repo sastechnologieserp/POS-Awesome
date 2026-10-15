@@ -76,15 +76,27 @@ function flushPersistQueue() {
 	persistTimeout = null;
 }
 
+const LOCAL_STORAGE_KEYS = new Set([
+	"manual_offline",
+	"tax_inclusive",
+	"cache_version",
+	"items_last_sync",
+	"customers_last_sync",
+]);
+
 export function persist(key, value) {
 	// Run health check in background; ignore errors
 	checkDbHealth().catch(() => {});
 	if (persistWorker) {
 		let cleanValue = value;
 		try {
-			cleanValue = JSON.parse(JSON.stringify(value));
+			if (typeof structuredClone === "function") {
+				cleanValue = structuredClone(value);
+			} else {
+				cleanValue = JSON.parse(JSON.stringify(value));
+			}
 		} catch (e) {
-			console.error("Failed to serialize", key, e);
+			cleanValue = value;
 		}
 		try {
 			persistWorker.postMessage({ type: "persist", key, value: cleanValue });
@@ -101,7 +113,7 @@ export function persist(key, value) {
 			.catch((e) => console.error(`Failed to persist ${key}`, e)),
 	);
 
-	if (typeof localStorage !== "undefined" && key !== "price_list_cache") {
+	if (typeof localStorage !== "undefined" && LOCAL_STORAGE_KEYS.has(key)) {
 		try {
 			localStorage.setItem(`posa_${key}`, JSON.stringify(value));
 		} catch (err) {

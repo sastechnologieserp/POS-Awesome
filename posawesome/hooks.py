@@ -295,7 +295,9 @@ fixtures = [
 				    "POS Profile-posa_open_qty_focus_before_adding_item",
         			"POS Profile-posa_enable_price_list_dropdown",
            			"POS Profile-posa_search_limit",
-              		"POS Profile-posa_doctype_shortcuts"
+              		"POS Profile-posa_doctype_shortcuts",
+					"Sales Invoice-posa_client_request_id",
+					"POS Invoice-posa_client_request_id"
 				),
 			]
 		],

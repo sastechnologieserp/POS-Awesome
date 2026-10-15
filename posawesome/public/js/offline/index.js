@@ -30,6 +30,8 @@ export {
 	setTaxTemplate,
 	setLastSyncTotals,
 	getLastSyncTotals,
+	getItemsLastSync,
+	setItemsLastSync,
 	getTaxInclusiveSetting,
 	setTaxInclusiveSetting,
 	isManualOffline,
@@ -93,6 +95,7 @@ export {
 	clearPriceListCache,
 	saveItemDetailsCache,
 	getCachedItemDetails,
+	refreshModifiedItems,
 } from "./items.js";
 
 // Customers exports

@@ -30,6 +30,7 @@ export const memory = {
 	cache_version: CACHE_VERSION,
 	tax_inclusive: false,
 	manual_offline: false,
+	items_last_sync: null,
 };
 
 // Initialize memory from IndexedDB and expose a promise for consumers
@@ -211,6 +212,15 @@ export function setManualOffline(state) {
 
 export function toggleManualOffline() {
 	setManualOffline(!memory.manual_offline);
+}
+
+export function setItemsLastSync(timestamp) {
+	memory.items_last_sync = timestamp || null;
+	persist("items_last_sync", memory.items_last_sync);
+}
+
+export function getItemsLastSync() {
+	return memory.items_last_sync || null;
 }
 
 export function queueHealthCheck(limit = MAX_QUEUE_ITEMS) {

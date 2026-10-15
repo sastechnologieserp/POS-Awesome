@@ -1,4 +1,4 @@
-import { memory } from "./cache.js";
+import { memory, getItemsLastSync, setItemsLastSync } from "./cache.js";
 import { persist } from "./core.js";
 
 export function saveItemUOMs(itemCode, uoms) {
@@ -46,15 +46,9 @@ export function savePriceListItems(priceList, items) {
 	try {
 		const cache = memory.price_list_cache || {};
 
-		// Clone the items to strip Vue's reactive proxies which cannot
-		// be structured cloned when sent to a worker.
-		let cleanItems;
-		try {
-			cleanItems = JSON.parse(JSON.stringify(items));
-		} catch (err) {
-			console.error("Failed to serialize price list items", err);
-			cleanItems = [];
-		}
+		// Avoid deep JSON parse/stringify of thousands of items on the main thread.
+		// A shallow copy of item array is sufficient and lightning fast.
+		const cleanItems = Array.isArray(items) ? items.slice() : [];
 
 		cache[priceList] = {
 			items: cleanItems,
@@ -142,3 +136,53 @@ export function getCachedItemDetails(profileName, priceList, itemCodes, ttl = 15
 		return { cached: [], missing: itemCodes };
 	}
 }
+
+/**
+ * Fetch items modified after the last sync timestamp using get_delta_items API.
+ * Avoids redownloading the entire product catalog when only prices, stock, or a few items changed.
+ */
+export async function refreshModifiedItems(posProfile, priceList, customer) {
+	const lastSync = getItemsLastSync();
+	if (!lastSync) {
+		return { count: 0, items: [] };
+	}
+
+	try {
+		return await new Promise((resolve) => {
+			frappe.call({
+				method: "posawesome.posawesome.api.items.get_delta_items",
+				args: {
+					pos_profile: typeof posProfile === "object" ? JSON.stringify(posProfile) : posProfile,
+					price_list: priceList,
+					customer: customer || null,
+					modified_after: lastSync,
+					limit: 1000,
+				},
+				freeze: false,
+				callback: (r) => {
+					const fetchedItems = Array.isArray(r?.message) ? r.message : [];
+					if (fetchedItems.length > 0) {
+						let maxModified = lastSync;
+						for (const item of fetchedItems) {
+							if (item.modified && item.modified > maxModified) {
+								maxModified = item.modified;
+							}
+						}
+						if (maxModified && maxModified !== lastSync) {
+							setItemsLastSync(maxModified);
+						}
+					}
+					resolve({ count: fetchedItems.length, items: fetchedItems });
+				},
+				error: (err) => {
+					console.error("Failed to refresh modified items delta:", err);
+					resolve({ count: 0, items: [], error: err });
+				},
+			});
+		});
+	} catch (error) {
+		console.error("Error in refreshModifiedItems:", error);
+		return { count: 0, items: [], error };
+	}
+}
+

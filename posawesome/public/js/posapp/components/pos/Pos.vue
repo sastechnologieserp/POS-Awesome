@@ -8,9 +8,32 @@
 		<MpesaPayments></MpesaPayments>
 		<Variants></Variants>
 		<OpeningDialog v-if="dialog" :dialog="dialog"></OpeningDialog>
+		<v-dialog
+			v-model="payment"
+			:retain-focus="false"
+			width="96vw"
+			max-width="1100"
+			scrim="rgba(15, 23, 42, 0.55)"
+			class="payment-dialog"
+			persistent
+			eager
+		>
+			<v-card class="pa-2 rounded-lg">
+				<div class="d-flex align-center justify-space-between px-3 pt-2 pb-1 border-b">
+					<div class="d-flex align-center">
+						<v-icon color="primary" class="mr-2">mdi-cash-register</v-icon>
+						<span class="text-h6 font-weight-bold">{{ frappe._("Payment") }}</span>
+					</div>
+					<v-btn icon variant="text" size="small" @click="closePaymentDialog">
+						<v-icon>mdi-close</v-icon>
+					</v-btn>
+				</div>
+				<Payments></Payments>
+			</v-card>
+		</v-dialog>
 		<v-row v-show="!dialog" dense class="ma-0 dynamic-main-row">
 			<v-col
-				v-show="!payment && !offers && !coupons"
+				v-show="!offers && !coupons"
 				xl="5"
 				lg="5"
 				md="5"
@@ -25,9 +48,6 @@
 			</v-col>
 			<v-col v-show="coupons" xl="5" lg="5" md="5" sm="5" cols="12" class="pos dynamic-col">
 				<PosCoupons></PosCoupons>
-			</v-col>
-			<v-col v-show="payment" xl="5" lg="5" md="5" sm="5" cols="12" class="pos dynamic-col">
-				<Payments></Payments>
 			</v-col>
 
 			<v-col xl="7" lg="7" md="7" sm="7" cols="12" class="pos dynamic-col">
@@ -100,6 +120,11 @@ export default {
 	},
 
 	methods: {
+		closePaymentDialog() {
+			this.payment = false;
+			this.eventBus.emit("show_payment", "false");
+			this.eventBus.emit("set_customer_readonly", false);
+		},
 		normalize_opening_shift(openingShift) {
 			if (!openingShift) {
 				return null;
@@ -681,6 +706,11 @@ export default {
 </script>
 
 <style scoped>
+.payment-dialog :deep(.v-overlay__content) {
+	max-height: calc(100dvh - 32px);
+	overflow-y: auto;
+}
+
 .dynamic-container {
 	/* add space for the navbar with better spacing */
 	padding-top: var(--dynamic-lg);

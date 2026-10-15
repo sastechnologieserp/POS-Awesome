@@ -142,7 +142,15 @@ function persist(key) {
 		.put({ key, value: memory[key] })
 		.catch((e) => console.error(`Failed to persist ${key}`, e));
 
-	if (typeof localStorage !== "undefined") {
+	const LOCAL_STORAGE_KEYS = new Set([
+		"manual_offline",
+		"tax_inclusive",
+		"cache_version",
+		"items_last_sync",
+		"customers_last_sync",
+	]);
+
+	if (typeof localStorage !== "undefined" && LOCAL_STORAGE_KEYS.has(key)) {
 		try {
 			localStorage.setItem(`posa_${key}`, JSON.stringify(memory[key]));
 		} catch (err) {
@@ -666,17 +674,7 @@ export function clearExpiredCustomerBalances() {
 export function savePriceListItems(priceList, items) {
 	try {
 		const cache = memory.price_list_cache || {};
-
-		// Clone the items to remove any Vue reactivity objects.
-		// Reactive proxies cannot be structured cloned and will
-		// trigger a DataCloneError when sent to a Web Worker.
-		let cleanItems;
-		try {
-			cleanItems = JSON.parse(JSON.stringify(items));
-		} catch (err) {
-			console.error("Failed to serialize price list items", err);
-			cleanItems = [];
-		}
+		const cleanItems = Array.isArray(items) ? items.slice() : [];
 
 		cache[priceList] = {
 			items: cleanItems,

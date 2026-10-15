@@ -5,7 +5,7 @@ import json
 import re
 import frappe
 from frappe import _
-from frappe.utils import nowdate, flt, cstr
+from frappe.utils import nowdate, flt, cstr, cint, get_datetime
 from erpnext.stock.get_item_details import get_item_details
 from erpnext.accounts.doctype.pos_profile.pos_profile import get_item_groups
 from frappe.utils.background_jobs import enqueue
@@ -247,9 +247,10 @@ def get_items(
 	customer=None,
 	limit=None,
 	offset=None,
+	modified_after=None,
 ):
-	_pos_profile = json.loads(pos_profile)
-	use_price_list = _pos_profile.get("posa_use_server_cache")
+	_pos_profile = json.loads(pos_profile) if isinstance(pos_profile, str) else pos_profile
+	use_price_list = _pos_profile.get("posa_use_server_cache") and not modified_after
 
 	@redis_cache(ttl=60)
 	def __get_items(
@@ -260,6 +261,7 @@ def get_items(
 		customer=None,
 		limit=None,
 		offset=None,
+		modified_after=None,
 	):
 		return _get_items(
 			pos_profile,
@@ -269,6 +271,7 @@ def get_items(
 			customer,
 			limit,
 			offset,
+			modified_after,
 		)
 
 	def _get_items(
@@ -279,8 +282,9 @@ def get_items(
 		customer=None,
 		limit=None,
 		offset=None,
+		modified_after=None,
 	):
-		pos_profile = json.loads(pos_profile)
+		pos_profile = json.loads(pos_profile) if isinstance(pos_profile, str) else pos_profile
 		condition = ""
 
 		# Clear quantity cache to ensure fresh values on each search
@@ -419,6 +423,13 @@ def get_items(
 
 		if not posa_show_template_items:
 			filters["has_variants"] = 0
+
+		if modified_after:
+			try:
+				parsed_mod = get_datetime(modified_after)
+				filters["modified"] = [">", parsed_mod.isoformat()]
+			except Exception:
+				pass
 
 		# Determine limit
 		limit_page_length = None
@@ -613,6 +624,7 @@ def get_items(
 			customer,
 			limit,
 			offset,
+			modified_after,
 		)
 	else:
 		return _get_items(
@@ -623,6 +635,7 @@ def get_items(
 			customer,
 			limit,
 			offset,
+			modified_after,
 		)
 
 
@@ -1097,3 +1110,151 @@ def get_price_for_uom(item_code, price_list, uom):
         "price_list_rate",
     )
     return price
+
+
+def _collect_delta_item_codes(pos_profile, modified_after, price_list, limit):
+    """Collect changed item codes from Item Price and Bin updates."""
+    changed_codes = set()
+    timestamp = modified_after.isoformat()
+
+    if price_list:
+        price_codes = frappe.get_all(
+            "Item Price",
+            filters={
+                "price_list": price_list,
+                "modified": [">", timestamp],
+            },
+            pluck="item_code",
+            limit_page_length=limit,
+        )
+        changed_codes.update([code for code in price_codes if code])
+
+    warehouse = pos_profile.get("warehouse")
+    if warehouse:
+        warehouses = [warehouse]
+        if frappe.db.get_value("Warehouse", warehouse, "is_group"):
+            warehouses = frappe.db.get_descendants("Warehouse", warehouse) or []
+
+        if warehouses:
+            stock_codes = frappe.get_all(
+                "Bin",
+                filters={
+                    "warehouse": ["in", warehouses],
+                    "modified": [">", timestamp],
+                },
+                pluck="item_code",
+                limit_page_length=limit,
+            )
+            changed_codes.update([code for code in stock_codes if code])
+
+    return changed_codes
+
+
+@frappe.whitelist()
+def get_delta_items(
+    pos_profile,
+    modified_after=None,
+    price_list=None,
+    customer=None,
+    limit=500,
+):
+    """Return only items changed since modified_after for price/stock/details updates."""
+    if isinstance(pos_profile, str):
+        try:
+            profile = json.loads(pos_profile)
+        except Exception:
+            profile = frappe.get_cached_doc("POS Profile", pos_profile).as_dict()
+    elif isinstance(pos_profile, dict):
+        profile = pos_profile
+    else:
+        profile = {}
+
+    if not modified_after:
+        return []
+
+    try:
+        parsed_modified_after = get_datetime(modified_after)
+    except Exception:
+        frappe.throw(_("modified_after must be a valid ISO datetime"))
+
+    resolved_limit = cint(limit) or 500
+    resolved_limit = max(1, min(resolved_limit, 2000))
+    effective_price_list = price_list or profile.get("selling_price_list")
+
+    # 1. First get items modified directly in tabItem
+    base_items = (
+        get_items(
+            pos_profile,
+            price_list=effective_price_list,
+            item_group="",
+            search_value="",
+            customer=customer,
+            limit=resolved_limit,
+            modified_after=parsed_modified_after.isoformat(),
+        )
+        or []
+    )
+
+    if len(base_items) >= resolved_limit:
+        return base_items[:resolved_limit]
+
+    existing_codes = {row.get("item_code") for row in base_items if row and row.get("item_code")}
+
+    # 2. Check for items whose price or bin stock changed
+    delta_codes = _collect_delta_item_codes(
+        profile,
+        parsed_modified_after,
+        effective_price_list,
+        resolved_limit,
+    )
+    extra_codes = [code for code in delta_codes if code not in existing_codes]
+
+    if not extra_codes:
+        return base_items
+
+    remaining = max(0, resolved_limit - len(base_items))
+    if remaining <= 0:
+        return base_items[:resolved_limit]
+
+    extra_items = []
+    for code in extra_codes[:remaining]:
+        fetched = get_items(
+            pos_profile,
+            price_list=effective_price_list,
+            item_group="",
+            search_value=code,
+            customer=customer,
+            limit=1,
+        )
+        if fetched and len(fetched) > 0:
+            extra_items.append(fetched[0])
+
+    base_items.extend(extra_items)
+    return base_items[:resolved_limit]
+
+
+@frappe.whitelist()
+def get_items_count(pos_profile, item_groups=None):
+    """Return total count of saleable items matching profile and groups."""
+    if isinstance(pos_profile, str):
+        try:
+            profile = json.loads(pos_profile)
+        except Exception:
+            profile = frappe.get_cached_doc("POS Profile", pos_profile).as_dict()
+    elif isinstance(pos_profile, dict):
+        profile = pos_profile
+    else:
+        profile = {}
+
+    if isinstance(item_groups, str):
+        try:
+            item_groups = json.loads(item_groups)
+        except Exception:
+            item_groups = []
+    item_groups = item_groups or get_item_groups(profile.get("name"))
+    filters = {"disabled": 0, "is_sales_item": 1, "is_fixed_asset": 0}
+    if item_groups:
+        filters["item_group"] = ["in", item_groups]
+    return frappe.db.count("Item", filters)
+
+

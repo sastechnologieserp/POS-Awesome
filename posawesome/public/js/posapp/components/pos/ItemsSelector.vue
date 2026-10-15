@@ -14,15 +14,13 @@
 			}"
 		>
 			<v-progress-linear
-				:active="loading"
-				:indeterminate="loading"
+				:active="loading && !items.length"
+				:indeterminate="loading && !items.length"
 				absolute
 				location="top"
 				color="info"
+				aria-label="Loading item search results"
 			></v-progress-linear>
-			<v-overlay :model-value="loading" class="align-center justify-center" absolute>
-				<v-progress-circular indeterminate color="primary" size="48"></v-progress-circular>
-			</v-overlay>
 			<!-- Add dynamic-padding wrapper like Invoice component -->
 			<div class="dynamic-padding">
 				<v-row class="items">
@@ -64,6 +62,29 @@
 								</v-btn>
 							</template>
 						</v-text-field>
+						<div
+							v-if="sync_in_progress"
+							class="search-sync-progress mt-1 mb-1 px-1"
+							aria-live="polite"
+						>
+							<v-progress-linear
+								:model-value="sync_progress"
+								height="3"
+								rounded
+								color="info"
+								bg-color="rgba(15, 23, 42, 0.08)"
+								:aria-label="__('Item sync progress')"
+							></v-progress-linear>
+							<div class="search-sync-progress__meta">
+								<span class="search-sync-progress__label">
+									{{ sync_status || __("Syncing items in background") }}
+									<span v-if="sync_items_count > 0" class="search-sync-progress__count">
+										({{ sync_items_count }} items)
+									</span>
+								</span>
+								<span class="search-sync-progress__value">{{ Math.round(sync_progress) }}%</span>
+							</div>
+						</div>
 					</v-col>
 					<v-col cols="3" class="pb-0" v-if="pos_profile.posa_input_qty">
 						<v-text-field
@@ -385,6 +406,9 @@ import {
 	isStockCacheReady,
 	getCachedItemDetails,
 	saveItemDetailsCache,
+	getItemsLastSync,
+	setItemsLastSync,
+	refreshModifiedItems,
 } from "../../../offline/index.js";
 import { responsiveMixin } from "../../mixins/responsive.js";
 
@@ -437,6 +461,11 @@ export default {
 		isDragging: false,
 		// Track if the current search was triggered by a scanner
 		search_from_scanner: false,
+		// Background sync state and progress
+		sync_in_progress: false,
+		sync_progress: 0,
+		sync_status: "",
+		sync_items_count: 0,
 	}),
 
 	watch: {
@@ -650,7 +679,70 @@ export default {
 		show_coupons() {
 			this.eventBus.emit("show_coupons", "true");
 		},
+		async syncDeltaItems() {
+			const vm = this;
+			if (!vm.items_loaded || !vm.items || !vm.items.length) {
+				return;
+			}
+			try {
+				vm.sync_in_progress = true;
+				vm.sync_progress = 15;
+				vm.sync_status = vm.__ ? vm.__("Checking for item and price updates...") : "Checking for updates...";
+				vm.eventBus.emit("data-load-progress", { name: "items", progress: 15 });
+
+				const res = await refreshModifiedItems(vm.pos_profile, vm.active_price_list, vm.customer);
+				vm.sync_progress = 65;
+
+				if (res && res.items && res.items.length > 0) {
+					vm.sync_items_count = res.items.length;
+					vm.sync_status = vm.__ ? vm.__("Applying updated items...") : "Applying updated items...";
+					console.info(`[Delta Sync] Updated ${res.items.length} items from server`);
+					const updatedMap = new Map();
+					res.items.forEach((it) => {
+						if (it && it.item_code) {
+							updatedMap.set(it.item_code, it);
+						}
+					});
+
+					// Update existing items in vm.items or append new ones
+					vm.items.forEach((item) => {
+						if (updatedMap.has(item.item_code)) {
+							const updatedItem = updatedMap.get(item.item_code);
+							Object.assign(item, updatedItem);
+							updatedMap.delete(item.item_code);
+						}
+					});
+
+					// Append any brand new items returned in delta
+					if (updatedMap.size > 0) {
+						for (const newItem of updatedMap.values()) {
+							vm.items.push(newItem);
+						}
+					}
+
+					savePriceListItems(vm.active_price_list, vm.items);
+					vm.eventBus.emit("set_all_items", vm.items);
+					if (vm.filtered_items && vm.filtered_items.length > 0) {
+						vm.update_items_details(vm.filtered_items);
+					}
+				}
+
+				vm.sync_progress = 100;
+				vm.eventBus.emit("data-load-progress", { name: "items", progress: 100 });
+				setTimeout(() => {
+					vm.sync_in_progress = false;
+					vm.sync_progress = 0;
+					vm.sync_status = "";
+					vm.sync_items_count = 0;
+				}, 1200);
+			} catch (err) {
+				console.error("[Delta Sync] Error during delta refresh:", err);
+				vm.sync_in_progress = false;
+				vm.sync_progress = 0;
+			}
+		},
 		forceReloadItems() {
+			setItemsLastSync(null);
 			// Always recreate the worker when forcing a reload so
 			// subsequent reloads fetch fresh data from the server.
 			if (!this.itemWorker && typeof Worker !== "undefined") {
@@ -724,6 +816,10 @@ export default {
 					if (vm.items && vm.items.length > 0) {
 						vm.prePopulateStockCache(vm.items);
 						vm.update_items_details(vm.items);
+						// Smooth background delta sync to refresh changed prices/quantities
+						setTimeout(() => {
+							vm.syncDeltaItems();
+						}, 300);
 					}
 					return;
 				}
@@ -758,7 +854,15 @@ export default {
 				}
 				return;
 			}
-			// Removed noisy debug log
+			if (!this.itemWorker && typeof Worker !== "undefined") {
+				try {
+					const workerUrl = "/assets/posawesome/js/posapp/workers/itemWorker.js";
+					this.itemWorker = new Worker(workerUrl, { type: "classic" });
+				} catch (e) {
+					console.error("Failed to start item worker", e);
+					this.itemWorker = null;
+				}
+			}
 
 			if (this.itemWorker) {
 				try {
@@ -766,6 +870,11 @@ export default {
 					const fetchTimeout = setTimeout(() => {
 						fetchController.abort();
 					}, 45000);
+
+					vm.sync_in_progress = true;
+					vm.sync_progress = 10;
+					vm.sync_status = vm.__ ? vm.__("Downloading items catalog...") : "Downloading items catalog...";
+					vm.eventBus.emit("data-load-progress", { name: "items", progress: 10 });
 
 					const res = await fetch("/api/method/posawesome.posawesome.api.items.get_items", {
 						method: "POST",
@@ -787,8 +896,13 @@ export default {
 					clearTimeout(fetchTimeout);
 
 					if (!res.ok) {
+						vm.sync_in_progress = false;
 						throw new Error(`Failed to fetch items: ${res.status}`);
 					}
+
+					vm.sync_progress = 50;
+					vm.sync_status = vm.__ ? vm.__("Processing and caching items in IndexedDB...") : "Processing items in background...";
+					vm.eventBus.emit("data-load-progress", { name: "items", progress: 50 });
 
 					const text = await res.text();
 					// console.log(text)
@@ -798,6 +912,15 @@ export default {
 							const parsed = ev.data.items;
 							vm.items = parsed.message || parsed;
 							savePriceListItems(vm.active_price_list, vm.items);
+							if (ev.data.maxModified) {
+								setItemsLastSync(ev.data.maxModified);
+							} else {
+								let maxMod = "";
+								for (const it of vm.items) {
+									if (it.modified && it.modified > maxMod) maxMod = it.modified;
+								}
+								if (maxMod) setItemsLastSync(maxMod);
+							}
 							// Ensure UOMs are available for each item
 							vm.items.forEach((it) => {
 								if (it.item_uoms && it.item_uoms.length > 0) {
@@ -814,6 +937,14 @@ export default {
 							vm.eventBus.emit("set_all_items", vm.items);
 							vm.loading = false;
 							vm.items_loaded = true;
+							vm.sync_progress = 100;
+							vm.sync_status = vm.__ ? vm.__("Items catalog cached successfully") : "Catalog cached";
+							vm.eventBus.emit("data-load-progress", { name: "items", progress: 100 });
+							setTimeout(() => {
+								vm.sync_in_progress = false;
+								vm.sync_progress = 0;
+								vm.sync_status = "";
+							}, 1500);
 							console.info("Items Loaded");
 
 							// Pre-populate stock cache when items are freshly loaded
@@ -830,24 +961,11 @@ export default {
 								vm.update_items_details(vm.items);
 							}
 
-							if (vm.pos_profile.posa_local_storage && !vm.pos_profile.pose_use_limit_search) {
-								try {
-									setItemsStorage(vm.items);
-									vm.items.forEach((it) => {
-										if (it.item_uoms && it.item_uoms.length > 0) {
-											saveItemUOMs(it.item_code, it.item_uoms);
-										}
-									});
-								} catch (e) {
-									console.error(e);
-								}
-							}
-
 							if (vm.pos_profile.pose_use_limit_search) {
 								vm.enter_event();
 							}
 
-							// Terminate the worker after items are parsed to
+							// Terminate the dedicated download worker after items are parsed to
 							// release memory held by the worker thread.
 							if (vm.itemWorker) {
 								vm.itemWorker.terminate();
@@ -856,6 +974,8 @@ export default {
 						} else if (ev.data.type === "error") {
 							console.error("Item worker parse error:", ev.data.error);
 							vm.loading = false;
+							vm.sync_in_progress = false;
+							vm.sync_progress = 0;
 						}
 					};
 					this.itemWorker.postMessage({
@@ -898,6 +1018,11 @@ export default {
 							vm.loading = false;
 							vm.items_loaded = true;
 							savePriceListItems(vm.active_price_list, vm.items);
+							let maxMod = "";
+							for (const it of vm.items) {
+								if (it.modified && it.modified > maxMod) maxMod = it.modified;
+							}
+							if (maxMod) setItemsLastSync(maxMod);
 							console.info("Items Loaded");
 
 							// Pre-populate stock cache when items are freshly loaded
@@ -914,18 +1039,6 @@ export default {
 								vm.update_items_details(vm.items);
 							}
 
-							if (vm.pos_profile.posa_local_storage && !vm.pos_profile.pose_use_limit_search) {
-								try {
-									setItemsStorage(r.message);
-									r.message.forEach((it) => {
-										if (it.item_uoms && it.item_uoms.length > 0) {
-											saveItemUOMs(it.item_code, it.item_uoms);
-										}
-									});
-								} catch (e) {
-									console.error(e);
-								}
-							}
 							if (vm.pos_profile.pose_use_limit_search) {
 								vm.enter_event();
 							}
@@ -2126,6 +2239,79 @@ export default {
 				console.error("Failed to load item selector settings:", e);
 			}
 		},
+		handleGlobalTypeToSearchKeydown(event) {
+			if (!event || event.defaultPrevented || event.repeat || event.isComposing) {
+				return;
+			}
+			if (event.ctrlKey || event.metaKey || event.altKey) {
+				return;
+			}
+			// Only alphanumeric and standard typing characters (single character)
+			if (!event.key || event.key.length !== 1) {
+				return;
+			}
+			if (!/^[\p{L}\p{N}\-._/\\]$/u.test(event.key)) {
+				return;
+			}
+
+			const active = document.activeElement;
+			if (active && active !== document.body) {
+				const tagName = active.tagName;
+				if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") {
+					return;
+				}
+				if (active.isContentEditable || active.getAttribute("contenteditable") === "true") {
+					return;
+				}
+				if (active.closest && active.closest("input, textarea, select, [contenteditable='true']")) {
+					return;
+				}
+			}
+
+			// Don't intercept if an active modal, dialog, or overlay is currently displayed
+			const activeOverlays = document.querySelectorAll(
+				".v-overlay-container .v-overlay--active, .v-dialog.v-dialog--active, .modal.show, [role='dialog']",
+			);
+			const hasVisibleDialog = Array.from(activeOverlays).some((dialog) => {
+				if (!(dialog instanceof HTMLElement)) return false;
+				const style = window.getComputedStyle ? window.getComputedStyle(dialog) : null;
+				if (style && (style.display === "none" || style.visibility === "hidden" || style.opacity === "0")) {
+					return false;
+				}
+				return Boolean(dialog.offsetWidth || dialog.offsetHeight || dialog.getClientRects().length);
+			});
+			if (hasVisibleDialog) {
+				return;
+			}
+
+			event.preventDefault();
+			event.stopPropagation();
+
+			if (!this.search_input) {
+				this.search_input = event.key;
+			} else {
+				this.search_input += event.key;
+			}
+
+			this.$nextTick(() => {
+				const searchInputEl =
+					document.querySelector("input[name='posa_item_search_no_autofill']") ||
+					(this.$refs.debounce_search && this.$refs.debounce_search.$el
+						? this.$refs.debounce_search.$el.querySelector("input")
+						: null);
+
+				if (searchInputEl && typeof searchInputEl.focus === "function") {
+					searchInputEl.focus();
+					if (typeof searchInputEl.setSelectionRange === "function") {
+						const len = searchInputEl.value.length;
+						searchInputEl.setSelectionRange(len, len);
+					}
+				} else if (this.$refs.debounce_search && typeof this.$refs.debounce_search.focus === "function") {
+					this.$refs.debounce_search.focus();
+				}
+				this.search_onchange(this.search_input);
+			});
+		},
 	},
 
 	computed: {
@@ -2390,15 +2576,26 @@ export default {
 		// Listen for refocus event after item is added
 		this.eventBus.on("refocus_item_search", () => {
 			this.$nextTick(() => {
-				if (this.$refs.debounce_search) {
+				const searchInputEl =
+					document.querySelector("input[name='posa_item_search_no_autofill']") ||
+					(this.$refs.debounce_search && this.$refs.debounce_search.$el
+						? this.$refs.debounce_search.$el.querySelector("input")
+						: null);
+				if (searchInputEl && typeof searchInputEl.focus === "function") {
+					searchInputEl.focus();
+				} else if (this.$refs.debounce_search && typeof this.$refs.debounce_search.focus === "function") {
 					this.$refs.debounce_search.focus();
 				}
 			});
 		});
 		this.eventBus.on("toggle_item_search_focus", this.toggleItemSearchFocus);
+
+		// Global type-to-search listener (auto-types characters into search without clicking)
+		document.addEventListener("keydown", this.handleGlobalTypeToSearchKeydown, true);
 	},
 
 	beforeUnmount() {
+		document.removeEventListener("keydown", this.handleGlobalTypeToSearchKeydown, true);
 		// Clear interval when component is destroyed
 		if (this.refresh_interval) {
 			clearInterval(this.refresh_interval);
@@ -2562,6 +2759,56 @@ export default {
 .cards {
 	margin-top: var(--dynamic-sm) !important;
 	padding: var(--dynamic-sm) !important;
+}
+
+.search-sync-progress {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	animation: sync-progress-fade-in 0.25s ease-out;
+}
+
+.search-sync-progress__meta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.search-sync-progress__label,
+.search-sync-progress__value {
+	font-size: 0.72rem;
+	line-height: 1.2;
+	color: #64748b;
+}
+
+.search-sync-progress__label {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-weight: 600;
+}
+
+.search-sync-progress__count {
+	font-variant-numeric: tabular-nums;
+	font-weight: 700;
+	opacity: 0.85;
+}
+
+.search-sync-progress__value {
+	font-variant-numeric: tabular-nums;
+	font-weight: 700;
+}
+
+@keyframes sync-progress-fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(-2px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
 }
 
 /* Responsive breakpoints */

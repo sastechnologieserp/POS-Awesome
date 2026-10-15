@@ -7693,5 +7693,29 @@
   "translatable": 0,
   "unique": 0,
   "width": null
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "posa_client_request_id",
+  "fieldtype": "Data",
+  "label": "POSA Client Request ID",
+  "no_copy": 1,
+  "read_only": 1,
+  "unique": 1,
+  "insert_after": "posa_is_printed",
+  "name": "Sales Invoice-posa_client_request_id"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "POS Invoice",
+  "fieldname": "posa_client_request_id",
+  "fieldtype": "Data",
+  "label": "POSA Client Request ID",
+  "no_copy": 1,
+  "read_only": 1,
+  "unique": 1,
+  "insert_after": "posa_is_printed",
+  "name": "POS Invoice-posa_client_request_id"
  }
 ]

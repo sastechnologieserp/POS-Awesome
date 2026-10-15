@@ -82,10 +82,24 @@ def validate_return_items(original_invoice_name, return_items):
 
 @frappe.whitelist()
 def update_invoice(data):
-	data = json.loads(data)
+	data = json.loads(data) if isinstance(data, str) else data
 	if isinstance(data, dict):
 		if data.get("id") and not data.get("name"):
 			data["name"] = data.get("id")
+
+	# Idempotency / Duplicate request check using client_request_id
+	client_req_id = (
+		(data.get("posa_client_request_id") if isinstance(data, dict) else None)
+		or (data.get("client_request_id") if isinstance(data, dict) else None)
+		or (data.get("idempotency_key") if isinstance(data, dict) else None)
+	)
+	if client_req_id and not data.get("name"):
+		try:
+			existing_name = frappe.db.get_value("Sales Invoice", {"posa_client_request_id": str(client_req_id).strip()}, "name")
+			if existing_name:
+				data["name"] = existing_name
+		except Exception:
+			pass
 
 	if data.get("name") and frappe.db.exists("Sales Invoice", data.get("name")):
 		invoice_doc = frappe.get_doc("Sales Invoice", data.get("name"))
@@ -283,12 +297,35 @@ def update_invoice(data):
 
 @frappe.whitelist()
 def submit_invoice(invoice, data):
-	data = json.loads(data)
-	invoice = json.loads(invoice)
+	data = json.loads(data) if isinstance(data, str) else data
+	invoice = json.loads(invoice) if isinstance(invoice, str) else invoice
 	if isinstance(invoice, dict):
 		if invoice.get("id") and not invoice.get("name"):
 			invoice["name"] = invoice.get("id")
-	invoice_name = invoice.get("name")
+
+	# Idempotency / Duplicate request check using client_request_id
+	client_req_id = (
+		(invoice.get("posa_client_request_id") if isinstance(invoice, dict) else None)
+		or (data.get("client_request_id") if isinstance(data, dict) else None)
+		or (data.get("idempotency_key") if isinstance(data, dict) else None)
+	)
+	if client_req_id:
+		client_req_id = str(client_req_id).strip()
+		try:
+			existing_invoices = frappe.get_all(
+				"Sales Invoice",
+				filters={"posa_client_request_id": client_req_id},
+				fields=["name", "docstatus"],
+				limit=1,
+			)
+			if existing_invoices:
+				existing = existing_invoices[0]
+				return {"name": existing.name, "status": existing.docstatus, "replayed": True}
+		except Exception:
+			# Field might not exist yet in db
+			pass
+
+	invoice_name = invoice.get("name") if isinstance(invoice, dict) else None
 	if not invoice_name or not frappe.db.exists("Sales Invoice", invoice_name):
 		created = update_invoice(json.dumps(invoice))
 		invoice_name = created.get("name")
@@ -296,6 +333,9 @@ def submit_invoice(invoice, data):
 	else:
 		invoice_doc = frappe.get_doc("Sales Invoice", invoice_name)
 		invoice_doc.update(invoice)
+
+	if client_req_id and hasattr(invoice_doc, "posa_client_request_id"):
+		invoice_doc.posa_client_request_id = client_req_id
 	if invoice.get("posa_delivery_date"):
 		invoice_doc.update_stock = 0
 	mop_cash_list = [
