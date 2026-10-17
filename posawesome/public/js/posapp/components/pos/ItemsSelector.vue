@@ -65,24 +65,26 @@
 						<div
 							v-if="sync_in_progress"
 							class="search-sync-progress mt-1 mb-1 px-1"
+							data-test="item-search-sync-shell"
 							aria-live="polite"
 						>
 							<v-progress-linear
-								:model-value="sync_progress"
+								:model-value="clampedSyncProgress"
 								height="3"
 								rounded
 								color="info"
 								bg-color="rgba(15, 23, 42, 0.08)"
+								data-test="item-search-sync-bar"
 								:aria-label="__('Item sync progress')"
 							></v-progress-linear>
 							<div class="search-sync-progress__meta">
 								<span class="search-sync-progress__label">
 									{{ sync_status || __("Syncing items in background") }}
-									<span v-if="sync_items_count > 0" class="search-sync-progress__count">
-										({{ sync_items_count }} items)
+									<span v-if="normalizedSyncItemsCount > 0" class="search-sync-progress__count">
+										{{ syncItemsCountLabel }}
 									</span>
 								</span>
-								<span class="search-sync-progress__value">{{ Math.round(sync_progress) }}%</span>
+								<span class="search-sync-progress__value">{{ clampedSyncProgress }}%</span>
 							</div>
 						</div>
 					</v-col>
@@ -213,18 +215,26 @@
 									}}</v-card-text>
 								</v-img>
 								<v-card-text class="text--primary pa-1">
-									<div class="text-caption text-primary truncate">
-										{{
-											currencySymbol(item.original_currency || pos_profile.currency) ||
-											""
-										}}
-										{{
-											format_currency(
-												item.base_price_list_rate || item.rate,
-												item.original_currency || pos_profile.currency,
-												ratePrecision(item.base_price_list_rate || item.rate),
-											)
-										}}
+									<div class="text-caption text-primary truncate d-flex align-center">
+										<span>
+											{{
+												currencySymbol(item.original_currency || pos_profile.currency) ||
+												""
+											}}
+											{{
+												format_currency(
+													item.base_price_list_rate || item.rate,
+													item.original_currency || pos_profile.currency,
+													ratePrecision(item.base_price_list_rate || item.rate),
+												)
+											}}
+										</span>
+										<ItemRateInfoMenu
+											:rate-info="getItemRateInfo(item)"
+											:currency-symbol="currencySymbol"
+											:format-currency="format_currency"
+											:rate-precision="ratePrecision"
+										/>
 									</div>
 									<div
 										v-if="
@@ -261,17 +271,25 @@
 							>
 								<template v-slot:item.rate="{ item }">
 									<div>
-										<div class="text-primary">
-											{{
-												currencySymbol(item.original_currency || pos_profile.currency)
-											}}
-											{{
-												format_currency(
-													item.base_price_list_rate || item.rate,
-													item.original_currency || pos_profile.currency,
-													ratePrecision(item.base_price_list_rate || item.rate),
-												)
-											}}
+										<div class="text-primary d-flex align-center">
+											<span>
+												{{
+													currencySymbol(item.original_currency || pos_profile.currency)
+												}}
+												{{
+													format_currency(
+														item.base_price_list_rate || item.rate,
+														item.original_currency || pos_profile.currency,
+														ratePrecision(item.base_price_list_rate || item.rate),
+													)
+												}}
+											</span>
+											<ItemRateInfoMenu
+												:rate-info="getItemRateInfo(item)"
+												:currency-symbol="currencySymbol"
+												:format-currency="format_currency"
+												:rate-precision="ratePrecision"
+											/>
 										</div>
 										<div
 											v-if="
@@ -390,6 +408,7 @@ import CameraScanner from "./CameraScanner.vue";
 import { ensurePosProfile } from "../../../utils/pos_profile.js";
 import {
 	saveItemUOMs,
+	saveItemUOMsBulk,
 	getItemUOMs,
 	getLocalStock,
 	isOffline,
@@ -402,6 +421,7 @@ import {
 	checkDbHealth,
 	getCachedPriceListItems,
 	savePriceListItems,
+	getStoredItems,
 	updateLocalStockCache,
 	isStockCacheReady,
 	getCachedItemDetails,
@@ -411,11 +431,13 @@ import {
 	refreshModifiedItems,
 } from "../../../offline/index.js";
 import { responsiveMixin } from "../../mixins/responsive.js";
+import ItemRateInfoMenu from "./items/ItemRateInfoMenu.vue";
 
 export default {
 	mixins: [format, responsiveMixin],
 	components: {
 		CameraScanner,
+		ItemRateInfoMenu,
 	},
 	data: () => ({
 		pos_profile: "",
@@ -466,6 +488,7 @@ export default {
 		sync_progress: 0,
 		sync_status: "",
 		sync_items_count: 0,
+		last_invoice_rates: {},
 	}),
 
 	watch: {
@@ -529,6 +552,10 @@ export default {
 				this.update_items_details(visibleSlice);
 			}
 
+			if (new_value && new_value.length) {
+				this.refreshLastInvoiceRates(new_value.slice(0, this.itemsPerPage || 50));
+			}
+
 			if (!new_value.length) {
 				this.selected_item_index = -1;
 				return;
@@ -562,6 +589,98 @@ export default {
 	},
 
 	methods: {
+		refreshLastInvoiceRates(itemsSlice) {
+			if (!itemsSlice || !itemsSlice.length || !this.customer) {
+				return;
+			}
+			const itemCodes = itemsSlice
+				.map((i) => i.item_code)
+				.filter((code) => code && !this.last_invoice_rates[code]);
+
+			if (!itemCodes.length) return;
+
+			frappe.call({
+				method: "posawesome.posawesome.api.invoices.get_last_invoice_rates",
+				args: {
+					customer: this.customer,
+					item_codes: itemCodes,
+					company: (this.pos_profile && this.pos_profile.company) || null,
+				},
+				callback: (r) => {
+					if (r && r.message && Array.isArray(r.message)) {
+						const updated = { ...this.last_invoice_rates };
+						r.message.forEach((row) => {
+							if (row && row.item_code) {
+								updated[row.item_code] = {
+									rate: row.rate,
+									currency: row.currency,
+									invoice: row.invoice,
+									uom: row.uom,
+									posting_date: row.posting_date,
+								};
+							}
+						});
+						this.last_invoice_rates = updated;
+					}
+				},
+			});
+		},
+
+		getItemRateInfo(item) {
+			const profileCurrency = (this.pos_profile && (this.pos_profile.company_currency || this.pos_profile.currency)) || "";
+			const entries = [];
+
+			// 1. Last Invoice Rate (Customer Sale)
+			const saleRate = this.last_invoice_rates && item && item.item_code ? this.last_invoice_rates[item.item_code] : null;
+			if (saleRate && saleRate.rate != null) {
+				entries.push({
+					key: "sale",
+					rowLabel: "Last Invoice Rate",
+					available: true,
+					rate: Number(saleRate.rate),
+					currency: saleRate.currency || profileCurrency,
+					uom: saleRate.uom || item.stock_uom || null,
+					source: saleRate.invoice || null,
+					date: saleRate.posting_date || null,
+				});
+			} else {
+				entries.push({
+					key: "sale",
+					rowLabel: "Last Invoice Rate",
+					available: false,
+					rate: null,
+					currency: null,
+				});
+			}
+
+			// 2. Cost / Valuation Rate / Standard Rate
+			const standardRate = item && item.standard_rate != null && item.standard_rate !== "" ? Number(item.standard_rate) : null;
+			const valuationRate = item && item.valuation_rate != null && item.valuation_rate !== "" ? Number(item.valuation_rate) : null;
+			if (standardRate !== null && !isNaN(standardRate) && standardRate > 0) {
+				entries.push({
+					key: "cost",
+					rowLabel: "Standard Rate",
+					available: true,
+					rate: standardRate,
+					currency: profileCurrency,
+					uom: item.purchase_uom || item.stock_uom || null,
+					source: "Standard Rate",
+				});
+			} else if (valuationRate !== null && !isNaN(valuationRate) && valuationRate > 0) {
+				entries.push({
+					key: "cost",
+					rowLabel: "Valuation Rate",
+					available: true,
+					rate: valuationRate,
+					currency: profileCurrency,
+					uom: item.stock_uom || null,
+					source: "Valuation Rate",
+				});
+			}
+
+			return { entries };
+		},
+
 		adjustItemsPerPage(width, height = this.windowHeight) {
 			const cardWidth = 200; // approximate width of each item card
 			const cardHeight = 160; // approximate height including margins
@@ -816,7 +935,7 @@ export default {
 					vm.eventBus.emit("data-load-progress", { name: "items", progress: 100 });
 
 					if (vm.items && vm.items.length > 0) {
-						vm.prePopulateStockCache(vm.items);
+						vm.prePopulateStockCache(vm.items.slice(0, 50));
 						const initialSlice = vm.items.slice(0, vm.itemsPerPage || 50);
 						vm.update_items_details(initialSlice);
 						// Smooth background delta sync to refresh changed prices/quantities
@@ -825,6 +944,41 @@ export default {
 						}, 300);
 					}
 					return;
+				}
+
+				// Check IndexedDB items table directly without blocking
+				try {
+					const stored = await getStoredItems();
+					if (stored && stored.length > 0) {
+						vm.items = stored;
+						savePriceListItems(vm.active_price_list, vm.items, false);
+						vm.items.forEach((it) => {
+							if (!it.item_uoms || it.item_uoms.length === 0) {
+								const cachedUoms = getItemUOMs(it.item_code);
+								if (cachedUoms.length > 0) {
+									it.item_uoms = cachedUoms;
+								} else if (it.stock_uom) {
+									it.item_uoms = [{ uom: it.stock_uom, conversion_factor: 1.0 }];
+								}
+							}
+						});
+						this.eventBus.emit("set_all_items", vm.items);
+						vm.loading = false;
+						vm.items_loaded = true;
+						vm.eventBus.emit("data-load-progress", { name: "items", progress: 100 });
+
+						if (vm.items && vm.items.length > 0) {
+							vm.prePopulateStockCache(vm.items.slice(0, 50));
+							const initialSlice = vm.items.slice(0, vm.itemsPerPage || 50);
+							vm.update_items_details(initialSlice);
+							setTimeout(() => {
+								vm.syncDeltaItems();
+							}, 300);
+						}
+						return;
+					}
+				} catch (e) {
+					console.warn("Failed to load items from IndexedDB", e);
 				}
 			}
 
@@ -853,7 +1007,7 @@ export default {
 				vm.eventBus.emit("data-load-progress", { name: "items", progress: 100 });
 
 				if (vm.items && vm.items.length > 0) {
-					await vm.prePopulateStockCache(vm.items);
+					await vm.prePopulateStockCache(vm.items.slice(0, 50));
 					const initialSlice = vm.items.slice(0, vm.itemsPerPage || 50);
 					vm.update_items_details(initialSlice);
 				}
@@ -907,8 +1061,8 @@ export default {
 
 						const currentOffset = offset;
 						vm.sync_status = vm.__
-							? vm.__(`Loading items (${currentOffset}${totalItemsCount ? ` / ${totalItemsCount}` : ""} items)...`)
-							: `Loading items (${currentOffset}${totalItemsCount ? ` / ${totalItemsCount}` : ""} items)...`;
+							? vm.__("Syncing items in background")
+							: "Syncing items in background";
 
 						if (totalItemsCount > 0) {
 							vm.sync_progress = Math.min(95, Math.round((currentOffset / totalItemsCount) * 90) + 5);
@@ -955,8 +1109,9 @@ export default {
 
 						allItems.push(...batch);
 						offset += batch.length;
+						vm.sync_items_count = offset;
 
-						// Send chunk to worker to enrich search index off the main thread
+						// Send chunk to worker to enrich search index off the main thread and persist to IndexedDB
 						await new Promise((resolve) => {
 							const handleBatchMessage = (ev) => {
 								if (ev.data.type === "batch_processed" && ev.data.batchIndex === currentOffset) {
@@ -973,26 +1128,34 @@ export default {
 								items: batch,
 								batchIndex: currentOffset,
 								isLast: batch.length < CHUNK_SIZE,
+								priceList: vm.active_price_list,
 							});
 						});
 
-						// Display first batch immediately so UI is responsive right away
+						// Update local stock cache from incoming item actual_qty without extra network overhead
+						updateLocalStockCache(batch);
+
+						// Display first batch immediately so UI is responsive right away (< 200ms)
 						if (currentOffset === 0 && allItems.length > 0) {
 							vm.items = allItems.slice();
 							vm.eventBus.emit("set_all_items", vm.items);
 							vm.loading = false;
 							vm.items_loaded = true;
-							vm.prePopulateStockCache(vm.items);
+							const initialSlice = vm.items.slice(0, vm.itemsPerPage || 50);
+							vm.update_items_details(initialSlice);
 						}
 
 						if (batch.length < CHUNK_SIZE) {
 							hasMore = false;
 						}
+
+						// Yield to browser thread so UI stays 100% smooth
+						await new Promise((resolve) => setTimeout(resolve, 0));
 					}
 
 					// Finalize caching to IndexedDB in worker
-					vm.sync_status = vm.__ ? vm.__("Finalizing items catalog in IndexedDB...") : "Finalizing catalog...";
-					vm.sync_progress = 95;
+					vm.sync_status = vm.__ ? vm.__("Finalizing catalog...") : "Finalizing catalog...";
+					vm.sync_progress = 98;
 					vm.sync_items_count = allItems.length;
 
 					await new Promise((resolve) => {
@@ -1011,28 +1174,21 @@ export default {
 						vm.itemWorker.addEventListener("message", handleFinalize);
 						vm.itemWorker.postMessage({
 							type: "finalize_cache",
-							items: allItems,
-							priceList: vm.active_price_list,
 						});
 					});
 
-					// Save into memory cache without re-persisting on main thread
+					// Yield to browser thread before memory updates
+					await new Promise((resolve) => setTimeout(resolve, 0));
+
+					// Save into memory cache without re-persisting giant blob on main thread
 					vm.items = allItems;
 					savePriceListItems(vm.active_price_list, vm.items, false);
 
-					// Ensure UOMs are populated
-					vm.items.forEach((it) => {
-						if (it.item_uoms && it.item_uoms.length > 0) {
-							saveItemUOMs(it.item_code, it.item_uoms);
-						} else {
-							const cached = getItemUOMs(it.item_code);
-							if (cached.length > 0) {
-								it.item_uoms = cached;
-							} else if (it.stock_uom) {
-								it.item_uoms = [{ uom: it.stock_uom, conversion_factor: 1.0 }];
-							}
-						}
-					});
+					// Bulk cache UOMs in a single debounced pass instead of 10,000 synchronous persists
+					saveItemUOMsBulk(allItems);
+
+					// Yield to browser to let UI paint progress 100% smoothly
+					await new Promise((resolve) => setTimeout(resolve, 0));
 
 					vm.eventBus.emit("set_all_items", vm.items);
 					vm.loading = false;
@@ -1049,7 +1205,7 @@ export default {
 					}, 1500);
 
 					console.info(`Items Loaded: ${allItems.length} items chunked successfully`);
-					vm.prePopulateStockCache(vm.items);
+					vm.prePopulateStockCache(vm.items.slice(0, 50));
 
 					vm.$nextTick(() => {
 						if (vm.search && !vm.pos_profile.pose_use_limit_search) {
@@ -1804,14 +1960,11 @@ export default {
 			}
 			this.prePopulateInProgress = true;
 			try {
-				// Use the new isStockCacheReady function
 				if (isStockCacheReady()) {
-					console.debug("Stock cache already initialized");
 					return;
 				}
-
-				console.info("Pre-populating stock cache for", items.length, "items");
-				await initializeStockCache(items, this.pos_profile);
+				const itemsToInit = Array.isArray(items) ? items.slice(0, 50) : [];
+				await initializeStockCache(itemsToInit, this.pos_profile);
 			} catch (error) {
 				console.error("Failed to pre-populate stock cache:", error);
 			} finally {
@@ -2403,6 +2556,32 @@ export default {
 	},
 
 	computed: {
+		clampedSyncProgress() {
+			const normalized = Number(this.sync_progress);
+			if (!Number.isFinite(normalized) || normalized <= 0) {
+				return 0;
+			}
+			return Math.min(100, Math.round(normalized));
+		},
+		normalizedSyncItemsCount() {
+			const normalized = Number(this.sync_items_count);
+			if (!Number.isFinite(normalized) || normalized <= 0) {
+				return 0;
+			}
+			return Math.round(normalized);
+		},
+		syncItemsCountLabel() {
+			const count = this.normalizedSyncItemsCount;
+			const itemLabel =
+				count === 1
+					? this.__
+						? this.__("item synced")
+						: "item synced"
+					: this.__
+						? this.__("items synced")
+						: "items synced";
+			return `${count.toLocaleString()} ${itemLabel}`;
+		},
 		headers() {
 			return this.getItemsHeaders();
 		},
@@ -2583,6 +2762,7 @@ export default {
 			await checkDbHealth();
 			this.pos_profile = data.pos_profile;
 			this.customer = (data.pos_profile && data.pos_profile.customer) || this.customer || null;
+			this.items_loaded = false;
 			if (this.pos_profile.posa_force_reload_items && !this.pos_profile.posa_smart_reload_mode) {
 				await this.get_items(true);
 			} else {
@@ -2591,6 +2771,11 @@ export default {
 			this.get_items_groups();
 			this.items_view = this.pos_profile.posa_default_card_view ? "card" : "list";
 			this.fetch_price_lists();
+		});
+		this.eventBus.on("closing_shift_submit_success", () => {
+			this.items_loaded = false;
+			this.items = [];
+			this.filtered_items = [];
 		});
 		this.eventBus.on("update_cur_items_details", () => {
 			this.update_cur_items_details();
@@ -2630,18 +2815,8 @@ export default {
 			this.update_cur_items_details();
 		});
 
-		// Setup auto-refresh for item quantities and background delta sync
-		// Trigger an immediate refresh once items are available
+		// Refresh visible item quantities initially once items are available
 		this.update_cur_items_details();
-		this.refresh_interval = setInterval(() => {
-			if (this.filtered_items && this.filtered_items.length > 0) {
-				this.update_cur_items_details();
-			}
-			// Periodic background delta sync every 60s when online
-			if (navigator.onLine && !this.sync_in_progress && this.items_loaded) {
-				this.syncDeltaItems();
-			}
-		}, 60000); // Check and refresh every 60 seconds
 
 		// Add new event listener for currency changes
 		this.eventBus.on("update_currency", (data) => {
@@ -2855,7 +3030,14 @@ export default {
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
-	animation: sync-progress-fade-in 0.25s ease-out;
+	padding: 0 6px 2px;
+	animation: sync-progress-fade-in 160ms ease-out;
+}
+
+:deep(.search-sync-progress .v-progress-linear) {
+	border-radius: 999px;
+	overflow: hidden;
+	box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
 }
 
 .search-sync-progress__meta {
@@ -2867,22 +3049,24 @@ export default {
 
 .search-sync-progress__label,
 .search-sync-progress__value {
-	font-size: 0.72rem;
+	font-size: 0.7rem;
 	line-height: 1.2;
-	color: #64748b;
+	color: var(--pos-primary-variant, #2563eb);
 }
 
 .search-sync-progress__label {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
+	gap: 6px;
+	flex-wrap: wrap;
 	font-weight: 600;
+	letter-spacing: 0.01em;
 }
 
 .search-sync-progress__count {
 	font-variant-numeric: tabular-nums;
 	font-weight: 700;
-	opacity: 0.85;
+	opacity: 0.82;
 }
 
 .search-sync-progress__value {

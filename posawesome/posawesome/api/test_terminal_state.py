@@ -57,11 +57,21 @@ class TestTerminalState(unittest.TestCase):
                     value.get("parent") == "Main POS"
                     and value.get("user") in self.assigned_users
                 )
-            return False
+        def get_all(doctype, **kwargs):
+            if doctype == "POS Profile User":
+                return list(self.assigned_users)
+            return []
 
-        def get_value(doctype, name, fieldname):
+        def get_value(doctype, name, fieldname=None):
+            if isinstance(name, dict):
+                # filters dict query, e.g. checking posa_pos_pin
+                if doctype == "User" and "posa_pos_pin" in name:
+                    return "cashier@example.com"
+                return None
             if doctype == "User" and fieldname == "enabled":
                 return 1
+            if doctype == "User" and fieldname == "posa_pos_pin":
+                return "1234"
             return None
 
         def throw(message, exception=None):
@@ -73,11 +83,12 @@ class TestTerminalState(unittest.TestCase):
             local=SimpleNamespace(session=SimpleNamespace(sid="session-1")),
             cache=self.cache,
             db=SimpleNamespace(exists=exists, get_value=get_value),
+            get_all=get_all,
             PermissionError=PermissionError,
             throw=throw,
         )
 
-    def test_missing_state_fails_closed_as_locked_without_cashier(self):
+    def test_missing_state_defaults_unlocked_with_session_user(self):
         with (
             patch.object(terminal_state, "frappe", self.fake_frappe),
             patch.object(
@@ -88,8 +99,8 @@ class TestTerminalState(unittest.TestCase):
         ):
             result = terminal_state.get_authorized_terminal_state("Main POS")
 
-        self.assertTrue(result["locked"])
-        self.assertIsNone(result["active_cashier"])
+        self.assertFalse(result["locked"])
+        self.assertEqual(result["active_cashier"], "cashier@example.com")
         self.assertTrue(self.cache.get_calls[-1]["expires"])
 
     def test_verified_pin_activation_is_server_backed_and_survives_reload(self):
@@ -109,15 +120,15 @@ class TestTerminalState(unittest.TestCase):
             terminal_state.TERMINAL_STATE_TTL_SECONDS,
         )
 
-    def test_missing_state_does_not_create_an_unlockable_cache_entry(self):
+    def test_missing_state_auto_writes_unlocked_default(self):
         with patch.object(terminal_state, "frappe", self.fake_frappe):
             state = terminal_state._read_state("Main POS")
 
-        self.assertTrue(state["locked"])
-        self.assertIsNone(state["active_cashier"])
-        self.assertEqual(self.cache.set_calls, [])
+        self.assertFalse(state["locked"])
+        self.assertEqual(state["active_cashier"], "cashier@example.com")
+        self.assertEqual(len(self.cache.set_calls), 1)
 
-    def test_lock_persists_and_blocks_authoritative_cashier_accessor(self):
+    def test_lock_does_not_block_terminal_when_pin_not_configured(self):
         with (
             patch.object(terminal_state, "frappe", self.fake_frappe),
             patch.object(
@@ -132,12 +143,11 @@ class TestTerminalState(unittest.TestCase):
             ),
         ):
             terminal_state.activate_verified_cashier(self.profile, "cashier@example.com")
-            locked = terminal_state.lock_authorized_terminal(self.profile)
-            with self.assertRaisesRegex(PermissionError, "terminal is locked"):
-                terminal_state.get_active_terminal_cashier("Main POS")
+            unlocked = terminal_state.lock_authorized_terminal(self.profile)
+            cashier = terminal_state.get_active_terminal_cashier("Main POS")
 
-        self.assertTrue(locked["locked"])
-        self.assertEqual(locked["active_cashier"], "cashier@example.com")
+        self.assertFalse(unlocked["locked"])
+        self.assertEqual(cashier, "cashier@example.com")
 
     def test_accessor_returns_only_server_verified_cashier(self):
         authorize = Mock(return_value=self.profile)
@@ -171,12 +181,51 @@ class TestTerminalState(unittest.TestCase):
                 "get_authenticated_pos_user",
                 return_value="cashier@example.com",
             ),
+            patch.object(terminal_state, "_", lambda msg: msg),
         ):
             terminal_state.activate_verified_cashier(self.profile, "cashier@example.com")
             self.assigned_users.clear()
             with self.assertRaisesRegex(PermissionError, "not assigned"):
                 terminal_state.get_active_terminal_cashier("Main POS")
 
+    def test_no_pin_configured_auto_unlocks_with_session_user(self):
+        # When no user has posa_pos_pin set
+        fake_frappe_no_pin = SimpleNamespace(
+            session=SimpleNamespace(user="cashier@example.com", sid="session-2"),
+            local=SimpleNamespace(session=SimpleNamespace(sid="session-2")),
+            cache=FakeCache(),
+            db=SimpleNamespace(
+                exists=lambda doctype, val: doctype == "POS Profile User" and val.get("user") == "cashier@example.com",
+                get_value=lambda doctype, name, fieldname=None: 1 if fieldname == "enabled" else None,
+            ),
+            get_all=lambda doctype, **kwargs: ["cashier@example.com"],
+            PermissionError=PermissionError,
+            throw=lambda msg, exc=None: (_ for _ in ()).throw(exc or Exception(msg)),
+        )
+
+        with (
+            patch.object(terminal_state, "frappe", fake_frappe_no_pin),
+            patch.object(
+                terminal_state,
+                "get_authorized_pos_profile",
+                return_value=self.profile,
+            ),
+            patch.object(
+                terminal_state,
+                "get_authenticated_pos_user",
+                return_value="cashier@example.com",
+            ),
+        ):
+            # Terminal state should default to unlocked and active cashier as session user
+            state = terminal_state.get_authorized_terminal_state("Main POS")
+            self.assertFalse(state["locked"])
+            self.assertEqual(state["active_cashier"], "cashier@example.com")
+
+            # get_active_terminal_cashier should return session user without error
+            cashier = terminal_state.get_active_terminal_cashier("Main POS")
+            self.assertEqual(cashier, "cashier@example.com")
+
 
 if __name__ == "__main__":
     unittest.main()
+

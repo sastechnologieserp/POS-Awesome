@@ -297,7 +297,22 @@ fixtures = [
            			"POS Profile-posa_search_limit",
               		"POS Profile-posa_doctype_shortcuts",
 					"Sales Invoice-posa_client_request_id",
-					"POS Invoice-posa_client_request_id"
+					"POS Invoice-posa_client_request_id",
+					"POS Profile-posa_enable_below_cost_guard",
+					"POS Profile-posa_below_cost_action",
+					"POS Profile-posa_minimum_margin_percentage",
+					"POS Profile-posa_missing_cost_action",
+					"Sales Invoice-posa_cashier",
+					"POS Invoice-posa_cashier",
+					"Sales Invoice-posa_below_cost_override",
+					"Sales Invoice-posa_below_cost_override_by",
+					"Sales Invoice-posa_below_cost_override_reason",
+					"Sales Invoice-posa_below_cost_override_details",
+					"POS Invoice-posa_below_cost_override",
+					"POS Invoice-posa_below_cost_override_by",
+					"POS Invoice-posa_below_cost_override_reason",
+					"POS Invoice-posa_below_cost_override_details",
+					"User-posa_pos_pin"
 				),
 			]
 		],

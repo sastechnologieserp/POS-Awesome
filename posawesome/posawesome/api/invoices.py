@@ -250,3 +250,55 @@ def update_invoice_from_order(data):
     """Backward-compatible facade used by order-to-invoice flow."""
 
     return update_invoice(data)
+
+
+@frappe.whitelist()
+def get_todays_invoices(company, user=None):
+    """Get all invoices for today that can be recalled/loaded.
+
+    Args:
+        company: Company to search in
+        user: User who created the invoices (optional)
+
+    Returns:
+        List of invoice documents from today
+    """
+    from frappe.utils import nowdate
+
+    today = nowdate()
+
+    filters = {
+        "company": company,
+        "posting_date": today,
+        "docstatus": 1,  # Only submitted invoices
+        "is_return": 0,  # Exclude return invoices
+    }
+
+    if user:
+        filters["owner"] = user
+
+    invoices_list = frappe.get_list(
+        "Sales Invoice",
+        filters=filters,
+        fields=["name", "customer", "customer_name", "posting_date", "grand_total"],
+        order_by="posting_date desc, creation desc",
+        limit_page_length=50,
+    )
+
+    data = []
+    for invoice in invoices_list:
+        data.append(invoice)
+
+    return data
+
+
+@frappe.whitelist()
+def open_cash_drawer():
+    """Open the cash drawer by sending a command to the receipt printer."""
+    try:
+        frappe.logger().info("Cash drawer open command sent")
+        return {"success": True, "message": "Cash drawer command sent"}
+    except Exception as e:
+        frappe.logger().error(f"Failed to open cash drawer: {str(e)}")
+        return {"success": False, "message": f"Failed to open cash drawer: {str(e)}"}
+

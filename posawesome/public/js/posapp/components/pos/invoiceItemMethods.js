@@ -531,8 +531,8 @@ export default {
 		}
 		doc.is_pos = 1;
 		doc.ignore_pricing_rule = 1;
-		doc.company = doc.company || this.pos_profile.company;
-		doc.pos_profile = doc.pos_profile || this.pos_profile.name;
+		doc.company = this.pos_profile.company;
+		doc.pos_profile = this.pos_profile.name;
 
 		// Currency related fields
 		doc.currency = this.selected_currency || this.pos_profile.currency;
@@ -664,8 +664,11 @@ export default {
 		}
 
 		// Add POS specific fields
-		doc.posa_pos_opening_shift = this.pos_opening_shift.name;
-		doc.payments = this.get_payments();
+		doc.posa_pos_opening_shift =
+			typeof this.pos_opening_shift === "object"
+				? this.pos_opening_shift?.name
+				: this.pos_opening_shift;
+		doc.payments = this.get_payments(doc.rounded_total || grandTotal);
 
 		// Handle return specific fields
 		if (isReturn) {
@@ -699,6 +702,7 @@ export default {
 		doc.posa_delivery_charges = this.selected_delivery_charge?.name || null;
 		doc.posa_delivery_charges_rate = this.delivery_charges_rate || 0;
 		doc.posting_date = this.formatDateForBackend(this.posting_date_display);
+		doc.due_date = doc.due_date || doc.posting_date || frappe.datetime.nowdate();
 
 		// Add flags to ensure proper rate handling
 		doc.ignore_pricing_rule = 1;
@@ -717,12 +721,13 @@ export default {
 			// For returns, we need to ensure negative values
 			const multiplier = isReturn ? -1 : 1;
 
-			// Convert amounts back to the base currency
 			doc.base_total = (total / this.exchange_rate) * multiplier;
 			doc.base_net_total = (total / this.exchange_rate) * multiplier;
 			doc.base_discount_amount = (discountAmount / this.exchange_rate) * multiplier;
 			doc.base_grand_total = (grandTotal / this.exchange_rate) * multiplier;
-			doc.base_rounded_total = (grandTotal / this.exchange_rate) * multiplier;
+			if (!doc.base_rounded_total) {
+				doc.base_rounded_total = (grandTotal / this.exchange_rate) * multiplier;
+			}
 		} else {
 			// Same currency, just ensure negative values for returns
 			const multiplier = isReturn ? -1 : 1;
@@ -731,7 +736,9 @@ export default {
 			doc.base_net_total = total * multiplier;
 			doc.base_discount_amount = discountAmount * multiplier;
 			doc.base_grand_total = grandTotal * multiplier;
-			doc.base_rounded_total = grandTotal * multiplier;
+			if (doc.rounded_total === undefined || doc.rounded_total === null) {
+				doc.base_rounded_total = grandTotal * multiplier;
+			}
 		}
 
 		// Ensure payments have correct base amounts
@@ -938,10 +945,10 @@ export default {
 	},
 
 	// Prepare payments array for invoice doc
-	get_payments() {
+	get_payments(target_total) {
 		const payments = [];
-		// Use this.subtotal which is already in selected currency and includes all calculations
-		const total_amount = this.subtotal;
+		// Use target_total (e.g. rounded_total) if provided, otherwise this.subtotal
+		const total_amount = target_total !== undefined && target_total !== null ? target_total : this.subtotal;
 		let remaining_amount = total_amount;
 
 		this.pos_profile.payments.forEach((payment, index) => {
@@ -1227,7 +1234,7 @@ export default {
 			}
 
 			// Get payments with correct sign (positive/negative)
-			invoice_doc.payments = this.get_payments();
+			invoice_doc.payments = this.get_payments(invoice_doc.rounded_total || invoice_doc.grand_total);
 			console.log("Final payment data:", invoice_doc.payments);
 
 			// Double-check return invoice payments are negative
@@ -1405,10 +1412,14 @@ export default {
 	// Get draft invoices from backend
 	get_draft_invoices() {
 		var vm = this;
+		const shiftName =
+			typeof this.pos_opening_shift === "object"
+				? this.pos_opening_shift?.name
+				: this.pos_opening_shift;
 		frappe.call({
 			method: "posawesome.posawesome.api.invoices.get_draft_invoices",
 			args: {
-				pos_opening_shift: this.pos_opening_shift.name,
+				pos_opening_shift: shiftName,
 			},
 			async: false,
 			callback: function (r) {

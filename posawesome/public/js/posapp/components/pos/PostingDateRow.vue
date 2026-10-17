@@ -24,7 +24,7 @@
 			class="pb-2 d-flex align-center justify-sm-end"
 		>
 			<div class="balance-field">
-				<strong>{{ __("Customer Balance") }}:</strong>
+				<span class="balance-symbol">{{ currency_symbol }}</span>
 				<span class="balance-value">{{ formatCurrency(customer_balance) }}</span>
 			</div>
 		</v-col>
@@ -53,6 +53,10 @@ export default {
 		},
 		showCustomerBalance() {
 			return !!this.pos_profile?.posa_show_customer_balance;
+		},
+		currency_symbol() {
+			const currency = this.pos_profile?.currency || (this.pos_profile?.company ? frappe.get_doc(":Company", this.pos_profile.company)?.default_currency : "");
+			return (window.get_currency_symbol && currency ? window.get_currency_symbol(currency) : currency) || "";
 		},
 	},
 	watch: {

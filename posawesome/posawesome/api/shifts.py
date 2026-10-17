@@ -5,7 +5,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import cint, nowdate
+from frappe.utils import cint, flt, nowdate
 
 from posawesome.posawesome.api.pos_access import (
     get_authenticated_pos_user,
@@ -63,7 +63,8 @@ def get_opening_dialog_data():
 
 @frappe.whitelist()
 def create_opening_voucher(pos_profile, company, balance_details):
-    profile = get_authorized_pos_profile(pos_profile, company=company)
+    actual_company = frappe.db.get_value("POS Profile", pos_profile, "company")
+    profile = get_authorized_pos_profile(pos_profile, company=actual_company or company)
     user = get_authenticated_pos_user()
     balance_details = json.loads(balance_details) if isinstance(balance_details, str) else balance_details
     if not isinstance(balance_details, list):
@@ -152,3 +153,9 @@ def update_opening_shift_data(data, pos_profile):
     allow_negative_stock = cint(frappe.db.get_single_value("Stock Settings", "allow_negative_stock") or 0)
     data["stock_settings"] = {}
     data["stock_settings"].update({"allow_negative_stock": bool(allow_negative_stock)})
+
+    # Fetch smallest currency fraction value
+    currency = data["pos_profile"].currency
+    data["smallest_currency_fraction_value"] = flt(
+        frappe.db.get_value("Currency", currency, "smallest_currency_fraction_value")
+    )

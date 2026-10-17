@@ -189,12 +189,14 @@ export default {
 				if (element.company === val) {
 					this.pos_profiles.push(element.name);
 				}
-				if (this.pos_profiles.length) {
-					this.pos_profile = this.pos_profiles[0];
-				} else {
-					this.pos_profile = "";
-				}
 			});
+			if (this.pos_profiles.length) {
+				if (!this.pos_profiles.includes(this.pos_profile)) {
+					this.pos_profile = this.pos_profiles[0];
+				}
+			} else {
+				this.pos_profile = "";
+			}
 		},
 
 		pos_profile(val) {

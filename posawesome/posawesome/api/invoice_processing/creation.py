@@ -141,10 +141,21 @@ def _resolve_authorized_invoice_profile(*payloads):
     if len(requested_profiles) > 1 or len(requested_companies) > 1:
         _permission_denied(_("The invoice POS Profile and company do not match."))
 
-    profile_doc = get_authorized_pos_profile(
-        next(iter(requested_profiles), None),
-        company=next(iter(requested_companies), None),
-    )
+    profile_arg = next(iter(requested_profiles), None)
+    company_arg = next(iter(requested_companies), None)
+
+    try:
+        profile_doc = get_authorized_pos_profile(
+            profile_arg,
+            company=company_arg,
+        )
+    except frappe.PermissionError as e:
+        if profile_arg and "not available for company" in str(e):
+            # The profile has its own company in the database; use the profile's company
+            profile_doc = get_authorized_pos_profile(profile_arg)
+        else:
+            raise
+
     profile_name = str(profile_doc.get("name") or "").strip()
     profile_company = str(profile_doc.get("company") or "").strip()
     if not profile_name or not profile_company:
@@ -186,8 +197,28 @@ def _validate_invoice_opening_shift(
         _permission_denied(_("The invoice POS Opening Shift values do not match."))
     if not shift_names:
         if required:
-            _permission_denied(_("A valid POS Opening Shift is required."))
-        return None
+            # Fallback to current active open shift for the user and profile
+            profile_name = str(profile_doc.get("name") or "").strip()
+            company = str(profile_doc.get("company") or "").strip()
+            session_user = str(getattr(getattr(frappe, "session", None), "user", "") or "").strip()
+            resolved_shift = frappe.db.get_value(
+                "POS Opening Shift",
+                {
+                    "pos_profile": profile_name,
+                    "company": company,
+                    "user": session_user,
+                    "docstatus": 1,
+                    "status": "Open",
+                    "pos_closing_shift": ["is", "not set"],
+                },
+                "name",
+            )
+            if resolved_shift:
+                shift_names = {resolved_shift}
+            else:
+                _permission_denied(_("A valid POS Opening Shift is required."))
+        else:
+            return None
 
     shift_name = next(iter(shift_names))
     profile_name = str(profile_doc.get("name") or "").strip()
@@ -1614,6 +1645,8 @@ def update_invoice(data):
     # Set missing values first
     incoming_payment_rows = data.get("payments") or []
     invoice_doc.set_missing_values(for_validate=bool(invoice_doc.is_return))
+    if not getattr(invoice_doc, "due_date", None):
+        invoice_doc.set("due_date", data.get("due_date") or invoice_doc.get("posting_date") or nowdate())
     # ERPNext's POS defaults may update pricing policy while filling values.
     # Reassert the return invariant before any calculation or validation runs.
     _apply_pricing_rule_policy(invoice_doc, profile_doc)
@@ -1627,6 +1660,9 @@ def update_invoice(data):
     _apply_item_name_overrides(invoice_doc, overrides)
 
     _apply_tax_contract_before_save(invoice_doc)
+
+    if not getattr(invoice_doc, "due_date", None):
+        invoice_doc.set("due_date", invoice_doc.get("posting_date") or nowdate())
 
     if locked_items:
         for item in invoice_doc.items:
@@ -2134,6 +2170,8 @@ def _submit_invoice_once(invoice, data, submit_in_background=False):
     invoice_doc.flags.ignore_permissions = True
     frappe.flags.ignore_account_permission = True
     invoice_doc.posa_is_printed = 1
+    if not getattr(invoice_doc, "due_date", None):
+        invoice_doc.set("due_date", data.get("due_date") or invoice_doc.get("posting_date") or nowdate())
     invoice_doc = _run_without_return_outstanding_prompts(
         invoice_doc,
         lambda: _save_draft_with_latest_timestamp(invoice_doc),

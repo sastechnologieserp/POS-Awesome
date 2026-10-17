@@ -1,4 +1,4 @@
-import { db, persist, checkDbHealth, terminatePersistWorker, initPersistWorker } from "./core.js";
+import { db, persist, checkDbHealth, terminatePersistWorker, initPersistWorker, tableForKey, LARGE_KEYS } from "./core.js";
 import { getAllByCursor } from "./db-utils.js";
 import Dexie from "dexie";
 
@@ -33,47 +33,159 @@ export const memory = {
 	items_last_sync: null,
 };
 
-// Initialize memory from IndexedDB and expose a promise for consumers
-export const memoryInitPromise = (async () => {
-	try {
-		await checkDbHealth();
-		for (const key of Object.keys(memory)) {
-			const stored = await db.table("keyval").get(key);
+export const STARTUP_MEMORY_KEYS = Object.freeze([
+	"offline_invoices",
+	"offline_customers",
+	"offline_payments",
+	"manual_offline",
+	"pos_opening_storage",
+	"opening_dialog_storage",
+	"pos_last_sync_totals",
+	"cache_version",
+	"cache_ready",
+	"stock_cache_ready",
+	"tax_inclusive",
+]);
+
+function scheduleIdleTask(task) {
+	if (typeof requestIdleCallback === "function") {
+		requestIdleCallback(task, { timeout: 2000 });
+	} else {
+		setTimeout(task, 0);
+	}
+}
+
+function yieldToMainThread() {
+	return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+export async function hydrateMemoryKeys(keys) {
+	const uniqueKeys = Array.from(new Set(keys)).filter((key) =>
+		Object.prototype.hasOwnProperty.call(memory, key)
+	);
+	if (!uniqueKeys.length) return;
+
+	await Promise.all(
+		uniqueKeys.map(async (key) => {
+			const primaryTable = tableForKey(key);
+			let stored;
+			try {
+				if (primaryTable !== "keyval") {
+					stored = await db.table(primaryTable).get(key);
+				}
+				if (!stored || stored.value === undefined) {
+					stored = await db.table("keyval").get(key);
+				}
+			} catch (e) {
+				console.warn(`Failed to read ${key} from IndexedDB`, e);
+			}
+
 			if (stored && stored.value !== undefined) {
 				memory[key] = stored.value;
-				continue;
+				return;
 			}
-			if (typeof localStorage !== "undefined") {
+
+			// Local storage fallback for lightweight keys
+			if (typeof localStorage !== "undefined" && !LARGE_KEYS.has(key)) {
 				const ls = localStorage.getItem(`posa_${key}`);
 				if (ls) {
 					try {
 						memory[key] = JSON.parse(ls);
-						continue;
 					} catch (err) {
 						console.error("Failed to parse localStorage for", key, err);
 					}
 				}
 			}
-		}
+		})
+	);
+}
 
-		// Verify cache version and clear outdated caches
-		const versionEntry = await db.table("keyval").get("cache_version");
-		let storedVersion = versionEntry ? versionEntry.value : null;
-		if (!storedVersion && typeof localStorage !== "undefined") {
-			const v = localStorage.getItem("posa_cache_version");
-			if (v) storedVersion = parseInt(v, 10);
-		}
-		if (storedVersion !== CACHE_VERSION) {
-			await forceClearAllCache();
-			memory.cache_version = CACHE_VERSION;
-			persist("cache_version", CACHE_VERSION);
-		} else {
-			memory.cache_version = storedVersion || CACHE_VERSION;
-		}
+// Fast startup hydration for critical keys only (< 10ms)
+export const startupInitPromise = (async () => {
+	try {
+		await checkDbHealth();
+		if (!db.isOpen()) await db.open();
+		await hydrateMemoryKeys(STARTUP_MEMORY_KEYS);
 	} catch (e) {
-		console.error("Failed to initialize memory from DB", e);
+		console.error("Failed startup memory hydration", e);
 	}
 })();
+
+// Expose memoryInitPromise resolving immediately when startup keys are hydrated
+export const memoryInitPromise = startupInitPromise;
+
+// Background hydration for remaining keys during idle time
+export const initPromise = startupInitPromise.then(
+	() =>
+		new Promise((resolve) => {
+			scheduleIdleTask(async () => {
+				try {
+					const startupKeys = new Set(STARTUP_MEMORY_KEYS);
+					const remainingKeys = Object.keys(memory).filter((k) => !startupKeys.has(k));
+					const lightweightKeys = remainingKeys.filter((k) => !LARGE_KEYS.has(k));
+					const largeKeys = remainingKeys.filter((k) => LARGE_KEYS.has(k));
+
+					await hydrateMemoryKeys(lightweightKeys);
+
+					for (const key of largeKeys) {
+						await yieldToMainThread();
+						await hydrateMemoryKeys([key]);
+					}
+
+					// Verify cache version
+					const versionEntry =
+						(await db.table("settings").get("cache_version").catch(() => null)) ||
+						(await db.table("keyval").get("cache_version").catch(() => null));
+					let storedVersion = versionEntry ? versionEntry.value : null;
+					if (storedVersion && storedVersion !== CACHE_VERSION) {
+						await forceClearAllCache();
+						memory.cache_version = CACHE_VERSION;
+						persist("cache_version", CACHE_VERSION);
+					}
+				} catch (err) {
+					console.error("Background memory hydration error", err);
+				} finally {
+					resolve();
+				}
+			});
+		})
+);
+
+export async function getStoredItems() {
+	try {
+		await checkDbHealth();
+		if (!db.isOpen()) await db.open();
+		return await db.table("items").toArray();
+	} catch (e) {
+		console.error("Failed to get stored items", e);
+		return [];
+	}
+}
+
+export async function getStoredItemsCount() {
+	try {
+		await checkDbHealth();
+		if (!db.isOpen()) await db.open();
+		return await db.table("items").count();
+	} catch (e) {
+		console.error("Failed to get stored items count", e);
+		return 0;
+	}
+}
+
+export async function saveItemsBulk(incomingItems) {
+	try {
+		await checkDbHealth();
+		if (!db.isOpen()) await db.open();
+		const CHUNK_SIZE = 500;
+		for (let i = 0; i < incomingItems.length; i += CHUNK_SIZE) {
+			const chunk = incomingItems.slice(i, i + CHUNK_SIZE);
+			await db.table("items").bulkPut(chunk);
+		}
+	} catch (e) {
+		console.error("Failed to save items in bulk", e);
+	}
+}
 
 // Reset cached invoices and customers after syncing
 export function resetOfflineState() {

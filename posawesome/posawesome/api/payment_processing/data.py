@@ -608,3 +608,31 @@ def get_unreconciled_entries(
             include_all_currencies=include_all_currencies,
         ),
     }
+
+
+@frappe.whitelist()
+def get_mode_of_payment_types(mode_of_payments=None):
+    if not mode_of_payments:
+        return {}
+
+    if isinstance(mode_of_payments, str):
+        try:
+            mode_of_payments = frappe.parse_json(mode_of_payments)
+        except Exception:
+            mode_of_payments = [mode_of_payments]
+
+    if not isinstance(mode_of_payments, list):
+        return {}
+
+    mode_of_payments = [m for m in mode_of_payments if m]
+    if not mode_of_payments:
+        return {}
+
+    rows = frappe.get_all(
+        "Mode of Payment",
+        filters={"name": ["in", mode_of_payments]},
+        fields=["name", "type"],
+        limit_page_length=len(mode_of_payments),
+    )
+
+    return {row.name: row.type for row in rows}

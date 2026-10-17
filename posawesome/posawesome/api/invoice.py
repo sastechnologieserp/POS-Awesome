@@ -24,6 +24,15 @@ from posawesome.posawesome.doctype.pos_coupon.pos_coupon import update_coupon_co
 SUBMISSION_LEDGER_DOCTYPE = "POS Invoice Submission Ledger"
 
 
+def before_insert(doc, method=None):
+    custom_id = doc.get("id") or (getattr(frappe, "form_dict", None) and frappe.form_dict.get("id"))
+    if custom_id:
+        doc.name = custom_id
+        doc.flags.name_set = True
+    elif doc.name and not str(doc.name).startswith("new-sales-invoice"):
+        doc.flags.name_set = True
+
+
 def validate(doc, method):
     validate_shift(doc)
     validate_pos_invoice_item_sale_controls(doc)

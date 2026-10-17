@@ -107,7 +107,7 @@ def get_authorized_pos_profile(pos_profile=None, company=None):
     user = get_authenticated_pos_user()
     profile_name = _profile_name(pos_profile)
     if not profile_name:
-        active_profile = get_active_pos_profile(user=user)
+        active_profile = get_active_pos_profile(user=user, company=company)
         profile_name = _profile_name(active_profile)
     if not profile_name:
         frappe.throw(_("No active POS Profile was found for the current user."))

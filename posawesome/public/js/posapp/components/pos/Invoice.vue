@@ -24,127 +24,203 @@
 		>
 			<!-- Dynamic padding wrapper -->
 			<div class="dynamic-padding">
-				<!-- Top Row: Customer Selection and Invoice Type -->
-				<v-row align="center" class="items px-3 py-2">
-					<v-col :cols="pos_profile.posa_allow_sales_order ? 9 : 12" class="pb-0 pr-0">
-						<!-- Customer selection component -->
-						<Customer />
-					</v-col>
-					<!-- Invoice Type Selection (Only shown if sales orders are allowed) -->
-					<v-col v-if="pos_profile.posa_allow_sales_order" cols="3" class="pb-4">
-						<v-select
-							density="compact"
-							hide-details
-							variant="solo"
-							color="primary"
-							:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
-							class="dark-field sleek-field"
-							:items="invoiceTypes"
-							:label="frappe._('Type')"
-							v-model="invoiceType"
-							:disabled="invoiceType == 'Return'"
-						></v-select>
-					</v-col>
-				</v-row>
+				<div class="invoice-sections">
+					<div class="invoice-top-cards">
+						<!-- Customer Details Card -->
+						<v-card
+							flat
+							class="invoice-section-card invoice-section-card--customer"
+							:style="{ backgroundColor: isDarkTheme ? '#1E1E1E' : '#ffffff' }"
+						>
+							<div class="invoice-section-heading">
+								<h3 class="invoice-section-heading__title" :style="{ color: isDarkTheme ? '#fff' : 'inherit' }">
+									{{ __("Customer Details") }}
+								</h3>
+							</div>
+							<v-row align="center" class="items px-3 py-2">
+								<v-col :cols="pos_profile.posa_allow_sales_order ? 9 : 12" class="pb-0 pr-0">
+									<!-- Customer selection component -->
+									<Customer />
+								</v-col>
+								<!-- Invoice Type Selection (Only shown if sales orders are allowed) -->
+								<v-col v-if="pos_profile.posa_allow_sales_order" cols="3" class="pb-4">
+									<v-select
+										density="compact"
+										hide-details
+										variant="solo"
+										color="primary"
+										:bg-color="isDarkTheme ? '#1E1E1E' : 'white'"
+										class="dark-field sleek-field"
+										:items="invoiceTypes"
+										:label="frappe._('Type')"
+										v-model="invoiceType"
+										:disabled="invoiceType == 'Return'"
+									></v-select>
+								</v-col>
+							</v-row>
+						</v-card>
 
-				<!-- Delivery Charges Section (Only if enabled in POS profile) -->
-				<DeliveryCharges
-					:pos_profile="pos_profile"
-					:delivery_charges="delivery_charges"
-					:selected_delivery_charge="selected_delivery_charge"
-					:delivery_charges_rate="delivery_charges_rate"
-					:deliveryChargesFilter="deliveryChargesFilter"
-					:formatCurrency="formatCurrency"
-					:currencySymbol="currencySymbol"
-					:readonly="readonly"
-					@update:selected_delivery_charge="
-						(val) => {
-							selected_delivery_charge = val;
-							update_delivery_charges();
-						}
-					"
-				/>
+						<!-- Customer Balance Card (When posting date is disabled but balance is enabled) -->
+						<v-card
+							v-if="pos_profile.posa_show_customer_balance && !pos_profile.posa_allow_change_posting_date"
+							flat
+							class="invoice-section-card invoice-section-card--balance"
+							:style="{ backgroundColor: isDarkTheme ? '#1E1E1E' : '#ffffff' }"
+						>
+							<div class="invoice-section-heading">
+								<h3 class="invoice-section-heading__title" :style="{ color: isDarkTheme ? '#fff' : 'inherit' }">
+									{{ __("Customer Balance") }}
+								</h3>
+							</div>
+							<PostingDateRow
+								:pos_profile="pos_profile"
+								:posting_date_display="posting_date_display"
+								:customer_balance="customer_balance"
+								:formatCurrency="formatCurrency"
+								@update:posting_date_display="
+									(val) => {
+										posting_date_display = val;
+									}
+								"
+							/>
+						</v-card>
 
-				<!-- Posting Date and Customer Balance Section -->
-				<PostingDateRow
-					:pos_profile="pos_profile"
-					:posting_date_display="posting_date_display"
-					:customer_balance="customer_balance"
-					:formatCurrency="formatCurrency"
-					@update:posting_date_display="
-						(val) => {
-							posting_date_display = val;
-						}
-					"
-				/>
+						<!-- Posting Date Card (When posting date is allowed) -->
+						<v-card
+							v-if="pos_profile.posa_allow_change_posting_date"
+							flat
+							class="invoice-section-card invoice-section-card--posting"
+							:style="{ backgroundColor: isDarkTheme ? '#1E1E1E' : '#ffffff' }"
+						>
+							<div class="invoice-section-heading">
+								<h3 class="invoice-section-heading__title" :style="{ color: isDarkTheme ? '#fff' : 'inherit' }">
+									{{ pos_profile.posa_show_customer_balance ? __("Posting and Balance") : __("Posting Date") }}
+								</h3>
+							</div>
+							<PostingDateRow
+								:pos_profile="pos_profile"
+								:posting_date_display="posting_date_display"
+								:customer_balance="customer_balance"
+								:formatCurrency="formatCurrency"
+								@update:posting_date_display="
+									(val) => {
+										posting_date_display = val;
+									}
+								"
+							/>
+						</v-card>
 
-				<!-- Multi-Currency Section (Only if enabled in POS profile) -->
-				<MultiCurrencyRow
-					:pos_profile="pos_profile"
-					:selected_currency="selected_currency"
-					:plc_conversion_rate="exchange_rate"
-					:conversion_rate="conversion_rate"
-					:available_currencies="available_currencies"
-					:isNumber="isNumber"
-					:price_list_currency="price_list_currency"
-					@update:selected_currency="
-						(val) => {
-							selected_currency = val;
-							update_currency(val);
-						}
-					"
-					@update:plc_conversion_rate="
-						(val) => {
-							exchange_rate = val;
-							update_exchange_rate();
-						}
-					"
-					@update:conversion_rate="
-						(val) => {
-							conversion_rate = val;
-							update_conversion_rate();
-						}
-					"
-				/>
+						<!-- Delivery Charges Card -->
+						<v-card
+							v-if="pos_profile.posa_use_delivery_charges"
+							flat
+							class="invoice-section-card invoice-section-card--delivery"
+							:style="{ backgroundColor: isDarkTheme ? '#1E1E1E' : '#ffffff' }"
+						>
+							<div class="invoice-section-heading">
+								<h3 class="invoice-section-heading__title" :style="{ color: isDarkTheme ? '#fff' : 'inherit' }">
+									{{ __("Delivery Charges") }}
+								</h3>
+							</div>
+							<DeliveryCharges
+								:pos_profile="pos_profile"
+								:delivery_charges="delivery_charges"
+								:selected_delivery_charge="selected_delivery_charge"
+								:delivery_charges_rate="delivery_charges_rate"
+								:deliveryChargesFilter="deliveryChargesFilter"
+								:formatCurrency="formatCurrency"
+								:currencySymbol="currencySymbol"
+								:readonly="readonly"
+								@update:selected_delivery_charge="
+									(val) => {
+										selected_delivery_charge = val;
+										update_delivery_charges();
+									}
+								"
+							/>
+						</v-card>
 
-				<!-- Items Table Section (Main items list for invoice) -->
-				<div class="items-table-wrapper">
-					<!-- ItemsTable component with reorder event handler -->
-					<ItemsTable
-						:headers="items_headers"
-						:selectedColumns="selected_columns"
-						:items="items"
-						:expanded="expanded"
-						:itemsPerPage="itemsPerPage"
-						:itemSearch="itemSearch"
-						:customer="customer"
-						:pos_profile="pos_profile"
-						:invoice_doc="invoice_doc"
-						:invoiceType="invoiceType"
-						:displayCurrency="displayCurrency"
-						:formatFloat="formatFloat"
-						:formatCurrency="formatCurrency"
-						:currencySymbol="currencySymbol"
-						:isNumber="isNumber"
-						:setFormatedQty="setFormatedQty"
-						:calcStockQty="calc_stock_qty"
-						:setFormatedCurrency="setFormatedCurrency"
-						:calcPrices="calc_prices"
-						:calcUom="calc_uom"
-						:setSerialNo="set_serial_no"
-						:setBatchQty="set_batch_qty"
-						:validateDueDate="validate_due_date"
-						:removeItem="remove_item"
-						:subtractOne="subtract_one"
-						:addOne="add_one"
-						:toggleOffer="toggleOffer"
-						:changePriceListRate="change_price_list_rate"
-						@update:expanded="expanded = $event"
-						@reorder-items="handleItemReorder"
-						@add-item-from-drag="handleItemDrop"
-						@show-drop-feedback="showDropFeedback"
-						@item-dropped="showDropFeedback(false)"
-					/>
+						<!-- Multi Currency Card -->
+						<v-card
+							v-if="pos_profile.posa_allow_multi_currency"
+							flat
+							class="invoice-section-card invoice-section-card--currency"
+							:style="{ backgroundColor: isDarkTheme ? '#1E1E1E' : '#ffffff' }"
+						>
+							<div class="invoice-section-heading">
+								<h3 class="invoice-section-heading__title" :style="{ color: isDarkTheme ? '#fff' : 'inherit' }">
+									{{ __("Multi Currency") }}
+								</h3>
+							</div>
+							<MultiCurrencyRow
+								:pos_profile="pos_profile"
+								:selected_currency="selected_currency"
+								:plc_conversion_rate="exchange_rate"
+								:conversion_rate="conversion_rate"
+								:available_currencies="available_currencies"
+								:isNumber="isNumber"
+								:price_list_currency="price_list_currency"
+								@update:selected_currency="
+									(val) => {
+										selected_currency = val;
+										update_currency(val);
+									}
+								"
+								@update:plc_conversion_rate="
+									(val) => {
+										exchange_rate = val;
+										update_exchange_rate();
+									}
+								"
+								@update:conversion_rate="
+									(val) => {
+										conversion_rate = val;
+										update_conversion_rate();
+									}
+								"
+							/>
+						</v-card>
+					</div>
+
+					<!-- Items Table Section (Main items list for invoice) -->
+					<div class="items-table-wrapper">
+						<!-- ItemsTable component with reorder event handler -->
+						<ItemsTable
+							:headers="items_headers"
+							:selectedColumns="selected_columns"
+							:items="items"
+							:expanded="expanded"
+							:itemsPerPage="itemsPerPage"
+							:itemSearch="itemSearch"
+							:customer="customer"
+							:pos_profile="pos_profile"
+							:invoice_doc="invoice_doc"
+							:invoiceType="invoiceType"
+							:displayCurrency="displayCurrency"
+							:formatFloat="formatFloat"
+							:formatCurrency="formatCurrency"
+							:currencySymbol="currencySymbol"
+							:isNumber="isNumber"
+							:setFormatedQty="setFormatedQty"
+							:calcStockQty="calc_stock_qty"
+							:setFormatedCurrency="setFormatedCurrency"
+							:calcPrices="calc_prices"
+							:calcUom="calc_uom"
+							:setSerialNo="set_serial_no"
+							:setBatchQty="set_batch_qty"
+							:validateDueDate="validate_due_date"
+							:removeItem="remove_item"
+							:subtractOne="subtract_one"
+							:addOne="add_one"
+							:toggleOffer="toggleOffer"
+							:changePriceListRate="change_price_list_rate"
+							@update:expanded="expanded = $event"
+							@reorder-items="handleItemReorder"
+							@add-item-from-drag="handleItemDrop"
+							@show-drop-feedback="showDropFeedback"
+							@item-dropped="showDropFeedback(false)"
+						/>
+					</div>
 				</div>
 			</div>
 		</v-card>
@@ -1001,8 +1077,8 @@ export default {
 			}
 
 			// If smallest_currency_fraction_value is available, use standard ERPNext rounding logic
-			if (this.smallest_currency_fraction_value) {
-				const fraction = this.smallest_currency_fraction_value;
+			const fraction = this.smallest_currency_fraction_value || (this.currency_precision === 3 ? 0.005 : 0);
+			if (fraction) {
 				const precision = this.currency_precision;
 				
 				// Clean float representation
@@ -1023,7 +1099,7 @@ export default {
 				}
 
 				const result = Number(roundedValue.toFixed(precision));
-				console.log("roundAmount (smallest fraction):", amount, "->", cleanAmount, "->", result);
+				console.log("roundAmount (fraction):", amount, "->", cleanAmount, "->", result);
 				return result;
 			}
 
@@ -1329,11 +1405,15 @@ export default {
 	flex-wrap: nowrap;
 }
 
-/* Style for balance value text */
+/* Style for balance value text and symbol */
+:deep(.balance-symbol),
 :deep(.balance-value) {
 	font-size: 1.5rem;
 	font-weight: bold;
 	color: var(--primary-start);
+}
+
+:deep(.balance-value) {
 	margin-left: var(--dynamic-xs);
 }
 
@@ -1398,5 +1478,70 @@ export default {
 
 .items-table-wrapper {
 	margin-top: var(--dynamic-sm);
+}
+
+/* Sections layout from develop branch */
+.invoice-sections {
+	display: flex;
+	flex-direction: column;
+	gap: var(--dynamic-sm);
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: visible;
+	align-items: stretch;
+}
+
+.invoice-top-cards {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--dynamic-sm);
+	flex: 0 0 auto;
+	width: 100%;
+}
+
+.invoice-top-cards > .invoice-section-card {
+	flex: 1 1 calc(50% - var(--dynamic-sm));
+	min-width: 280px;
+	max-width: 100%;
+}
+
+.invoice-top-cards > .invoice-section-card--customer {
+	flex: 1 1 320px;
+}
+
+.invoice-top-cards > .invoice-section-card--balance {
+	flex: 1 1 240px;
+}
+
+.invoice-top-cards > .invoice-section-card--posting {
+	flex: 1 1 320px;
+}
+
+.invoice-top-cards > .invoice-section-card--delivery,
+.invoice-top-cards > .invoice-section-card--currency {
+	flex: 1 1 280px;
+}
+
+.invoice-section-card {
+	border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+	border-radius: 12px;
+	box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+	overflow: hidden;
+	flex: 0 0 auto;
+	min-height: fit-content;
+}
+
+.invoice-section-heading {
+	padding: 10px 14px 0;
+}
+
+.invoice-section-heading__title {
+	margin: 0;
+	font-size: 0.85rem;
+	font-weight: 700;
+	line-height: 1.25;
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+	opacity: 0.85;
 }
 </style>

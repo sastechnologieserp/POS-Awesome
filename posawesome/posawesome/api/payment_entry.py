@@ -19,6 +19,7 @@ from posawesome.posawesome.api.payment_processing.data import (
     get_unallocated_payments,
     get_available_pos_profiles,
     get_unreconciled_entries,
+    get_mode_of_payment_types,
 )
 from posawesome.posawesome.api.payment_processing.reconciliation import auto_reconcile_customer_invoices
 from posawesome.posawesome.api.payment_processing.processor import process_pos_payment

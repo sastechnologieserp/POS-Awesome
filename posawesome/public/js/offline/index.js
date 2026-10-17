@@ -9,12 +9,23 @@ export {
 	checkDbHealth,
 	initPersistWorker,
 	terminatePersistWorker,
+	KEY_TABLE_MAP,
+	tableForKey,
+	LARGE_KEYS,
+	LOCAL_STORAGE_KEYS,
+	BASE_SCHEMA,
 } from "./core.js";
 
 // Cache exports
 export {
 	memory,
 	memoryInitPromise,
+	startupInitPromise,
+	STARTUP_MEMORY_KEYS,
+	hydrateMemoryKeys,
+	getStoredItems,
+	getStoredItemsCount,
+	saveItemsBulk,
 	getItemsStorage,
 	setItemsStorage,
 	getCustomerStorage,
@@ -87,6 +98,7 @@ export {
 // Items exports
 export {
 	saveItemUOMs,
+	saveItemUOMsBulk,
 	getItemUOMs,
 	saveOffers,
 	getCachedOffers,

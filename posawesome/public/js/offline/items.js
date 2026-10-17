@@ -1,17 +1,33 @@
 import { memory, getItemsLastSync, setItemsLastSync } from "./cache.js";
-import { persist } from "./core.js";
+import { persist, addToPersistQueue } from "./core.js";
 
 export function saveItemUOMs(itemCode, uoms) {
 	try {
-		const cache = memory.uom_cache;
-		// Clone to avoid persisting reactive objects which cause
-		// DataCloneError when stored in IndexedDB
-		const cleanUoms = JSON.parse(JSON.stringify(uoms));
-		cache[itemCode] = cleanUoms;
+		const cache = memory.uom_cache || {};
+		cache[itemCode] = uoms;
 		memory.uom_cache = cache;
-		persist("uom_cache", memory.uom_cache);
+		addToPersistQueue("uom_cache", memory.uom_cache);
 	} catch (e) {
 		console.error("Failed to cache UOMs", e);
+	}
+}
+
+export function saveItemUOMsBulk(items) {
+	try {
+		const cache = memory.uom_cache || {};
+		let updated = false;
+		for (const it of items || []) {
+			if (it && it.item_code && it.item_uoms && it.item_uoms.length > 0) {
+				cache[it.item_code] = it.item_uoms;
+				updated = true;
+			}
+		}
+		if (updated) {
+			memory.uom_cache = cache;
+			addToPersistQueue("uom_cache", memory.uom_cache);
+		}
+	} catch (e) {
+		console.error("Failed to cache UOMs in bulk", e);
 	}
 }
 

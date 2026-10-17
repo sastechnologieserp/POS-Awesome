@@ -5,25 +5,44 @@ import { persist } from "./core.js";
 export async function initializeStockCache(items, pos_profile) {
 	try {
 		const existingCache = memory.local_stock_cache || {};
-		const missingItems = Array.isArray(items)
-			? items.filter((it) => !existingCache[it.item_code])
+
+		// Extract actual_qty directly from items if already present (e.g. from get_items)
+		if (Array.isArray(items)) {
+			let updated = false;
+			for (const it of items) {
+				if (it && it.item_code && it.actual_qty !== undefined) {
+					existingCache[it.item_code] = {
+						actual_qty: it.actual_qty,
+						last_updated: new Date().toISOString(),
+					};
+					updated = true;
+				}
+			}
+			if (updated) {
+				memory.local_stock_cache = existingCache;
+				setStockCacheReady(true);
+				persist("local_stock_cache", memory.local_stock_cache);
+			}
+		}
+
+		// Only perform remote network fetch for small specific slices (e.g. visible page <= 50 items)
+		const missingItems = Array.isArray(items) && items.length <= 50
+			? items.filter((it) => it && it.item_code && !existingCache[it.item_code])
 			: [];
 
 		if (missingItems.length === 0) {
 			if (!memory.stock_cache_ready) {
 				setStockCacheReady(true);
 			}
-			console.debug("Stock cache already initialized");
 			return true;
 		}
 
-		console.info("Initializing stock cache for", missingItems.length, "new items");
-
+		console.info("Initializing stock cache for", missingItems.length, "items");
 		const updatedItems = await fetchItemStockQuantities(missingItems, pos_profile);
 
 		if (updatedItems && updatedItems.length > 0) {
 			updatedItems.forEach((item) => {
-				if (item.actual_qty !== undefined) {
+				if (item && item.item_code && item.actual_qty !== undefined) {
 					existingCache[item.item_code] = {
 						actual_qty: item.actual_qty,
 						last_updated: new Date().toISOString(),
@@ -34,7 +53,6 @@ export async function initializeStockCache(items, pos_profile) {
 			memory.local_stock_cache = existingCache;
 			setStockCacheReady(true);
 			persist("local_stock_cache", memory.local_stock_cache);
-			console.info("Stock cache initialized with", Object.keys(existingCache).length, "items");
 			return true;
 		}
 		return false;

@@ -1280,7 +1280,7 @@ export default {
 			}
 
 			// Get payments with correct sign (positive/negative) - same as show_payment
-			invoice_doc.payments = this.get_payments();
+			invoice_doc.payments = this.get_payments(invoice_doc.rounded_total || invoice_doc.grand_total);
 			console.log("Generated payments:", invoice_doc.payments);
 
 			// Double-check return invoice payments are negative
@@ -1532,7 +1532,10 @@ export default {
 				plc_conversion_rate: this.exchange_rate || 1,
 				price_list_currency: this.price_list_currency || this.pos_profile?.currency || "KWD",
 				is_pos: 1,
-				posa_pos_opening_shift: this.pos_opening_shift?.name,
+				posa_pos_opening_shift:
+					typeof this.pos_opening_shift === "object"
+						? this.pos_opening_shift?.name
+						: this.pos_opening_shift,
 				pos_profile: this.pos_profile?.name,
 				posting_date: this.posting_date_display
 					? this.formatDateForBackend(this.posting_date_display)

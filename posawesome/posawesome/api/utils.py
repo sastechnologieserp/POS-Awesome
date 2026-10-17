@@ -237,9 +237,41 @@ def _ensure_pos_profile(pos_profile):
 
 
 @frappe.whitelist()
-def get_active_pos_profile(user=None):
-    """Return the active POS profile for the given user."""
+def get_active_pos_profile(user=None, company=None):
+    """Return the active POS profile for the given user, prioritizing their open shift."""
     user = user or frappe.session.user
+    
+    # 1. First check if user has an open POS shift
+    open_shift_filters = {
+        "user": user,
+        "pos_closing_shift": ["is", "not set"],
+        "docstatus": 1,
+        "status": "Open",
+    }
+    if company:
+        open_shift_filters["company"] = company
+    open_shift_profile = frappe.db.get_value(
+        "POS Opening Shift",
+        open_shift_filters,
+        "pos_profile",
+        order_by="period_start_date desc",
+    )
+    if open_shift_profile and frappe.db.exists("POS Profile", open_shift_profile):
+        return frappe.get_doc("POS Profile", open_shift_profile).as_dict()
+
+    # 2. Check POS Profile User filtered by company if specified
+    if company:
+        profile_names = frappe.db.get_values("POS Profile User", {"user": user}, "parent")
+        if profile_names:
+            profile_list = [p[0] if isinstance(p, (tuple, list)) else p for p in profile_names]
+            matched = frappe.db.get_value(
+                "POS Profile",
+                {"name": ["in", profile_list], "company": company, "disabled": 0},
+                "name",
+            )
+            if matched:
+                return frappe.get_doc("POS Profile", matched).as_dict()
+
     profile = frappe.db.get_value("POS Profile User", {"user": user}, "parent")
     if not profile:
         profile = frappe.db.get_single_value("POS Settings", "pos_profile")

@@ -12,7 +12,7 @@
 			v-model="payment"
 			:retain-focus="false"
 			width="96vw"
-			max-width="1100"
+			max-width="1480"
 			scrim="rgba(15, 23, 42, 0.55)"
 			class="payment-dialog"
 			persistent
@@ -298,6 +298,7 @@ export default {
 						// Clear from local storage
 						clearOpeningStorage();
 
+						this.eventBus.emit("clear_invoice");
 						this.eventBus.emit("show_message", {
 							title: `POS Shift Closed`,
 							color: "success",
