@@ -1048,7 +1048,7 @@ export default {
 						totalItemsCount = 0;
 					}
 
-					const CHUNK_SIZE = 500;
+					const CHUNK_SIZE = 200;
 					let offset = 0;
 					let allItems = [];
 					let hasMore = true;

@@ -177,7 +177,7 @@ export async function saveItemsBulk(incomingItems) {
 	try {
 		await checkDbHealth();
 		if (!db.isOpen()) await db.open();
-		const CHUNK_SIZE = 500;
+		const CHUNK_SIZE = 200;
 		for (let i = 0; i < incomingItems.length; i += CHUNK_SIZE) {
 			const chunk = incomingItems.slice(i, i + CHUNK_SIZE);
 			await db.table("items").bulkPut(chunk);

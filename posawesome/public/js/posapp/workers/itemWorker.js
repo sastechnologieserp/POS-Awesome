@@ -150,7 +150,7 @@ async function bulkPutItems(items, syncedAt = Date.now()) {
 	try {
 		await dbReady;
 		if (!db.isOpen()) await db.open();
-		const CHUNK_SIZE = 500;
+		const CHUNK_SIZE = 200;
 		const table = db.table("items");
 		for (let i = 0; i < items.length; i += CHUNK_SIZE) {
 			const chunk = items.slice(i, i + CHUNK_SIZE).map((item) => ({
