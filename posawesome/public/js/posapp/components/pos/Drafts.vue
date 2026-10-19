@@ -98,8 +98,33 @@ export default {
 
 		submit_dialog() {
 			if (this.selected.length > 0) {
-				this.eventBus.emit("load_invoice", this.selected[0]);
-				this.draftsDialog = false;
+				const selectedDraft = this.selected[0];
+				const vm = this;
+				const doctype =
+					selectedDraft.doctype ||
+					(vm.pos_profile?.create_pos_invoice_instead_of_sales_invoice
+						? "POS Invoice"
+						: "Sales Invoice");
+
+				frappe.call({
+					method: "posawesome.posawesome.api.invoices.get_draft_invoice_doc",
+					args: {
+						invoice_name: selectedDraft.name,
+						doctype: doctype,
+					},
+					callback: function (r) {
+						if (r.message) {
+							vm.eventBus.emit("load_invoice", r.message);
+						} else {
+							vm.eventBus.emit("load_invoice", selectedDraft);
+						}
+						vm.draftsDialog = false;
+					},
+					error: function () {
+						vm.eventBus.emit("load_invoice", selectedDraft);
+						vm.draftsDialog = false;
+					},
+				});
 			} else {
 				this.eventBus.emit("show_message", {
 					title: `Select an invoice to load`,
@@ -109,6 +134,9 @@ export default {
 		},
 	},
 	created: function () {
+		this.eventBus.on("register_pos_profile", (data) => {
+			this.pos_profile = data.pos_profile;
+		});
 		this.eventBus.on("open_drafts", (data) => {
 			this.draftsDialog = true;
 			this.dialog_data = data;
@@ -116,6 +144,7 @@ export default {
 	},
 	beforeUnmount() {
 		this.eventBus.off("open_drafts");
+		this.eventBus.off("register_pos_profile");
 	},
 };
 </script>

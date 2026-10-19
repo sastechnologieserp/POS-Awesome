@@ -1240,18 +1240,6 @@ export default {
 				// Proceed to submit the invoice
 				this.loading = true;
 
-				// Safety timeout to reset loading if something goes wrong
-				setTimeout(() => {
-					if (this.loading) {
-						console.warn("Safety timeout - resetting loading state");
-						this.loading = false;
-						this.eventBus.emit("show_message", {
-							title: __("Submission timeout. Please try again."),
-							color: "warning",
-						});
-					}
-				}, 60000); // 60 seconds safety timeout
-
 				this.submit_invoice(print);
 			} catch (error) {
 				console.error("Error in submit method:", error);
@@ -1276,15 +1264,20 @@ export default {
 				vm.loading = false;
 			};
 
-			// Set a timeout to reset loading state if request takes too long
+			// Ensure persistent idempotency key on invoice so retries or slow responses replay the exact same invoice
+			if (!this.invoice_doc.posa_client_request_id) {
+				this.invoice_doc.posa_client_request_id = `req-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+			}
+
+			// Set a safety timeout (90 seconds) to reset loading state if server completely drops connection
 			const loadingTimeout = setTimeout(() => {
 				console.warn("Request timeout - resetting loading state");
 				resetLoading();
 				vm.eventBus.emit("show_message", {
-					title: __("Request timeout. Please try again."),
+					title: __("Submission timeout. If retrying, POS Awesome will verify the previous submission to prevent duplicates."),
 					color: "warning",
 				});
-			}, 30000); // 30 seconds timeout
+			}, 90000); // 90 seconds timeout
 			// For return invoices, ensure payments are negative one last time
 			if (this.invoice_doc.is_return) {
 				this.ensureReturnPaymentsAreNegative();
@@ -1309,6 +1302,8 @@ export default {
 				credit_change: -this.credit_change,
 				is_cashback: this.is_cashback,
 				is_credit_sale: this.is_credit_sale, // Add credit sale flag to data
+				client_request_id: this.invoice_doc.posa_client_request_id,
+				idempotency_key: this.invoice_doc.posa_client_request_id,
 			};
 
 			if (isOffline()) {
@@ -1358,7 +1353,12 @@ export default {
 						console.error("Error submitting invoice:", r.exc);
 						// Show detailed error message to help debugging
 						let errorMsg = r.exc.toString();
-						if (errorMsg.includes("Amount must be negative")) {
+						if (errorMsg.includes("already being processed")) {
+							vm.eventBus.emit("show_message", {
+								title: __("Invoice is still being processed by the server. Please wait a moment."),
+								color: "warning",
+							});
+						} else if (errorMsg.includes("Amount must be negative")) {
 							vm.eventBus.emit("show_message", {
 								title: __("Fixing payment amounts for return invoice..."),
 								color: "warning",

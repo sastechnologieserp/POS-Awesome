@@ -414,7 +414,7 @@ export default {
 			this.additional_discount_percentage = -data.additional_discount_percentage;
 			this.return_doc = data;
 		} else {
-			this.eventBus.emit("set_pos_coupons", data.posa_coupons);
+			this.eventBus.emit("set_pos_coupons", Array.isArray(data.posa_coupons) ? data.posa_coupons : []);
 		}
 
 		console.log("load_invoice completed, invoice state:", {

@@ -377,128 +377,179 @@ def _resolve_ledger_scope(invoice, data, document_type):
         "company": company,
         "pos_profile": pos_profile,
         "document_type": document_type,
-    }
+    	}
+
+
+def _submission_ledger_available():
+	try:
+		if not getattr(frappe, "db", None):
+			return False
+		return bool(frappe.db.exists("DocType", LEDGER_DOCTYPE))
+	except Exception:
+		return False
+
+
+def _cache_key(ledger_key_or_name):
+	return f"posa_submission_ledger:{ledger_key_or_name}"
 
 
 def _get_submission_ledger_by_key(ledger_key):
-    if not ledger_key:
-        return None
-    try:
-        ledger_name = frappe.db.get_value(
-            LEDGER_DOCTYPE,
-            {"ledger_key": ledger_key},
-            "name",
-        )
-        if ledger_name:
-            return frappe.get_doc(LEDGER_DOCTYPE, ledger_name)
-    except Exception:
-        return None
-    return None
+	if not ledger_key:
+		return None
+	if _submission_ledger_available():
+		try:
+			ledger_name = frappe.db.get_value(
+				LEDGER_DOCTYPE,
+				{"ledger_key": ledger_key},
+				"name",
+			)
+			if ledger_name:
+				return frappe.get_doc(LEDGER_DOCTYPE, ledger_name)
+		except Exception:
+			pass
+	try:
+		cached = frappe.cache().get_value(_cache_key(ledger_key))
+		if cached and isinstance(cached, dict):
+			return frappe._dict(cached)
+	except Exception:
+		pass
+	return None
 
 
 def _get_submission_ledger(client_request_id, company, pos_profile, document_type):
-    if not client_request_id:
-        return None
-    ledger_key = _submission_ledger_key(
-        client_request_id,
-        company,
-        pos_profile,
-        document_type,
-    )
-    return _get_submission_ledger_by_key(ledger_key)
+	if not client_request_id:
+		return None
+	ledger_key = _submission_ledger_key(
+		client_request_id,
+		company,
+		pos_profile,
+		document_type,
+	)
+	return _get_submission_ledger_by_key(ledger_key)
 
 
 def _save_submission_ledger(ledger_doc):
-    if not ledger_doc:
-        return None
+	if not ledger_doc:
+		return None
 
-    ledger_name = getattr(ledger_doc, "name", None)
-    ledger_exists = False
-    if ledger_name:
-        try:
-            ledger_exists = bool(frappe.db.exists(LEDGER_DOCTYPE, ledger_name))
-        except Exception:
-            ledger_exists = False
+	if _submission_ledger_available():
+		try:
+			ledger_name = getattr(ledger_doc, "name", None)
+			ledger_exists = False
+			if ledger_name:
+				try:
+					ledger_exists = bool(frappe.db.exists(LEDGER_DOCTYPE, ledger_name))
+				except Exception:
+					ledger_exists = False
 
-    if hasattr(ledger_doc, "is_new"):
-        if ledger_doc.is_new() and hasattr(ledger_doc, "insert"):
-            ledger_doc.insert(ignore_permissions=True)
-            return ledger_doc
+			if hasattr(ledger_doc, "is_new"):
+				if ledger_doc.is_new() and hasattr(ledger_doc, "insert"):
+					ledger_doc.insert(ignore_permissions=True)
+					return ledger_doc
 
-    if ledger_name and not ledger_exists and hasattr(ledger_doc, "insert"):
-        ledger_doc.insert(ignore_permissions=True)
-    elif ledger_name and hasattr(ledger_doc, "save"):
-        ledger_doc.save(ignore_permissions=True)
-    elif hasattr(ledger_doc, "insert"):
-        ledger_doc.insert(ignore_permissions=True)
-    return ledger_doc
+			if ledger_name and not ledger_exists and hasattr(ledger_doc, "insert"):
+				ledger_doc.insert(ignore_permissions=True)
+			elif ledger_name and hasattr(ledger_doc, "save"):
+				ledger_doc.save(ignore_permissions=True)
+			elif hasattr(ledger_doc, "insert"):
+				ledger_doc.insert(ignore_permissions=True)
+			return ledger_doc
+		except Exception:
+			pass
+
+	# Cache fallback when LEDGER_DOCTYPE is not in DB
+	try:
+		key = getattr(ledger_doc, "ledger_key", None) or getattr(ledger_doc, "name", None)
+		if key:
+			data = ledger_doc.as_dict() if hasattr(ledger_doc, "as_dict") else dict(ledger_doc)
+			frappe.cache().set_value(_cache_key(key), data, expires_in_sec=3600)
+			if getattr(ledger_doc, "name", None) and ledger_doc.name != key:
+				frappe.cache().set_value(_cache_key(ledger_doc.name), data, expires_in_sec=3600)
+	except Exception:
+		pass
+	return ledger_doc
 
 
 def _get_submission_ledger_by_name(ledger_name):
-    if not ledger_name:
-        return None
-    try:
-        return frappe.get_doc(LEDGER_DOCTYPE, ledger_name)
-    except Exception:
-        return None
+	if not ledger_name:
+		return None
+	if _submission_ledger_available():
+		try:
+			return frappe.get_doc(LEDGER_DOCTYPE, ledger_name)
+		except Exception:
+			pass
+	try:
+		cached = frappe.cache().get_value(_cache_key(ledger_name))
+		if cached and isinstance(cached, dict):
+			return frappe._dict(cached)
+	except Exception:
+		pass
+	return None
 
 
 def _update_submission_ledger_by_name(ledger_name, state, **fields):
-    ledger_doc = _get_submission_ledger_by_name(ledger_name)
-    if not ledger_doc:
-        return None
-    return _update_submission_ledger(ledger_doc, state, **fields)
+	ledger_doc = _get_submission_ledger_by_name(ledger_name)
+	if not ledger_doc:
+		return None
+	return _update_submission_ledger(ledger_doc, state, **fields)
 
 
 def _update_submission_ledger(ledger_doc, state, **fields):
-    if not ledger_doc:
-        return None
-    ledger_doc.state = state
-    for key, value in fields.items():
-        if value is not None:
-            setattr(ledger_doc, key, value)
-    return _save_submission_ledger(ledger_doc)
+	if not ledger_doc:
+		return None
+	ledger_doc.state = state
+	for key, value in fields.items():
+		if value is not None:
+			if hasattr(ledger_doc, key):
+				setattr(ledger_doc, key, value)
+			ledger_doc[key] = value
+	return _save_submission_ledger(ledger_doc)
 
 
 def _get_or_create_submission_ledger(client_request_id, invoice, data, document_type, return_created=False):
-    if not client_request_id:
-        return (None, False) if return_created else None
+	if not client_request_id:
+		return (None, False) if return_created else None
 
-    scope = _resolve_ledger_scope(invoice, data, document_type)
-    ledger_key = _submission_ledger_key(
-        client_request_id,
-        scope.get("company"),
-        scope.get("pos_profile"),
-        scope.get("document_type"),
-    )
-    existing = _get_submission_ledger_by_key(ledger_key)
-    if existing:
-        return (existing, False) if return_created else existing
+	scope = _resolve_ledger_scope(invoice, data, document_type)
+	ledger_key = _submission_ledger_key(
+		client_request_id,
+		scope.get("company"),
+		scope.get("pos_profile"),
+		scope.get("document_type"),
+	)
+	existing = _get_submission_ledger_by_key(ledger_key)
+	if existing:
+		return (existing, False) if return_created else existing
 
-    payload = {
-        "doctype": LEDGER_DOCTYPE,
-        "name": ledger_key,
-        "ledger_key": ledger_key,
-        "client_request_id": client_request_id,
-        "company": scope.get("company"),
-        "pos_profile": scope.get("pos_profile"),
-        "document_type": scope.get("document_type"),
-        "state": STATE_RECEIVED,
-        "request_data": _json_dumps(data),
-        "invoice_payload": _json_dumps(invoice),
-    }
-    try:
-        ledger_doc = frappe.get_doc(payload)
-        saved = _save_submission_ledger(ledger_doc)
-        return (saved, True) if return_created else saved
-    except frappe.DuplicateEntryError:
-        # A concurrent request already created this ledger row — fall back to
-        # fetching it. Any other error (e.g. validation) must propagate so the
-        # invoice is never processed without idempotency protection.
-        ledger = _get_submission_ledger_by_key(ledger_key)
-        if not ledger:
-            frappe.throw(_("A concurrent request is already processing this invoice. Please try again."))
-        return (ledger, False) if return_created else ledger
+	payload = {
+		"doctype": LEDGER_DOCTYPE,
+		"name": ledger_key,
+		"ledger_key": ledger_key,
+		"client_request_id": client_request_id,
+		"company": scope.get("company"),
+		"pos_profile": scope.get("pos_profile"),
+		"document_type": scope.get("document_type"),
+		"state": STATE_RECEIVED,
+		"request_data": _json_dumps(data),
+		"invoice_payload": _json_dumps(invoice),
+	}
+	if _submission_ledger_available():
+		try:
+			ledger_doc = frappe.get_doc(payload)
+			saved = _save_submission_ledger(ledger_doc)
+			return (saved, True) if return_created else saved
+		except frappe.DuplicateEntryError:
+			ledger = _get_submission_ledger_by_key(ledger_key)
+			if not ledger:
+				frappe.throw(_("A concurrent request is already processing this invoice. Please try again."))
+			return (ledger, False) if return_created else ledger
+		except Exception as e:
+			frappe.log_error(f"Error creating DB submission ledger: {e}")
+
+	# Fallback when LEDGER_DOCTYPE does not exist in DB
+	ledger_doc = frappe._dict(payload)
+	saved = _save_submission_ledger(ledger_doc)
+	return (saved, True) if return_created else saved
 
 
 def _ledger_response(ledger_doc, replayed=True):

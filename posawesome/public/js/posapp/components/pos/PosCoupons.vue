@@ -98,10 +98,10 @@ export default {
 
 	computed: {
 		couponsCount() {
-			return this.posa_coupons.length;
+			return (this.posa_coupons || []).length;
 		},
 		appliedCouponsCount() {
-			return this.posa_coupons.filter((el) => !!el.applied).length;
+			return (this.posa_coupons || []).filter((el) => !!el.applied).length;
 		},
 		isDarkTheme() {
 			return this.$theme?.current === "dark";
@@ -181,8 +181,10 @@ export default {
 		},
 
 		updatePosCoupons(offers) {
+			if (!this.posa_coupons) return;
+			const offerList = Array.isArray(offers) ? offers : [];
 			this.posa_coupons.forEach((coupon) => {
-				const offer = offers.find((el) => el.offer_applied && el.coupon == coupon.coupon);
+				const offer = offerList.find((el) => el.offer_applied && el.coupon == coupon.coupon);
 				if (offer) {
 					coupon.applied = 1;
 				} else {
@@ -192,10 +194,11 @@ export default {
 		},
 
 		removeCoupon(reomove_list) {
+			if (!this.posa_coupons) return;
 			this.posa_coupons = this.posa_coupons.filter((coupon) => !reomove_list.includes(coupon.coupon));
 		},
 		updateInvoice() {
-			this.eventBus.emit("update_invoice_coupons", this.posa_coupons);
+			this.eventBus.emit("update_invoice_coupons", this.posa_coupons || []);
 		},
 		updateCounters() {
 			this.eventBus.emit("update_coupons_counters", {
@@ -242,7 +245,7 @@ export default {
 			this.updatePosCoupons(data);
 		});
 		this.eventBus.on("set_pos_coupons", (data) => {
-			this.posa_coupons = data;
+			this.posa_coupons = Array.isArray(data) ? data : [];
 		});
 	},
 };
