@@ -170,17 +170,9 @@ def _validate_stock_on_invoice(invoice_doc):
     if invoice_doc.doctype == "Sales Invoice" and not cint(getattr(invoice_doc, "update_stock", 0)):
         frappe.logger().debug("Skipping stock validation for Sales Invoice without stock update")
         return
-    items_to_check = [d.as_dict() for d in invoice_doc.items]
-    if hasattr(invoice_doc, "packed_items"):
-        items_to_check.extend([d.as_dict() for d in invoice_doc.packed_items])
-    errors = _collect_stock_errors(
-        items_to_check,
-        pos_profile=invoice_doc.pos_profile,
-        include_warnings=True,
-    )
-    blocking_errors = [row for row in errors if row.get("policy") == "block"]
-    if blocking_errors:
-        frappe.throw(frappe.as_json({"errors": blocking_errors}), frappe.ValidationError)
+    # Note: Stock availability check disabled per requirement to allow sales submission without blocking on stock
+    return
+
 
 
 def _auto_set_return_batches(invoice_doc):

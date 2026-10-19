@@ -277,7 +277,7 @@ self.onmessage = async (event) => {
 			});
 		} catch (err) {
 			console.error("Worker append_batch error", err);
-			self.postMessage({ type: "error", error: err?.message || String(err) });
+			self.postMessage({ type: "error", error: err?.message || String(err), batchIndex: data.batchIndex });
 		}
 	} else if (data.type === "bulk_put_items") {
 		try {

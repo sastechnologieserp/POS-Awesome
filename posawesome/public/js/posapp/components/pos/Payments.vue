@@ -1345,6 +1345,7 @@ export default {
 					data: data,
 					invoice: this.invoice_doc,
 					order: this.invoice_doc,
+					submit_in_background: this.pos_profile?.posa_allow_submissions_in_background_job ? 1 : 0,
 				},
 				callback: function (r) {
 					// Clear the timeout since we got a response

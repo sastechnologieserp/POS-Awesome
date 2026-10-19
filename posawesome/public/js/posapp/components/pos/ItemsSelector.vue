@@ -1113,13 +1113,30 @@ export default {
 
 						// Send chunk to worker to enrich search index off the main thread and persist to IndexedDB
 						await new Promise((resolve) => {
+							let resolved = false;
+							const timer = setTimeout(() => {
+								if (!resolved) {
+									resolved = true;
+									try {
+										vm.itemWorker.removeEventListener("message", handleBatchMessage);
+									} catch (e) {}
+									resolve();
+								}
+							}, 5000);
+
 							const handleBatchMessage = (ev) => {
-								if (ev.data.type === "batch_processed" && ev.data.batchIndex === currentOffset) {
-									vm.itemWorker.removeEventListener("message", handleBatchMessage);
-									resolve();
-								} else if (ev.data.type === "error") {
-									vm.itemWorker.removeEventListener("message", handleBatchMessage);
-									resolve();
+								if (
+									(ev.data.type === "batch_processed" && ev.data.batchIndex === currentOffset) ||
+									ev.data.type === "error"
+								) {
+									if (!resolved) {
+										resolved = true;
+										clearTimeout(timer);
+										try {
+											vm.itemWorker.removeEventListener("message", handleBatchMessage);
+										} catch (e) {}
+										resolve();
+									}
 								}
 							};
 							vm.itemWorker.addEventListener("message", handleBatchMessage);
@@ -1140,7 +1157,6 @@ export default {
 							vm.items = allItems.slice();
 							vm.eventBus.emit("set_all_items", vm.items);
 							vm.loading = false;
-							vm.items_loaded = true;
 							const initialSlice = vm.items.slice(0, vm.itemsPerPage || 50);
 							vm.update_items_details(initialSlice);
 						}
@@ -1159,16 +1175,30 @@ export default {
 					vm.sync_items_count = allItems.length;
 
 					await new Promise((resolve) => {
+						let finalizeResolved = false;
+						const finalizeTimer = setTimeout(() => {
+							if (!finalizeResolved) {
+								finalizeResolved = true;
+								try {
+									vm.itemWorker.removeEventListener("message", handleFinalize);
+								} catch (e) {}
+								resolve();
+							}
+						}, 5000);
+
 						const handleFinalize = (ev) => {
-							if (ev.data.type === "cache_finalized") {
-								vm.itemWorker.removeEventListener("message", handleFinalize);
-								if (ev.data.maxModified) {
-									setItemsLastSync(ev.data.maxModified);
+							if (ev.data.type === "cache_finalized" || ev.data.type === "error") {
+								if (!finalizeResolved) {
+									finalizeResolved = true;
+									clearTimeout(finalizeTimer);
+									try {
+										vm.itemWorker.removeEventListener("message", handleFinalize);
+									} catch (e) {}
+									if (ev.data.maxModified) {
+										setItemsLastSync(ev.data.maxModified);
+									}
+									resolve();
 								}
-								resolve();
-							} else if (ev.data.type === "error") {
-								vm.itemWorker.removeEventListener("message", handleFinalize);
-								resolve();
 							}
 						};
 						vm.itemWorker.addEventListener("message", handleFinalize);
