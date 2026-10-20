@@ -1581,12 +1581,37 @@ export default {
 			const qty = this.get_item_qty(this.first_search);
 			const new_item = { ...this.filtered_items[0] };
 			new_item.qty = flt(qty);
-			new_item.item_barcode.forEach((element) => {
-				if (this.search == element.barcode) {
-					new_item.uom = element.posa_uom;
-					match = true;
+			const searchCode = String(this.search || this.first_search || "").trim();
+
+			// Check item barcodes for exact match and get the UOM for that barcode
+			let matchedBarcodeRow = null;
+			if (Array.isArray(new_item.item_barcode)) {
+				matchedBarcodeRow = new_item.item_barcode.find(
+					(b) => b && String(b.barcode || "").trim() === searchCode,
+				);
+			}
+			if (!matchedBarcodeRow && Array.isArray(new_item.barcodes)) {
+				matchedBarcodeRow = new_item.barcodes.find((b) => {
+					const code = typeof b === "object" ? b.barcode : b;
+					return String(code || "").trim() === searchCode;
+				});
+			}
+
+			if (matchedBarcodeRow) {
+				const barcodeUom = typeof matchedBarcodeRow === "object"
+					? (matchedBarcodeRow.uom || matchedBarcodeRow.posa_uom)
+					: null;
+				if (barcodeUom) {
+					new_item.uom = barcodeUom;
 				}
-			});
+				match = true;
+			} else if (String(new_item.barcode || "").trim() === searchCode) {
+				match = true;
+			} else if (String(new_item.item_code || "").trim().toLowerCase() === searchCode.toLowerCase()) {
+				match = true;
+			} else if (this.filtered_items.length === 1) {
+				match = true;
+			}
 			if (
 				!new_item.to_set_serial_no &&
 				new_item.has_serial_no &&
@@ -2299,7 +2324,8 @@ export default {
 				(item) =>
 					item.barcode === scannedCode ||
 					item.item_code === scannedCode ||
-					(item.barcodes && item.barcodes.some((bc) => bc.barcode === scannedCode)),
+					(item.barcodes && item.barcodes.some((bc) => bc.barcode === scannedCode)) ||
+					(item.item_barcode && item.item_barcode.some((bc) => bc.barcode === scannedCode)),
 			);
 
 			if (foundItem) {
@@ -2318,8 +2344,8 @@ export default {
 				// Multiple matches - show selection dialog
 				this.showMultipleItemsDialog(searchResults, scannedCode);
 			} else {
-				// No matches found
-				this.handleItemNotFound(scannedCode);
+				// No matches found in loaded items, query backend
+				await this.handleItemNotFound(scannedCode);
 			}
 		},
 		searchItemsByCode(code) {
@@ -2330,20 +2356,41 @@ export default {
 					this.matchSearchValue(item.item_name, searchTerm) ||
 					(item.barcode && this.matchSearchValue(item.barcode, searchTerm)) ||
 					(item.barcodes &&
-						item.barcodes.some((bc) => this.matchSearchValue(bc.barcode, searchTerm)))
+						item.barcodes.some((bc) => this.matchSearchValue(bc.barcode, searchTerm))) ||
+					(item.item_barcode &&
+						item.item_barcode.some((bc) => this.matchSearchValue(bc.barcode, searchTerm)))
 				);
 			});
 		},
 		async addScannedItemToInvoice(item, scannedCode) {
 			console.log("Adding scanned item to invoice:", item, scannedCode);
 
+			let newItem = { ...item };
+			// Check if scannedCode matches a barcode with a specific UOM
+			let matchedUom = null;
+			let barcodeList = [];
+			if (item.item_barcode && Array.isArray(item.item_barcode)) {
+				barcodeList = barcodeList.concat(item.item_barcode);
+			}
+			if (item.barcodes && Array.isArray(item.barcodes)) {
+				barcodeList = barcodeList.concat(item.barcodes);
+			}
+			const matchedBc = barcodeList.find((b) => b.barcode === scannedCode);
+			if (matchedBc && (matchedBc.uom || matchedBc.posa_uom)) {
+				matchedUom = matchedBc.uom || matchedBc.posa_uom;
+			}
+
+			if (matchedUom) {
+				newItem.uom = matchedUom;
+			}
+
 			// Use existing add_item method with enhanced feedback
-			await this.add_item(item);
+			await this.add_item(newItem);
 
 			// Show success message
 			frappe.show_alert(
 				{
-					message: `Added: ${item.item_name}`,
+					message: `Added: ${item.item_name}${matchedUom ? ` (${matchedUom})` : ""}`,
 					indicator: "green",
 				},
 				3,
@@ -2404,8 +2451,36 @@ export default {
 			html += "</div>";
 			return html;
 		},
-		handleItemNotFound(scannedCode) {
-			console.warn("Item not found for scanned code:", scannedCode);
+		async handleItemNotFound(scannedCode) {
+			console.warn("Item not found locally for scanned code:", scannedCode);
+
+			// Try fetching from backend barcode API
+			try {
+				const res = await frappe.call({
+					method: "posawesome.posawesome.api.items.get_items_from_barcode",
+					args: {
+						barcode: scannedCode,
+						pos_profile: JSON.stringify(this.pos_profile),
+					},
+				});
+
+				if (res && res.message && res.message.length > 0) {
+					const backendItem = res.message[0];
+					await this.add_item(backendItem);
+					frappe.show_alert(
+						{
+							message: `Added: ${backendItem.item_name}${backendItem.uom ? ` (${backendItem.uom})` : ""}`,
+							indicator: "green",
+						},
+						3,
+					);
+					this.clearSearch();
+					this.$refs.debounce_search && this.$refs.debounce_search.focus();
+					return;
+				}
+			} catch (err) {
+				console.error("Error looking up barcode from backend:", err);
+			}
 
 			// Show error message
 			frappe.show_alert(

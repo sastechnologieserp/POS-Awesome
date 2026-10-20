@@ -430,15 +430,37 @@ def get_items_from_barcode(selling_price_list, currency, barcode):
     if scale_price is not None:
         rate = flt(scale_price)
     else:
-        rate = frappe.db.get_value(
-            "Item Price",
-            {
-                "item_code": item_code,
-                "price_list": selling_price_list,
-                "currency": currency,
-            },
-            "price_list_rate",
-        )
+        # Try fetching rate for the exact UOM first
+        if item_uom:
+            rate = frappe.db.get_value(
+                "Item Price",
+                {
+                    "item_code": item_code,
+                    "price_list": selling_price_list,
+                    "currency": currency,
+                    "uom": item_uom,
+                },
+                "price_list_rate",
+            )
+        # Fallback to general price and convert based on conversion factor
+        if rate is None:
+            rate = frappe.db.get_value(
+                "Item Price",
+                {
+                    "item_code": item_code,
+                    "price_list": selling_price_list,
+                    "currency": currency,
+                },
+                "price_list_rate",
+            )
+            if rate is not None and item_uom and item_uom != getattr(item_doc, "stock_uom", None):
+                conv = frappe.db.get_value(
+                    "UOM Conversion Detail",
+                    {"parent": item_code, "uom": item_uom},
+                    "conversion_factor",
+                )
+                if conv:
+                    rate = flt(rate) * flt(conv)
 
     return {
         "item_code": item_doc.name,

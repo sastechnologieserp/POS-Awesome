@@ -130,4 +130,15 @@ def get_price_for_uom(item_code, price_list, uom):
 
     filters.pop("uom", None)
     filters["uom"] = ["in", ["", None]]
-    return frappe.db.get_value("Item Price", filters, "price_list_rate")
+    price = frappe.db.get_value("Item Price", filters, "price_list_rate")
+    if price is not None:
+        if uom:
+            conv = frappe.db.get_value(
+                "UOM Conversion Detail",
+                {"parent": item_code, "uom": uom},
+                "conversion_factor",
+            )
+            if conv:
+                return flt(price) * flt(conv)
+        return price
+    return None

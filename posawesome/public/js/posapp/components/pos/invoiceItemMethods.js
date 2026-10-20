@@ -78,9 +78,9 @@ export default {
 			// Force update of item rates on the actual cart row reference
 			// (not the stale pre-clone object) so API rate is reflected in UI.
 			this.update_item_detail(this.items[0], true);
-			// Apply UOM conversion immediately
-			if (new_item.uom && new_item.uom !== new_item.stock_uom) {
-				this.calc_uom(new_item, new_item.uom);
+			// Apply UOM conversion immediately on the active cart item
+			if (this.items[0].uom && this.items[0].uom !== this.items[0].stock_uom) {
+				this.calc_uom(this.items[0], this.items[0].uom);
 			}
 
 			// Expand new item if it has batch or serial number
@@ -2285,16 +2285,19 @@ export default {
 
 	// Update UOM (unit of measure) for an item and recalculate prices
 	async calc_uom(item, value) {
-		let new_uom = item.item_uoms.find((element) => element.uom == value);
+		if (!item || !value) return;
+		let new_uom = Array.isArray(item.item_uoms) ? item.item_uoms.find((element) => element.uom == value) : null;
 		const baseCurrency = this.price_list_currency || this.pos_profile.currency;
 
 		// try cached uoms when not found on item
 		if (!new_uom) {
-			const cached = getItemUOMs(item.item_code);
-			if (cached.length) {
-				item.item_uoms = cached;
-				new_uom = cached.find((u) => u.uom == value);
-			}
+			try {
+				const cached = typeof getItemUOMs === "function" ? getItemUOMs(item.item_code) : [];
+				if (cached && cached.length) {
+					item.item_uoms = cached;
+					new_uom = cached.find((u) => u.uom == value);
+				}
+			} catch (e) {}
 		}
 
 		// fallback to stock uom
@@ -2327,13 +2330,15 @@ export default {
 		const priceList = this.get_price_list();
 		let uomRate = null;
 		if (priceList) {
-			const cached = getCachedPriceListItems(priceList) || [];
-			const match = cached.find((p) => p.item_code === item.item_code && p.uom === new_uom.uom);
-			if (match) {
-				uomRate = match.price_list_rate || match.rate;
-			}
+			try {
+				const cached = typeof getCachedPriceListItems === "function" ? (getCachedPriceListItems(priceList) || []) : [];
+				const match = cached.find((p) => p.item_code === item.item_code && p.uom === new_uom.uom);
+				if (match) {
+					uomRate = match.price_list_rate || match.rate;
+				}
+			} catch (e) {}
 		}
-		if (!uomRate && !isOffline()) {
+		if (uomRate === null && !isOffline()) {
 			try {
 				const r = await frappe.call({
 					method: "posawesome.posawesome.api.items.get_price_for_uom",
@@ -2343,7 +2348,7 @@ export default {
 						uom: new_uom.uom,
 					},
 				});
-				if (r.message) {
+				if (r.message !== null && r.message !== undefined) {
 					uomRate = r.message;
 				}
 			} catch (e) {
@@ -2351,24 +2356,30 @@ export default {
 			}
 		}
 
-		if (uomRate) {
-			item.base_price_list_rate = uomRate;
+		if (uomRate !== null && uomRate !== undefined) {
+			const numericUomRate = this.flt(uomRate, this.currency_precision);
+			item.base_price_list_rate = numericUomRate;
 			if (!item.posa_offer_applied) {
-				item.base_rate = uomRate;
+				item.base_rate = numericUomRate;
 			}
 
 			if (this.selected_currency !== baseCurrency) {
 				item.price_list_rate = this.flt(
-					item.base_price_list_rate * this.exchange_rate,
+					item.base_price_list_rate * (this.exchange_rate || 1),
 					this.currency_precision,
 				);
-				item.rate = this.flt(item.base_rate * this.exchange_rate, this.currency_precision);
+				item.rate = this.flt(item.base_rate * (this.exchange_rate || 1), this.currency_precision);
 			} else {
 				item.price_list_rate = item.base_price_list_rate;
 				item.rate = item.base_rate;
 			}
 
+			item.amount = this.flt(item.rate * item.qty, this.currency_precision);
+			item.base_amount = this.flt(item.base_rate * item.qty, this.currency_precision);
 			this.calc_stock_qty(item, item.qty);
+			if (typeof this.calculate_total === "function") {
+				this.calculate_total();
+			}
 			this.$forceUpdate();
 			return;
 		}
@@ -2381,8 +2392,8 @@ export default {
 
 		// Store original base rates if not already stored
 		if (!item.original_base_rate && !item.posa_offer_applied) {
-			item.original_base_rate = item.base_rate / old_conversion_factor;
-			item.original_base_price_list_rate = item.base_price_list_rate / old_conversion_factor;
+			item.original_base_rate = (item.base_rate || item.rate || 0) / old_conversion_factor;
+			item.original_base_price_list_rate = (item.base_price_list_rate || item.price_list_rate || item.base_rate || 0) / old_conversion_factor;
 		}
 
 		// Update rates based on new conversion factor
@@ -2408,7 +2419,7 @@ export default {
 				// Convert to selected currency if needed
 				if (this.selected_currency !== baseCurrency) {
 					// Convert base batch price using the current exchange rate
-					item.rate = this.flt(converted_rate * this.exchange_rate, this.currency_precision);
+					item.rate = this.flt(converted_rate * (this.exchange_rate || 1), this.currency_precision);
 					item.price_list_rate = item.rate;
 				} else {
 					item.rate = converted_rate;
@@ -2428,7 +2439,7 @@ export default {
 				} else {
 					// Fallback if original price not stored
 					updated_base_price = this.flt(
-						item.base_price_list_rate * conversion_ratio,
+						(item.base_price_list_rate || item.base_rate || 0) * conversion_ratio,
 						this.currency_precision,
 					);
 				}
@@ -2447,14 +2458,14 @@ export default {
 				// Convert to selected currency if needed
 				if (this.selected_currency !== baseCurrency) {
 					item.price_list_rate = this.flt(
-						updated_base_price * this.exchange_rate,
+						updated_base_price * (this.exchange_rate || 1),
 						this.currency_precision,
 					);
 					item.discount_amount = this.flt(
-						base_discount * this.exchange_rate,
+						base_discount * (this.exchange_rate || 1),
 						this.currency_precision,
 					);
-					item.rate = this.flt(item.base_rate * this.exchange_rate, this.currency_precision);
+					item.rate = this.flt(item.base_rate * (this.exchange_rate || 1), this.currency_precision);
 				} else {
 					item.price_list_rate = updated_base_price;
 					item.discount_amount = base_discount;
@@ -2466,17 +2477,19 @@ export default {
 			if (item.batch_price) {
 				item.base_rate = item.batch_price * item.conversion_factor;
 				item.base_price_list_rate = item.base_rate;
-			} else if (item.original_base_rate) {
-				item.base_rate = item.original_base_rate * item.conversion_factor;
-				item.base_price_list_rate = item.original_base_price_list_rate * item.conversion_factor;
+			} else {
+				const origBase = item.original_base_rate != null ? item.original_base_rate : ((item.base_rate || item.rate || 0) / old_conversion_factor);
+				const origPriceList = item.original_base_price_list_rate != null ? item.original_base_price_list_rate : origBase;
+				item.base_rate = this.flt(origBase * item.conversion_factor, this.currency_precision);
+				item.base_price_list_rate = this.flt(origPriceList * item.conversion_factor, this.currency_precision);
 			}
 
 			// Convert to selected currency
 			if (this.selected_currency !== baseCurrency) {
 				// Convert base currency values to the selected currency
-				item.rate = this.flt(item.base_rate * this.exchange_rate, this.currency_precision);
+				item.rate = this.flt(item.base_rate * (this.exchange_rate || 1), this.currency_precision);
 				item.price_list_rate = this.flt(
-					item.base_price_list_rate * this.exchange_rate,
+					item.base_price_list_rate * (this.exchange_rate || 1),
 					this.currency_precision,
 				);
 			} else {
@@ -2485,8 +2498,13 @@ export default {
 			}
 		}
 
-		// Update item details
+		// Update item amount and stock quantity
+		item.amount = this.flt(item.rate * item.qty, this.currency_precision);
+		item.base_amount = this.flt(item.base_rate * item.qty, this.currency_precision);
 		this.calc_stock_qty(item, item.qty);
+		if (typeof this.calculate_total === "function") {
+			this.calculate_total();
+		}
 		this.$forceUpdate();
 	},
 

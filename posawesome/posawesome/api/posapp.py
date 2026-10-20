@@ -386,7 +386,7 @@ def get_items(
 				item_barcode = frappe.get_all(
 					"Item Barcode",
 					filters={"parent": item_code},
-					fields=["barcode", "posa_uom"],
+					fields=["barcode", "uom", "posa_uom"] if frappe.db.has_column("Item Barcode", "posa_uom") else ["barcode", "uom"],
 				)
 				batch_no_data = []
 				if search_batch_no or item.has_batch_no:
@@ -1623,10 +1623,13 @@ def create_customer(
 
 @frappe.whitelist()
 def get_items_from_barcode(selling_price_list, currency, barcode):
+	barcode_fields = ["parent", "barcode", "uom"]
+	if frappe.db.has_column("Item Barcode", "posa_uom"):
+		barcode_fields.append("posa_uom")
 	search_item = frappe.get_all(
 		"Item Barcode",
 		filters={"barcode": barcode},
-		fields=["parent", "barcode", "posa_uom"],
+		fields=barcode_fields,
 	)
 	if len(search_item) == 0:
 		return ""
