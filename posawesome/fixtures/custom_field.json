@@ -7908,5 +7908,15 @@
   "print_hide": 1,
   "insert_after": "posa_below_cost_override_reason",
   "name": "POS Invoice-posa_below_cost_override_details"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "POS Profile",
+  "fieldname": "posa_print_format_rules",
+  "fieldtype": "Table",
+  "label": "Print Format Rules",
+  "options": "POS Awesome Print Format Rule",
+  "insert_after": "posa_raw_print_width",
+  "name": "POS Profile-posa_print_format_rules"
  }
 ]

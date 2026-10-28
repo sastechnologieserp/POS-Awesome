@@ -1301,7 +1301,10 @@ def _get_mutable_invoice_doc(data, doctype, pos_profile, company):
         return frappe.get_doc(data)
 
     if not frappe.db.exists(doctype, invoice_name):
-        return frappe.get_doc(_build_fresh_invoice_payload(data, doctype))
+        doc = frappe.get_doc(_build_fresh_invoice_payload(data, doctype))
+        doc.name = invoice_name
+        doc.flags.name_set = True
+        return doc
 
     invoice_doc = _get_scoped_invoice_doc(
         doctype,
@@ -1362,7 +1365,10 @@ def _save_draft_with_latest_timestamp(invoice_doc, retries=2):
                 invoice_doc.modified = latest_modified
 
         try:
-            invoice_doc.save()
+            if invoice_doc.name and getattr(invoice_doc.flags, "name_set", False) and invoice_doc.is_new():
+                invoice_doc.insert(set_name=invoice_doc.name)
+            else:
+                invoice_doc.save()
             return invoice_doc
         except TimestampMismatchError:
             if attempts >= retries or not invoice_doc.name:
@@ -1576,6 +1582,13 @@ def _guard_return_cash_refund(invoice_doc):
 def update_invoice(data):
     currency_cache = {}
     data = json.loads(data)
+    if isinstance(data, dict):
+        if data.get("id") and not data.get("name"):
+            data["name"] = data.get("id")
+        if data.get("id") and data.get("name"):
+            from posawesome.posawesome.api.invoice import resolve_unique_invoice_name
+            target_doctype = data.get("doctype") or "Sales Invoice"
+            data["name"] = resolve_unique_invoice_name(target_doctype, data.get("name"))
     _strip_client_cashier_identity(data)
     client_request_id = extract_invoice_client_request_id(data)
     if not doctype_supports_client_request_id(data.get("doctype") or "Sales Invoice"):
@@ -1693,9 +1706,22 @@ def update_invoice(data):
 
     _deduplicate_free_items(invoice_doc)
 
+    # Ensure warehouse is populated on items if update_stock or POS Profile has warehouse
+    default_warehouse = profile_doc.get("warehouse") if profile_doc else None
+    if not default_warehouse and invoice_doc.get("pos_profile"):
+        default_warehouse = frappe.db.get_value("POS Profile", invoice_doc.pos_profile, "warehouse")
+    for item in invoice_doc.items or []:
+        if not item.get("warehouse"):
+            item.warehouse = default_warehouse
+
     # Set missing values first
     incoming_payment_rows = data.get("payments") or []
     invoice_doc.set_missing_values(for_validate=bool(invoice_doc.is_return))
+    # After set_missing_values, re-ensure warehouse if still empty
+    if default_warehouse:
+        for item in invoice_doc.items or []:
+            if not item.get("warehouse"):
+                item.warehouse = default_warehouse
     if not getattr(invoice_doc, "due_date", None):
         invoice_doc.set("due_date", data.get("due_date") or invoice_doc.get("posting_date") or nowdate())
     # ERPNext's POS defaults may update pricing policy while filling values.
@@ -1857,6 +1883,13 @@ def submit_invoice(invoice, data, submit_in_background=False):
 def _submit_invoice_once(invoice, data, submit_in_background=False):
     data = json.loads(data)
     invoice = json.loads(invoice)
+    if isinstance(invoice, dict):
+        if invoice.get("id") and not invoice.get("name"):
+            invoice["name"] = invoice.get("id")
+        if invoice.get("id") and invoice.get("name"):
+            from posawesome.posawesome.api.invoice import resolve_unique_invoice_name
+            target_dt = invoice.get("doctype") or "Sales Invoice"
+            invoice["name"] = resolve_unique_invoice_name(target_dt, invoice.get("name"))
     invoice.pop(TRUSTED_SHIFT_AUDIT_KEY, None)
     data.pop(TRUSTED_SHIFT_AUDIT_KEY, None)
     trusted_shift_audit = getattr(
@@ -2207,6 +2240,14 @@ def _submit_invoice_once(invoice, data, submit_in_background=False):
     ]
 
     _auto_set_return_batches(invoice_doc)
+
+    default_warehouse = profile_doc.get("warehouse") if profile_doc else None
+    if not default_warehouse and invoice_doc.get("pos_profile"):
+        default_warehouse = frappe.db.get_value("POS Profile", invoice_doc.pos_profile, "warehouse")
+    if default_warehouse:
+        for item in invoice_doc.items or []:
+            if not item.get("warehouse"):
+                item.warehouse = default_warehouse
 
     # if frappe.get_value("POS Profile", invoice_doc.pos_profile, "posa_auto_set_batch"):
     #     set_batch_nos(invoice_doc, "warehouse", throw=True)

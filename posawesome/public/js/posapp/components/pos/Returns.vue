@@ -514,6 +514,11 @@ export default {
 				max_amount: maxAmount,
 				company: vm.company,
 				page: vm.page,
+				pos_profile: vm.pos_profile?.name,
+				doctype:
+					vm.pos_profile && vm.pos_profile.create_pos_invoice_instead_of_sales_invoice
+						? "POS Invoice"
+						: "Sales Invoice",
 			};
 
 			frappe.call({
@@ -566,10 +571,43 @@ export default {
 			this.eventBus.emit("load_return_invoice", data);
 			this.invoicesDialog = false;
 		},
-		submit_dialog() {
+		async submit_dialog() {
 			if (this.selected.length > 0) {
 				console.log("Starting return with invoice flow");
-				const return_doc = this.selected[0];
+				const selectedInvoice = this.selected[0];
+				const doctype =
+					this.pos_profile && this.pos_profile.create_pos_invoice_instead_of_sales_invoice
+						? "POS Invoice"
+						: "Sales Invoice";
+
+				let return_doc = null;
+				try {
+					const res = await frappe.call({
+						method: "posawesome.posawesome.api.invoices.get_invoice_for_return",
+						args: {
+							invoice_name: selectedInvoice.name,
+							pos_profile: this.pos_profile?.name,
+							doctype,
+						},
+					});
+					return_doc = res.message;
+				} catch (error) {
+					console.error("Error loading invoice for return:", error);
+					this.eventBus.emit("show_message", {
+						title: __("Error loading invoice details"),
+						color: "error",
+					});
+					return;
+				}
+
+				if (!return_doc || !Array.isArray(return_doc.items) || return_doc.items.length === 0) {
+					this.eventBus.emit("show_message", {
+						title: __("No returnable items found for this invoice"),
+						color: "warning",
+					});
+					return;
+				}
+
 				const invoice_doc = {};
 				const items = [];
 
@@ -578,13 +616,28 @@ export default {
 				return_doc.items.forEach((item) => {
 					const new_item = { ...item };
 					// reference original invoice row for backend validation
-					new_item.sales_invoice_item = item.name;
+					if (return_doc.doctype === "POS Invoice") {
+						new_item.pos_invoice_item = item.name;
+					} else {
+						new_item.sales_invoice_item = item.name;
+					}
 					delete new_item.name;
+
+					// Preserve original pricing and discounts
+					new_item.rate = item.rate;
+					new_item.price_list_rate = item.price_list_rate;
+					new_item.discount_percentage = item.discount_percentage;
+					new_item.discount_amount = item.discount_amount;
+					new_item.is_free_item = item.is_free_item;
+					new_item.net_rate = item.net_rate;
+					new_item.net_amount = item.net_amount > 0 ? item.net_amount * -1 : item.net_amount;
+					new_item.locked_price = true;
 
 					// Make sure quantities are negative for returns
 					new_item.qty = item.qty > 0 ? item.qty * -1 : item.qty;
 					new_item.stock_qty = item.stock_qty > 0 ? item.stock_qty * -1 : item.stock_qty;
 					new_item.amount = item.amount > 0 ? item.amount * -1 : item.amount;
+					new_item.warehouse = item.warehouse || this.pos_profile?.warehouse || return_doc.warehouse || null;
 					items.push(new_item);
 				});
 
@@ -592,6 +645,29 @@ export default {
 				invoice_doc.is_return = 1;
 				invoice_doc.return_against = return_doc.name;
 				invoice_doc.customer = return_doc.customer;
+				invoice_doc.discount_amount = return_doc.discount_amount;
+				invoice_doc.additional_discount_percentage = return_doc.additional_discount_percentage;
+
+				const normalizeRefundAmount = (value) => {
+					const amount = flt(value || 0, this.currency_precision || 2);
+					return amount ? -Math.abs(amount) : 0;
+				};
+
+				invoice_doc.payments = Array.isArray(return_doc.payments)
+					? return_doc.payments.map((payment) => ({
+							mode_of_payment: payment.mode_of_payment,
+							amount: normalizeRefundAmount(payment.amount),
+							base_amount:
+								payment.base_amount !== undefined
+									? normalizeRefundAmount(payment.base_amount)
+									: payment.base_amount,
+							default: payment.default,
+							account: payment.account,
+							type: payment.type,
+							currency: payment.currency,
+							conversion_rate: payment.conversion_rate,
+						}))
+					: [];
 
 				// Make sure grand_total is negative for returns
 				if (return_doc.grand_total > 0) {
@@ -600,9 +676,16 @@ export default {
 					invoice_doc.grand_total = return_doc.grand_total;
 				}
 
+				const settled =
+					return_doc.posa_refundable_amount != null
+						? return_doc.posa_refundable_amount
+						: (return_doc.grand_total || 0) - (return_doc.outstanding_amount || 0);
+				const originalPaid = flt(settled, this.currency_precision || 2);
+				invoice_doc.posa_refundable_amount = originalPaid > 0 ? originalPaid : 0;
+
 				// These fields ensure proper return handling
 				invoice_doc.update_stock = 1;
-				invoice_doc.pos_profile = this.pos_profile.name;
+				invoice_doc.pos_profile = this.pos_profile ? this.pos_profile.name : null;
 				invoice_doc.company = this.company;
 
 				const data = { invoice_doc, return_doc };

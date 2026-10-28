@@ -681,12 +681,18 @@ def validate_return_items(original_invoice_name, return_items):
 	return {"valid": True}
 
 
+from posawesome.posawesome.api.invoice import resolve_unique_invoice_name
+
+
 @frappe.whitelist()
 def update_invoice(data):
 	data = json.loads(data)
 	if isinstance(data, dict):
 		if data.get("id") and not data.get("name"):
 			data["name"] = data.get("id")
+		if data.get("id") and data.get("name"):
+			# If a custom ID was specified, resolve unique name if it already exists as submitted/another doc
+			data["name"] = resolve_unique_invoice_name(data.get("doctype") or "Sales Invoice", data.get("name"))
 
 	if data.get("name") and frappe.db.exists("Sales Invoice", data.get("name")):
 		invoice_doc = frappe.get_doc("Sales Invoice", data.get("name"))
@@ -753,8 +759,20 @@ def update_invoice(data):
 	# Preserve payments entered on frontend
 	original_payments = [p.as_dict() for p in invoice_doc.payments] if invoice_doc.payments else []
 
+	# Default warehouse on items if missing before set_missing_values
+	default_warehouse = frappe.db.get_value("POS Profile", invoice_doc.pos_profile, "warehouse") if invoice_doc.get("pos_profile") else None
+	if default_warehouse:
+		for item in invoice_doc.items or []:
+			if not item.get("warehouse"):
+				item.warehouse = default_warehouse
+
 	# Set missing values first
 	invoice_doc.set_missing_values()
+
+	if default_warehouse:
+		for item in invoice_doc.items or []:
+			if not item.get("warehouse"):
+				item.warehouse = default_warehouse
 
 	# Restore payments if they were cleared
 	if original_payments:
@@ -867,7 +885,10 @@ def update_invoice(data):
 	invoice_doc.flags.ignore_permissions = True
 	frappe.flags.ignore_account_permission = True
 	invoice_doc.docstatus = 0
-	invoice_doc.save()
+	if invoice_doc.name and getattr(invoice_doc.flags, "name_set", False) and invoice_doc.is_new():
+		invoice_doc.insert(set_name=invoice_doc.name)
+	else:
+		invoice_doc.save()
 
 	# Return both the invoice doc and the updated data
 	response = invoice_doc.as_dict()
@@ -883,6 +904,9 @@ def submit_invoice(invoice, data):
 	if isinstance(invoice, dict):
 		if invoice.get("id") and not invoice.get("name"):
 			invoice["name"] = invoice.get("id")
+		if invoice.get("id") and invoice.get("name"):
+			doctype = invoice.get("doctype") or "Sales Invoice"
+			invoice["name"] = resolve_unique_invoice_name(doctype, invoice.get("name"))
 	invoice_name = invoice.get("name")
 	if not invoice_name or not frappe.db.exists("Sales Invoice", invoice_name):
 		created = update_invoice(json.dumps(invoice))
@@ -975,6 +999,12 @@ def submit_invoice(invoice, data):
 
 	payments = invoice_doc.payments
 
+	default_warehouse = frappe.db.get_value("POS Profile", invoice_doc.pos_profile, "warehouse") if invoice_doc.get("pos_profile") else None
+	if default_warehouse:
+		for item in invoice_doc.items or []:
+			if not item.get("warehouse"):
+				item.warehouse = default_warehouse
+
 	# if frappe.get_value("POS Profile", invoice_doc.pos_profile, "posa_auto_set_batch"):
 	#     set_batch_nos(invoice_doc, "warehouse", throw=True)
 	set_batch_nos_for_bundels(invoice_doc, "warehouse", throw=True)
@@ -982,7 +1012,10 @@ def submit_invoice(invoice, data):
 	invoice_doc.flags.ignore_permissions = True
 	frappe.flags.ignore_account_permission = True
 	invoice_doc.posa_is_printed = 1
-	invoice_doc.save()
+	if invoice_doc.name and getattr(invoice_doc.flags, "name_set", False) and invoice_doc.is_new():
+		invoice_doc.insert(set_name=invoice_doc.name)
+	else:
+		invoice_doc.save()
 
 	if data.get("due_date"):
 		frappe.db.set_value(

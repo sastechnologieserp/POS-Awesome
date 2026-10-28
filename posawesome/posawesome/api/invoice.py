@@ -19,17 +19,47 @@ from posawesome.posawesome.api.utilities import get_company_domain  # Updated im
 from posawesome.posawesome.doctype.delivery_charges.delivery_charges import (
     get_applicable_delivery_charges,
 )
+import re
 from posawesome.posawesome.doctype.pos_coupon.pos_coupon import update_coupon_code_count
 
 SUBMISSION_LEDGER_DOCTYPE = "POS Invoice Submission Ledger"
 
 
+def resolve_unique_invoice_name(doctype, base_name):
+    """
+    If base_name does not exist, returns base_name.
+    If base_name exists (e.g. inv-0001), returns inv-0001(1).
+    If inv-0001(1) exists, returns inv-0001(2), etc.
+    """
+    if not base_name:
+        return base_name
+
+    match = re.search(r"^(.*?)(?:\((\d+)\))?$", str(base_name).strip())
+    if match and match.group(1):
+        clean_prefix = match.group(1)
+        current_num = int(match.group(2)) if match.group(2) else 0
+    else:
+        clean_prefix = str(base_name).strip()
+        current_num = 0
+
+    if current_num == 0 and not frappe.db.exists(doctype, clean_prefix):
+        return clean_prefix
+
+    candidate_num = max(1, current_num)
+    while True:
+        candidate_name = f"{clean_prefix}({candidate_num})"
+        if not frappe.db.exists(doctype, candidate_name):
+            return candidate_name
+        candidate_num += 1
+
+
 def before_insert(doc, method=None):
     custom_id = doc.get("id") or (getattr(frappe, "form_dict", None) and frappe.form_dict.get("id"))
     if custom_id:
-        doc.name = custom_id
+        doc.name = resolve_unique_invoice_name(doc.doctype, custom_id)
         doc.flags.name_set = True
     elif doc.name and not str(doc.name).startswith("new-sales-invoice"):
+        doc.name = resolve_unique_invoice_name(doc.doctype, doc.name)
         doc.flags.name_set = True
 
 

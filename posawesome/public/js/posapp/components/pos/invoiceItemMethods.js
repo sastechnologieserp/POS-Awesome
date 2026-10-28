@@ -847,6 +847,7 @@ export default {
 				uom: item.uom,
 				conversion_factor: item.conversion_factor,
 				serial_no: item.serial_no,
+				warehouse: item.warehouse || this.pos_profile?.warehouse || null,
 				// Link to original Sales Invoice Item when doing returns
 				// Needed for backend validation that the item exists in
 				// the referenced Sales Invoice
