@@ -1,6 +1,6 @@
 <template>
 	<v-card
-		:class="['cards mb-0 mt-3 py-2 px-3 rounded-lg resizable', isDarkTheme ? '' : 'bg-grey-lighten-4']"
+		:class="['cards mb-0 mt-3 py-2 px-3 rounded-lg resizable invoice-summary-sticky', isDarkTheme ? '' : 'bg-grey-lighten-4']"
 		:style="(isDarkTheme ? 'background-color:#1E1E1E;' : '') + 'resize: vertical; overflow: auto;'"
 	>
 		<v-row dense>
@@ -8,7 +8,7 @@
 			<v-col cols="12" md="7">
 				<v-row dense>
 					<!-- Total Qty -->
-					<v-col cols="6">
+					<v-col cols="6" class="responsive-hide">
 						<v-text-field
 							:model-value="formatFloat(total_qty, hide_qty_decimals ? 0 : undefined)"
 							:label="frappe._('Total Qty')"
@@ -20,7 +20,7 @@
 						/>
 					</v-col>
 					<!-- Additional Discount (Amount or Percentage) -->
-					<v-col cols="6" v-if="!pos_profile.posa_use_percentage_discount">
+					<v-col cols="6" class="responsive-hide" v-if="!pos_profile.posa_use_percentage_discount">
 						<v-text-field
 							:model-value="additional_discount"
 							@update:model-value="$emit('update:additional_discount', $event)"
@@ -37,7 +37,7 @@
 						/>
 					</v-col>
 
-					<v-col cols="6" v-else>
+					<v-col cols="6" class="responsive-hide" v-else>
 						<v-text-field
 							:model-value="additional_discount_percentage"
 							@update:model-value="$emit('update:additional_discount_percentage', $event)"
@@ -57,7 +57,7 @@
 					</v-col>
 
 					<!-- Items Discount -->
-					<v-col cols="6">
+					<v-col cols="6" class="responsive-hide">
 						<v-text-field
 							:model-value="formatCurrency(total_items_discount_amount)"
 							:prefix="currencySymbol(displayCurrency)"
@@ -71,7 +71,7 @@
 					</v-col>
 
 					<!-- Total (moved to maintain row alignment) -->
-					<v-col cols="6">
+					<v-col cols="12" class="responsive-full-width responsive-hide">
 						<v-text-field
 							:model-value="formatCurrency(subtotal)"
 							:prefix="currencySymbol(displayCurrency)"
@@ -85,7 +85,7 @@
 						/>
 					</v-col>
 
-					<v-col cols="12" v-if="pos_profile.posa_display_additional_notes">
+					<v-col cols="12" class="responsive-hide" v-if="pos_profile.posa_display_additional_notes">
 						<v-textarea
 							:model-value="additional_notes"
 							@update:model-value="$emit('update:additional_notes', $event)"
@@ -118,9 +118,12 @@
 							class="summary-btn"
 						>
 							{{ __("PAY") }}
+							<span class="responsive-show-inline-only">
+								&nbsp;({{ currencySymbol(displayCurrency) }}{{ formatCurrency(subtotal) }})
+							</span>
 						</v-btn>
 					</v-col>
-					<v-col class="action-btn-col" v-if="pos_profile.posa_allow_print_draft_invoices">
+					<v-col class="action-btn-col responsive-hide" v-if="pos_profile.posa_allow_print_draft_invoices">
 						<v-btn
 							block
 							color="primary"
@@ -134,7 +137,7 @@
 							{{ __("Print Draft") }}
 						</v-btn>
 					</v-col>
-					<v-col class="action-btn-col" v-if="pos_profile.posa_allow_return == 1">
+					<v-col class="action-btn-col responsive-hide" v-if="pos_profile.posa_allow_return == 1">
 						<v-btn
 							block
 							color="secondary"
@@ -147,7 +150,7 @@
 							{{ __("Sales Return") }}
 						</v-btn>
 					</v-col>
-					<v-col class="action-btn-col">
+					<v-col class="action-btn-col responsive-hide">
 						<v-btn
 							block
 							color="error"
@@ -160,7 +163,7 @@
 							{{ __("Cancel Sale") }}
 						</v-btn>
 					</v-col>
-					<v-col class="action-btn-col" v-if="pos_profile.posa_allow_select_sales_order == 1">
+					<v-col class="action-btn-col responsive-hide" v-if="pos_profile.posa_allow_select_sales_order == 1">
 						<v-btn
 							block
 							color="info"
@@ -174,7 +177,7 @@
 							{{ __("Select S.O") }}
 						</v-btn>
 					</v-col>
-					<v-col class="action-btn-col">
+					<v-col class="action-btn-col responsive-hide">
 						<v-btn
 							block
 							color="warning"
@@ -188,7 +191,7 @@
 							{{ __("Release") }}
 						</v-btn>
 					</v-col>
-					<v-col class="action-btn-col">
+					<v-col class="action-btn-col responsive-hide">
 						<v-btn
 							block
 							color="accent"
