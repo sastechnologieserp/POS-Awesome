@@ -1304,6 +1304,7 @@ def _get_mutable_invoice_doc(data, doctype, pos_profile, company):
         doc = frappe.get_doc(_build_fresh_invoice_payload(data, doctype))
         doc.name = invoice_name
         doc.flags.name_set = True
+        doc.set("__islocal", 1)
         return doc
 
     invoice_doc = _get_scoped_invoice_doc(
@@ -1359,14 +1360,16 @@ def _save_draft_with_latest_timestamp(invoice_doc, retries=2):
 
     while True:
         _enforce_return_pricing_invariant(invoice_doc)
-        if invoice_doc.name and not invoice_doc.is_new():
+        doc_exists = bool(invoice_doc.name and frappe.db.exists(invoice_doc.doctype, invoice_doc.name))
+        if doc_exists:
             latest_modified = frappe.db.get_value(invoice_doc.doctype, invoice_doc.name, "modified")
             if latest_modified:
                 invoice_doc.modified = latest_modified
 
         try:
-            if invoice_doc.name and getattr(invoice_doc.flags, "name_set", False) and invoice_doc.is_new():
-                invoice_doc.insert(set_name=invoice_doc.name)
+            if not doc_exists:
+                target_name = invoice_doc.name if getattr(invoice_doc.flags, "name_set", False) else None
+                invoice_doc.insert(set_name=target_name)
             else:
                 invoice_doc.save()
             return invoice_doc
@@ -1585,7 +1588,7 @@ def update_invoice(data):
     if isinstance(data, dict):
         if data.get("id") and not data.get("name"):
             data["name"] = data.get("id")
-        if data.get("id") and data.get("name"):
+        if data.get("name") and not str(data.get("name")).startswith("new-sales-invoice"):
             from posawesome.posawesome.api.invoice import resolve_unique_invoice_name
             target_doctype = data.get("doctype") or "Sales Invoice"
             data["name"] = resolve_unique_invoice_name(target_doctype, data.get("name"))
@@ -1886,7 +1889,7 @@ def _submit_invoice_once(invoice, data, submit_in_background=False):
     if isinstance(invoice, dict):
         if invoice.get("id") and not invoice.get("name"):
             invoice["name"] = invoice.get("id")
-        if invoice.get("id") and invoice.get("name"):
+        if invoice.get("name") and not str(invoice.get("name")).startswith("new-sales-invoice"):
             from posawesome.posawesome.api.invoice import resolve_unique_invoice_name
             target_dt = invoice.get("doctype") or "Sales Invoice"
             invoice["name"] = resolve_unique_invoice_name(target_dt, invoice.get("name"))

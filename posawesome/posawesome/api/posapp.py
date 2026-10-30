@@ -690,8 +690,8 @@ def update_invoice(data):
 	if isinstance(data, dict):
 		if data.get("id") and not data.get("name"):
 			data["name"] = data.get("id")
-		if data.get("id") and data.get("name"):
-			# If a custom ID was specified, resolve unique name if it already exists as submitted/another doc
+		if data.get("name") and not str(data.get("name")).startswith("new-sales-invoice"):
+			# Resolve unique name if it already exists as submitted/another doc
 			data["name"] = resolve_unique_invoice_name(data.get("doctype") or "Sales Invoice", data.get("name"))
 
 	if data.get("name") and frappe.db.exists("Sales Invoice", data.get("name")):
@@ -745,6 +745,7 @@ def update_invoice(data):
 		if isinstance(data, dict) and data.get("name"):
 			invoice_doc.name = data.get("name")
 			invoice_doc.flags.name_set = True
+			invoice_doc.set("__islocal", 1)
 
 	# Set currency from data before set_missing_values
 	# Validate return items if this is a return invoice
@@ -885,8 +886,10 @@ def update_invoice(data):
 	invoice_doc.flags.ignore_permissions = True
 	frappe.flags.ignore_account_permission = True
 	invoice_doc.docstatus = 0
-	if invoice_doc.name and getattr(invoice_doc.flags, "name_set", False) and invoice_doc.is_new():
-		invoice_doc.insert(set_name=invoice_doc.name)
+	doc_exists = bool(invoice_doc.name and frappe.db.exists(invoice_doc.doctype, invoice_doc.name))
+	if not doc_exists:
+		target_name = invoice_doc.name if getattr(invoice_doc.flags, "name_set", False) else None
+		invoice_doc.insert(set_name=target_name)
 	else:
 		invoice_doc.save()
 
@@ -904,7 +907,7 @@ def submit_invoice(invoice, data):
 	if isinstance(invoice, dict):
 		if invoice.get("id") and not invoice.get("name"):
 			invoice["name"] = invoice.get("id")
-		if invoice.get("id") and invoice.get("name"):
+		if invoice.get("name") and not str(invoice.get("name")).startswith("new-sales-invoice"):
 			doctype = invoice.get("doctype") or "Sales Invoice"
 			invoice["name"] = resolve_unique_invoice_name(doctype, invoice.get("name"))
 	invoice_name = invoice.get("name")
@@ -1012,8 +1015,10 @@ def submit_invoice(invoice, data):
 	invoice_doc.flags.ignore_permissions = True
 	frappe.flags.ignore_account_permission = True
 	invoice_doc.posa_is_printed = 1
-	if invoice_doc.name and getattr(invoice_doc.flags, "name_set", False) and invoice_doc.is_new():
-		invoice_doc.insert(set_name=invoice_doc.name)
+	doc_exists = bool(invoice_doc.name and frappe.db.exists(invoice_doc.doctype, invoice_doc.name))
+	if not doc_exists:
+		target_name = invoice_doc.name if getattr(invoice_doc.flags, "name_set", False) else None
+		invoice_doc.insert(set_name=target_name)
 	else:
 		invoice_doc.save()
 
